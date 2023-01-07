@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		CA13685E2969BD1700C98F64 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA13685D2969BD1700C98F64 /* main.swift */; };
 		CA1368662969BD7F00C98F64 /* AXSwift in Frameworks */ = {isa = PBXBuildFile; productRef = CA1368652969BD7F00C98F64 /* AXSwift */; };
+		CA1368692969C99A00C98F64 /* MessagePack in Frameworks */ = {isa = PBXBuildFile; productRef = CA1368682969C99A00C98F64 /* MessagePack */; };
+		CA13686B2969D36100C98F64 /* MessagePackRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA13686A2969D36100C98F64 /* MessagePackRPC.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -26,6 +28,7 @@
 /* Begin PBXFileReference section */
 		CA13685A2969BD1700C98F64 /* PhantomVim */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = PhantomVim; sourceTree = BUILT_PRODUCTS_DIR; };
 		CA13685D2969BD1700C98F64 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		CA13686A2969D36100C98F64 /* MessagePackRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagePackRPC.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -34,6 +37,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CA1368662969BD7F00C98F64 /* AXSwift in Frameworks */,
+				CA1368692969C99A00C98F64 /* MessagePack in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -60,6 +64,7 @@
 			isa = PBXGroup;
 			children = (
 				CA13685D2969BD1700C98F64 /* main.swift */,
+				CA13686A2969D36100C98F64 /* MessagePackRPC.swift */,
 			);
 			path = PhantomVim;
 			sourceTree = "<group>";
@@ -82,6 +87,7 @@
 			name = PhantomVim;
 			packageProductDependencies = (
 				CA1368652969BD7F00C98F64 /* AXSwift */,
+				CA1368682969C99A00C98F64 /* MessagePack */,
 			);
 			productName = PhantomVim;
 			productReference = CA13685A2969BD1700C98F64 /* PhantomVim */;
@@ -113,6 +119,7 @@
 			mainGroup = CA1368512969BD1700C98F64;
 			packageReferences = (
 				CA1368642969BD7E00C98F64 /* XCRemoteSwiftPackageReference "AXSwift" */,
+				CA1368672969C99A00C98F64 /* XCRemoteSwiftPackageReference "MessagePack.swift" */,
 			);
 			productRefGroup = CA13685B2969BD1700C98F64 /* Products */;
 			projectDirPath = "";
@@ -128,6 +135,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CA13686B2969D36100C98F64 /* MessagePackRPC.swift in Sources */,
 				CA13685E2969BD1700C98F64 /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -302,6 +310,14 @@
 				minimumVersion = 0.3.2;
 			};
 		};
+		CA1368672969C99A00C98F64 /* XCRemoteSwiftPackageReference "MessagePack.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "git@github.com:a2/MessagePack.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -309,6 +325,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CA1368642969BD7E00C98F64 /* XCRemoteSwiftPackageReference "AXSwift" */;
 			productName = AXSwift;
+		};
+		CA1368682969C99A00C98F64 /* MessagePack */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CA1368672969C99A00C98F64 /* XCRemoteSwiftPackageReference "MessagePack.swift" */;
+			productName = MessagePack;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
