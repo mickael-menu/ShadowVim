@@ -10,7 +10,7 @@ import SwiftUI
 @main
 struct PhantomVimApp: App {
 
-    private let eventTap = try! EventTap()
+//    private let eventTap = try! EventTap()
     
     init() {
         try! nvim()

@@ -29,8 +29,11 @@ enum RPCType: UInt64 {
 }
 
 final class RPCSession {
+    typealias OnNotificationHandler = (_ method: String, _ params: [MessagePackValue]) -> Void
+    
     let input: FileHandle
     let output: FileHandle
+    private let onNotification: OnNotificationHandler
     
     actor Requests {
         private var lastRequestId: UInt64 = 0
@@ -51,23 +54,30 @@ final class RPCSession {
     }
     
     private let requests = Requests()
-
     
-    init(input: FileHandle, output: FileHandle) {
+    init(
+        input: FileHandle,
+        output: FileHandle,
+        onNotification: @escaping OnNotificationHandler
+    ) {
         self.input = input
         self.output = output
+        self.onNotification = onNotification
     }
     
     func run() async throws {
-        while true {
-            let data = output.availableData
+        var data = output.availableData
+        while data.count > 0 {
+            try Task.checkCancellation()
             for message in try MessagePack.unpackAll(data) {
                 try await receive(message: message)
             }
+            data = output.availableData
         }
     }
     
-    func send(method: String, params: MessagePackValue...) async throws -> MessagePackValue {
+    @discardableResult
+    func send(method: String, params: [MessagePackValue]) async throws -> MessagePackValue {
         try await withCheckedThrowingContinuation { continuation in
             Task {
                 let id = await requests.start(for: continuation)
@@ -123,17 +133,30 @@ final class RPCSession {
             }()
             
             try await requests.end(id: id, with: result)
-            print("<\(id) \(body[2]) | \(body[3])\n")
+            //print("<\(id) \(body[2]) | \(body[3])\n")
             
         case .notification:
             guard
                 body.count == 3,
                 case let .string(method) = body[1],
-                case let .array(params) = body[2]
+                case var .array(params) = body[2]
             else {
                 throw RPCError.unexpectedMessage(message)
             }
-            print("@\(method): \(params)\n")
+            //print("@\(method): \(params)\n")
+            params = params.map { value in
+                if case .extended(_, let data) = value {
+                    do {
+                        return try MessagePack.unpackFirst(data)
+                    } catch {
+                        print(error) // FIXME: proper error reporting
+                        return value
+                    }
+                } else {
+                    return value
+                }
+            }
+            onNotification(method, params)
         }
     }
 }
