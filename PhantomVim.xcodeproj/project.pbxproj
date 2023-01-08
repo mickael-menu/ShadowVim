@@ -7,78 +7,80 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		CA13685E2969BD1700C98F64 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA13685D2969BD1700C98F64 /* main.swift */; };
-		CA1368662969BD7F00C98F64 /* AXSwift in Frameworks */ = {isa = PBXBuildFile; productRef = CA1368652969BD7F00C98F64 /* AXSwift */; };
-		CA1368692969C99A00C98F64 /* MessagePack in Frameworks */ = {isa = PBXBuildFile; productRef = CA1368682969C99A00C98F64 /* MessagePack */; };
-		CA13686B2969D36100C98F64 /* MessagePackRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA13686A2969D36100C98F64 /* MessagePackRPC.swift */; };
+		CA4B60E2296AD978008CDC06 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CA4B60E1296AD978008CDC06 /* Assets.xcassets */; };
+		CA4B60F0296ADB66008CDC06 /* MessagePackRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA4B60ED296ADB66008CDC06 /* MessagePackRPC.swift */; };
+		CA4B60F1296ADB66008CDC06 /* PhantomVimApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA4B60EE296ADB66008CDC06 /* PhantomVimApp.swift */; };
+		CA4B60F2296ADB66008CDC06 /* NeoVim.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA4B60EF296ADB66008CDC06 /* NeoVim.swift */; };
+		CA4B60F5296ADBE0008CDC06 /* MessagePack in Frameworks */ = {isa = PBXBuildFile; productRef = CA4B60F4296ADBE0008CDC06 /* MessagePack */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXCopyFilesBuildPhase section */
-		CA1368582969BD1700C98F64 /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = /usr/share/man/man1/;
-			dstSubfolderSpec = 0;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 1;
-		};
-/* End PBXCopyFilesBuildPhase section */
-
 /* Begin PBXFileReference section */
-		CA13685A2969BD1700C98F64 /* PhantomVim */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = PhantomVim; sourceTree = BUILT_PRODUCTS_DIR; };
-		CA13685D2969BD1700C98F64 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
-		CA13686A2969D36100C98F64 /* MessagePackRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagePackRPC.swift; sourceTree = "<group>"; };
+		CA4B60DA296AD978008CDC06 /* PhantomVim.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhantomVim.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CA4B60E1296AD978008CDC06 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CA4B60E6296AD978008CDC06 /* PhantomVim.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PhantomVim.entitlements; sourceTree = "<group>"; };
+		CA4B60ED296ADB66008CDC06 /* MessagePackRPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MessagePackRPC.swift; sourceTree = "<group>"; };
+		CA4B60EE296ADB66008CDC06 /* PhantomVimApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PhantomVimApp.swift; sourceTree = "<group>"; };
+		CA4B60EF296ADB66008CDC06 /* NeoVim.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NeoVim.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		CA1368572969BD1700C98F64 /* Frameworks */ = {
+		CA4B60D7296AD978008CDC06 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CA1368662969BD7F00C98F64 /* AXSwift in Frameworks */,
-				CA1368692969C99A00C98F64 /* MessagePack in Frameworks */,
+				CA4B60F5296ADBE0008CDC06 /* MessagePack in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		CA1368512969BD1700C98F64 = {
+		CA4B60D1296AD978008CDC06 = {
 			isa = PBXGroup;
 			children = (
-				CA13685C2969BD1700C98F64 /* PhantomVim */,
-				CA13685B2969BD1700C98F64 /* Products */,
+				CA4B60DC296AD978008CDC06 /* PhantomVim */,
+				CA4B60DB296AD978008CDC06 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		CA13685B2969BD1700C98F64 /* Products */ = {
+		CA4B60DB296AD978008CDC06 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				CA13685A2969BD1700C98F64 /* PhantomVim */,
+				CA4B60DA296AD978008CDC06 /* PhantomVim.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		CA13685C2969BD1700C98F64 /* PhantomVim */ = {
+		CA4B60DC296AD978008CDC06 /* PhantomVim */ = {
 			isa = PBXGroup;
 			children = (
-				CA13685D2969BD1700C98F64 /* main.swift */,
-				CA13686A2969D36100C98F64 /* MessagePackRPC.swift */,
+				CA4B60EC296ADB66008CDC06 /* Sources */,
+				CA4B60E1296AD978008CDC06 /* Assets.xcassets */,
+				CA4B60E6296AD978008CDC06 /* PhantomVim.entitlements */,
 			);
 			path = PhantomVim;
+			sourceTree = "<group>";
+		};
+		CA4B60EC296ADB66008CDC06 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				CA4B60ED296ADB66008CDC06 /* MessagePackRPC.swift */,
+				CA4B60EE296ADB66008CDC06 /* PhantomVimApp.swift */,
+				CA4B60EF296ADB66008CDC06 /* NeoVim.swift */,
+			);
+			path = Sources;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		CA1368592969BD1700C98F64 /* PhantomVim */ = {
+		CA4B60D9296AD978008CDC06 /* PhantomVim */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = CA1368612969BD1700C98F64 /* Build configuration list for PBXNativeTarget "PhantomVim" */;
+			buildConfigurationList = CA4B60E9296AD978008CDC06 /* Build configuration list for PBXNativeTarget "PhantomVim" */;
 			buildPhases = (
-				CA1368562969BD1700C98F64 /* Sources */,
-				CA1368572969BD1700C98F64 /* Frameworks */,
-				CA1368582969BD1700C98F64 /* CopyFiles */,
+				CA4B60D6296AD978008CDC06 /* Sources */,
+				CA4B60D7296AD978008CDC06 /* Frameworks */,
+				CA4B60D8296AD978008CDC06 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -86,29 +88,28 @@
 			);
 			name = PhantomVim;
 			packageProductDependencies = (
-				CA1368652969BD7F00C98F64 /* AXSwift */,
-				CA1368682969C99A00C98F64 /* MessagePack */,
+				CA4B60F4296ADBE0008CDC06 /* MessagePack */,
 			);
 			productName = PhantomVim;
-			productReference = CA13685A2969BD1700C98F64 /* PhantomVim */;
-			productType = "com.apple.product-type.tool";
+			productReference = CA4B60DA296AD978008CDC06 /* PhantomVim.app */;
+			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		CA1368522969BD1700C98F64 /* Project object */ = {
+		CA4B60D2296AD978008CDC06 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1420;
 				LastUpgradeCheck = 1420;
 				TargetAttributes = {
-					CA1368592969BD1700C98F64 = {
+					CA4B60D9296AD978008CDC06 = {
 						CreatedOnToolsVersion = 14.2;
 					};
 				};
 			};
-			buildConfigurationList = CA1368552969BD1700C98F64 /* Build configuration list for PBXProject "PhantomVim" */;
+			buildConfigurationList = CA4B60D5296AD978008CDC06 /* Build configuration list for PBXProject "PhantomVim" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -116,34 +117,45 @@
 				en,
 				Base,
 			);
-			mainGroup = CA1368512969BD1700C98F64;
+			mainGroup = CA4B60D1296AD978008CDC06;
 			packageReferences = (
-				CA1368642969BD7E00C98F64 /* XCRemoteSwiftPackageReference "AXSwift" */,
-				CA1368672969C99A00C98F64 /* XCRemoteSwiftPackageReference "MessagePack.swift" */,
+				CA4B60F3296ADBE0008CDC06 /* XCRemoteSwiftPackageReference "MessagePack.swift" */,
 			);
-			productRefGroup = CA13685B2969BD1700C98F64 /* Products */;
+			productRefGroup = CA4B60DB296AD978008CDC06 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				CA1368592969BD1700C98F64 /* PhantomVim */,
+				CA4B60D9296AD978008CDC06 /* PhantomVim */,
 			);
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		CA4B60D8296AD978008CDC06 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CA4B60E2296AD978008CDC06 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
-		CA1368562969BD1700C98F64 /* Sources */ = {
+		CA4B60D6296AD978008CDC06 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CA13686B2969D36100C98F64 /* MessagePackRPC.swift in Sources */,
-				CA13685E2969BD1700C98F64 /* main.swift in Sources */,
+				CA4B60F1296ADB66008CDC06 /* PhantomVimApp.swift in Sources */,
+				CA4B60F0296ADB66008CDC06 /* MessagePackRPC.swift in Sources */,
+				CA4B60F2296ADB66008CDC06 /* NeoVim.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		CA13685F2969BD1700C98F64 /* Debug */ = {
+		CA4B60E7296AD978008CDC06 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -203,7 +215,7 @@
 			};
 			name = Debug;
 		};
-		CA1368602969BD1700C98F64 /* Release */ = {
+		CA4B60E8296AD978008CDC06 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -256,24 +268,54 @@
 			};
 			name = Release;
 		};
-		CA1368622969BD1700C98F64 /* Debug */ = {
+		CA4B60EA296AD978008CDC06 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = PhantomVim/PhantomVim.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = ZUL587S6B4;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = menu.mickael.PhantomVim;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
-		CA1368632969BD1700C98F64 /* Release */ = {
+		CA4B60EB296AD978008CDC06 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = PhantomVim/PhantomVim.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = ZUL587S6B4;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = menu.mickael.PhantomVim;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -281,20 +323,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		CA1368552969BD1700C98F64 /* Build configuration list for PBXProject "PhantomVim" */ = {
+		CA4B60D5296AD978008CDC06 /* Build configuration list for PBXProject "PhantomVim" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				CA13685F2969BD1700C98F64 /* Debug */,
-				CA1368602969BD1700C98F64 /* Release */,
+				CA4B60E7296AD978008CDC06 /* Debug */,
+				CA4B60E8296AD978008CDC06 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		CA1368612969BD1700C98F64 /* Build configuration list for PBXNativeTarget "PhantomVim" */ = {
+		CA4B60E9296AD978008CDC06 /* Build configuration list for PBXNativeTarget "PhantomVim" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				CA1368622969BD1700C98F64 /* Debug */,
-				CA1368632969BD1700C98F64 /* Release */,
+				CA4B60EA296AD978008CDC06 /* Debug */,
+				CA4B60EB296AD978008CDC06 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -302,17 +344,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		CA1368642969BD7E00C98F64 /* XCRemoteSwiftPackageReference "AXSwift" */ = {
+		CA4B60F3296ADBE0008CDC06 /* XCRemoteSwiftPackageReference "MessagePack.swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/tmandry/AXSwift";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.3.2;
-			};
-		};
-		CA1368672969C99A00C98F64 /* XCRemoteSwiftPackageReference "MessagePack.swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "git@github.com:a2/MessagePack.swift.git";
+			repositoryURL = "https://github.com/a2/MessagePack.swift.git";
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 4.0.0;
@@ -321,17 +355,12 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		CA1368652969BD7F00C98F64 /* AXSwift */ = {
+		CA4B60F4296ADBE0008CDC06 /* MessagePack */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = CA1368642969BD7E00C98F64 /* XCRemoteSwiftPackageReference "AXSwift" */;
-			productName = AXSwift;
-		};
-		CA1368682969C99A00C98F64 /* MessagePack */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CA1368672969C99A00C98F64 /* XCRemoteSwiftPackageReference "MessagePack.swift" */;
+			package = CA4B60F3296ADBE0008CDC06 /* XCRemoteSwiftPackageReference "MessagePack.swift" */;
 			productName = MessagePack;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = CA1368522969BD1700C98F64 /* Project object */;
+	rootObject = CA4B60D2296AD978008CDC06 /* Project object */;
 }
