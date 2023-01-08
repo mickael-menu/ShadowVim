@@ -12,6 +12,7 @@
 		CA4B60F1296ADB66008CDC06 /* PhantomVimApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA4B60EE296ADB66008CDC06 /* PhantomVimApp.swift */; };
 		CA4B60F2296ADB66008CDC06 /* NeoVim.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA4B60EF296ADB66008CDC06 /* NeoVim.swift */; };
 		CA4B60F5296ADBE0008CDC06 /* MessagePack in Frameworks */ = {isa = PBXBuildFile; productRef = CA4B60F4296ADBE0008CDC06 /* MessagePack */; };
+		CA4B60F7296AEC31008CDC06 /* EventTap.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA4B60F6296AEC31008CDC06 /* EventTap.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,6 +22,7 @@
 		CA4B60ED296ADB66008CDC06 /* MessagePackRPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MessagePackRPC.swift; sourceTree = "<group>"; };
 		CA4B60EE296ADB66008CDC06 /* PhantomVimApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PhantomVimApp.swift; sourceTree = "<group>"; };
 		CA4B60EF296ADB66008CDC06 /* NeoVim.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NeoVim.swift; sourceTree = "<group>"; };
+		CA4B60F6296AEC31008CDC06 /* EventTap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventTap.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +69,7 @@
 				CA4B60ED296ADB66008CDC06 /* MessagePackRPC.swift */,
 				CA4B60EE296ADB66008CDC06 /* PhantomVimApp.swift */,
 				CA4B60EF296ADB66008CDC06 /* NeoVim.swift */,
+				CA4B60F6296AEC31008CDC06 /* EventTap.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -146,6 +149,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CA4B60F7296AEC31008CDC06 /* EventTap.swift in Sources */,
 				CA4B60F1296ADB66008CDC06 /* PhantomVimApp.swift in Sources */,
 				CA4B60F0296ADB66008CDC06 /* MessagePackRPC.swift in Sources */,
 				CA4B60F2296ADB66008CDC06 /* NeoVim.swift in Sources */,
