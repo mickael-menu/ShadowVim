@@ -78,7 +78,6 @@ struct LinesEvent {
             case let .array(lineData) = params[4],
             case let .bool(more) = params[5]
         else {
-            print("not good \(params)")
             return nil
         }
                 
@@ -88,7 +87,6 @@ struct LinesEvent {
         case let .uint(changedTick):
             self.changedTick = changedTick
         default:
-            print("not bof")
             return nil
         }
                 
@@ -162,7 +160,7 @@ actor NeoVim {
         }
     }
 
-    func start(executableURL: URL) throws {
+    func start(executableURL: URL = URL(fileURLWithPath: "/opt/homebrew/bin/nvim")) throws {
         switch state {
         case .stopped, .failure:
             let input = Pipe()
@@ -234,6 +232,26 @@ actor NeoVim {
         
         return subscription
     }
+    
+//    try await nvim.command("autocmd CursorMoved * call rpcnotify(0, 'moved')")
+//    try await nvim.command("autocmd ModeChanged * call rpcnotify(0, 'mode', mode())")
+//    try await nvim.command("autocmd CmdlineChanged * call rpcnotify(0, 'cmdline', getcmdline())")
+    func createAutocmd(on events: String..., args: String..., handler: @escaping ([MessagePackValue]) -> Void) async throws -> NotificationSubscription {
+        let id = "autocmd-\(UUID().uuidString)"
+        var argsList = ""
+        if !args.isEmpty {
+            argsList = ", " + args.joined(separator: ", ")
+        }
+                
+        try await subscribe(event: id)
+        try await nvim.request("nvim_create_autocmd",
+            with:
+                .array(events.map { .string($0) }),
+                               .map([.string("command"): .string("call rpcnotify(0, '\(id)'\(argsList))")])
+        )
+               
+        return try on(id, handler: handler)
+    }
 
     func stop() throws {
         let state = try requireStarted()
@@ -242,6 +260,11 @@ actor NeoVim {
         self.state = .stopped
     }
     
+    @discardableResult
+    func command(_ command: String) async throws -> MessagePackValue {
+        try await request("nvim_command", with: .string(command))
+    }
+
     /// - Parameter handle: Handle of the buffer, or 0 for the current buffer.
     func buffer(_ handle: BufferHandle = 0) async throws -> Buffer {
         var handle = handle
@@ -262,7 +285,15 @@ actor NeoVim {
         try await request("nvim_input", with: .string(keys))
             .uint64Value ?? 0
     }
-        
+    
+    func subscribe(event: String) async throws {
+        try await request("nvim_subscribe", with: .string(event))
+    }
+    
+    func unsubscribe(event: String) async throws {
+        try await request("nvim_unsubscribe", with: .string(event))
+    }
+
     @discardableResult
     func request(_ method: String, with params: MessagePackValue...) async throws -> MessagePackValue {
         do {
@@ -334,33 +365,33 @@ class Buffer {
     }
 }
 
-var buffer: Buffer!
-
-func nvim(url: URL = URL(fileURLWithPath: "/opt/homebrew/bin/nvim")) throws {
-    Task {
-        let nvim = NeoVim()
-        do {
-            try await nvim.start(executableURL: url)
-            try await nvim.input("ihello")
-            buffer = try await nvim.buffer()
-            try await buffer.attach(
-                sendBuffer: true,
-                onLines: { print("\($0)") }
-            )
-            try await nvim.input(" world")
-            try await nvim.input("<ESC>bx")
-                
-            try await Task.sleep(for: .seconds(1))
-            async let a = try await nvim.input("<ESC>x")
-            async let b = try await nvim.input("it")
-            let _ = try await [a, b]
-            try await Task.sleep(for: .seconds(1))
-            print(try await nvim.input("<ESC>x"))
-            try await Task.sleep(for: .seconds(1))
-            print(try await nvim.input("<ESC>x"))
-                       
-        } catch {
-            print(error)
-        }
-    }
-}
+//var buffer: Buffer!
+//
+//func nvim(url: URL = URL(fileURLWithPath: "/opt/homebrew/bin/nvim")) throws {
+//    Task {
+//        let nvim = NeoVim()
+//        do {
+//            try await nvim.start(executableURL: url)
+//            try await nvim.input("ihello")
+//            buffer = try await nvim.buffer()
+//            try await buffer.attach(
+//                sendBuffer: true,
+//                onLines: { print("\($0)") }
+//            )
+//            try await nvim.input(" world")
+//            try await nvim.input("<ESC>bx")
+//
+//            try await Task.sleep(for: .seconds(1))
+//            async let a = try await nvim.input("<ESC>x")
+//            async let b = try await nvim.input("it")
+//            let _ = try await [a, b]
+//            try await Task.sleep(for: .seconds(1))
+//            print(try await nvim.input("<ESC>x"))
+//            try await Task.sleep(for: .seconds(1))
+//            print(try await nvim.input("<ESC>x"))
+//
+//        } catch {
+//            print(error)
+//        }
+//    }
+//}

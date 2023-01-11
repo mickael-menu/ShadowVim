@@ -18,8 +18,16 @@ enum EventTapError: Error {
 ///  - https://stackoverflow.com/a/31898592/1474476
 class EventTap {
     private var tap: CFMachPort!
+    
+    typealias Handler = (_ type: CGEventType, _ event: CGEvent) -> CGEvent?
+    
+    private let handler: Handler
 
-    init() throws {
+    init(handler: @escaping Handler) {
+        self.handler = handler
+    }
+    
+    func run() throws {
         tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .headInsertEventTap,
@@ -36,7 +44,7 @@ class EventTap {
         guard tap != nil else {
             throw EventTapError.failedToCreateTap
         }
-        
+       
         let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
@@ -47,15 +55,9 @@ class EventTap {
         switch type {
         case .tapDisabledByTimeout:
             CGEvent.tapEnable(tap: tap, enable: true)
-            
-        case .keyUp, .keyDown:
-            var char = UniChar()
-            var length = 0
-            event.keyboardGetUnicodeString(maxStringLength: 1, actualStringLength: &length, unicodeString: &char)
-            print("keyDown \(char)")
+            return event
         default:
-            break
+            return self.handler(type, event)
         }
-        return event
     }
 }

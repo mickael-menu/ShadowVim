@@ -84,7 +84,7 @@ final class RPCSession {
                 
                 let request = MessagePackValue([.uint(0), .uint(id), .string(method), .array(params)])
                 let data = MessagePack.pack(request)
-                print(">\(method)(\(params))\n")
+//                print(">\(method)(\(params))\n")
                 do {
                     try input.write(contentsOf: data)
                 } catch {
@@ -143,7 +143,7 @@ final class RPCSession {
             else {
                 throw RPCError.unexpectedMessage(message)
             }
-            //print("@\(method): \(params)\n")
+//            print("@\(method): \(params)\n")
             params = params.map { value in
                 if case .extended(_, let data) = value {
                     do {
