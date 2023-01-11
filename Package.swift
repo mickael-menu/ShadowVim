@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "PhantomVim",
     platforms: [
-        .macOS(.v11)
+        .macOS(.v11),
     ],
     products: [
         .library(name: "Nvim", targets: ["Nvim"]),
@@ -18,8 +18,8 @@ let package = Package(
         .target(
             name: "Nvim",
             dependencies: [
-                .product(name: "MessagePack", package: "MessagePack.swift")
+                .product(name: "MessagePack", package: "MessagePack.swift"),
             ]
-        )
+        ),
     ]
 )

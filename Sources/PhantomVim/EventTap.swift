@@ -1,12 +1,27 @@
 //
-//  Event.swift
-//  PhantomVim
+//  Copyright © 2023 Mickaël Menu
 //
-//  Created by Mickaël Menu on 08/01/2023.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+//  Copyright 2022 Readium Foundation. All rights reserved.
+//  Use of this source code is governed by the BSD-style license
+//  available in the top-level LICENSE file of the project.
+//
 //
 
-import Foundation
 import CoreGraphics
+import Foundation
 
 enum EventTapError: Error {
     case failedToCreateTap
@@ -18,15 +33,15 @@ enum EventTapError: Error {
 ///  - https://stackoverflow.com/a/31898592/1474476
 class EventTap {
     private var tap: CFMachPort!
-    
+
     typealias Handler = (_ type: CGEventType, _ event: CGEvent) -> CGEvent?
-    
+
     private let handler: Handler
 
     init(handler: @escaping Handler) {
         self.handler = handler
     }
-    
+
     func run() throws {
         tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
@@ -34,7 +49,7 @@ class EventTap {
             options: .defaultTap,
             eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
             callback: { proxy, type, event, refcon in
-                return Unmanaged<EventTap>.fromOpaque(refcon!)
+                Unmanaged<EventTap>.fromOpaque(refcon!)
                     .takeUnretainedValue()
                     .handle(proxy: proxy, type: type, event: event)
                     .map { Unmanaged.passUnretained($0) }
@@ -44,20 +59,20 @@ class EventTap {
         guard tap != nil else {
             throw EventTapError.failedToCreateTap
         }
-       
+
         let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         CFRunLoopRun()
     }
-    
+
     private func handle(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> CGEvent? {
         switch type {
         case .tapDisabledByTimeout:
             CGEvent.tapEnable(tap: tap, enable: true)
             return event
         default:
-            return self.handler(type, event)
+            return handler(type, event)
         }
     }
 }

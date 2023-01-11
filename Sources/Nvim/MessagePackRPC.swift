@@ -1,8 +1,23 @@
 //
-//  MessagePackRPC.swift
-//  PhantomVim
+//  Copyright © 2023 Mickaël Menu
 //
-//  Created by Mickaël Menu on 07/01/2023.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+//  Copyright 2022 Readium Foundation. All rights reserved.
+//  Use of this source code is governed by the BSD-style license
+//  available in the top-level LICENSE file of the project.
+//
 //
 
 import Foundation
@@ -30,21 +45,21 @@ enum RPCType: UInt64 {
 
 final class RPCSession {
     typealias OnNotificationHandler = (_ method: String, _ params: [MessagePackValue]) -> Void
-    
+
     let input: FileHandle
     let output: FileHandle
     private let onNotification: OnNotificationHandler
-    
+
     actor Requests {
         private var lastRequestId: UInt64 = 0
         private var requests: [UInt64: CheckedContinuation<MessagePackValue, Error>] = [:]
-        
+
         func start(for continuation: CheckedContinuation<MessagePackValue, Error>) -> UInt64 {
             lastRequestId += 1
             requests[lastRequestId] = continuation
             return lastRequestId
         }
-                
+
         func end(id: UInt64, with result: Result<MessagePackValue, Error>) throws {
             guard let continuation = requests.removeValue(forKey: id) else {
                 throw RPCError.unknownRequestId(id)
@@ -52,9 +67,9 @@ final class RPCSession {
             continuation.resume(with: result)
         }
     }
-    
+
     private let requests = Requests()
-    
+
     init(
         input: FileHandle,
         output: FileHandle,
@@ -64,7 +79,7 @@ final class RPCSession {
         self.output = output
         self.onNotification = onNotification
     }
-    
+
     func run() async throws {
         var data = output.availableData
         while data.count > 0 {
@@ -75,13 +90,13 @@ final class RPCSession {
             data = output.availableData
         }
     }
-    
+
     @discardableResult
     func send(method: String, params: [MessagePackValue]) async throws -> MessagePackValue {
         try await withCheckedThrowingContinuation { continuation in
             Task {
                 let id = await requests.start(for: continuation)
-                
+
                 let request = MessagePackValue([.uint(0), .uint(id), .string(method), .array(params)])
                 let data = MessagePack.pack(request)
 //                print(">\(method)(\(params))\n")
@@ -93,7 +108,7 @@ final class RPCSession {
             }
         }
     }
-        
+
     private func receive(message: MessagePackValue) async throws {
         guard
             case let .array(body) = message,
@@ -102,7 +117,7 @@ final class RPCSession {
         else {
             throw RPCError.unexpectedMessage(message)
         }
-            
+
         switch type {
         case .request:
             guard
@@ -114,7 +129,7 @@ final class RPCSession {
                 throw RPCError.unexpectedMessage(message)
             }
             print(">\(id) \(method)(\(params))\n")
-            
+
         case .response:
             guard
                 body.count == 4,
@@ -122,7 +137,7 @@ final class RPCSession {
             else {
                 throw RPCError.unexpectedMessage(message)
             }
-            
+
             let result: Result<MessagePackValue, Error> = {
                 let err = body[2]
                 if case .nil = err {
@@ -131,10 +146,10 @@ final class RPCSession {
                     return .failure(RPCResponseError(value: err))
                 }
             }()
-            
+
             try await requests.end(id: id, with: result)
-            //print("<\(id) \(body[2]) | \(body[3])\n")
-            
+            // print("<\(id) \(body[2]) | \(body[3])\n")
+
         case .notification:
             guard
                 body.count == 3,
@@ -145,7 +160,7 @@ final class RPCSession {
             }
 //            print("@\(method): \(params)\n")
             params = params.map { value in
-                if case .extended(_, let data) = value {
+                if case let .extended(_, data) = value {
                     do {
                         return try MessagePack.unpackFirst(data)
                     } catch {

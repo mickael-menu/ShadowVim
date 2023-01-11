@@ -1,26 +1,41 @@
 //
-//  main.swift
-//  PhantomVim
+//  Copyright © 2023 Mickaël Menu
 //
-//  Created by Mickaël Menu on 07/01/2023.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+//  Copyright 2022 Readium Foundation. All rights reserved.
+//  Use of this source code is governed by the BSD-style license
+//  available in the top-level LICENSE file of the project.
+//
 //
 
+import AppKit
 import Foundation
 import MessagePack
-import AppKit
 
 public struct RuntimeError: Error {
     let message: String
 }
 
-public enum NeoVimError: Error {
+public enum NvimError: Error {
     case notStarted
     case alreadyStarted
     case rpc(RPCError)
     case api(APIError)
     case runtime(RuntimeError)
-    
-    static func wrap(_ error: Error) -> NeoVimError {
+
+    static func wrap(_ error: Error) -> NvimError {
         switch error {
         case let error as RuntimeError:
             return .runtime(error)
@@ -38,7 +53,7 @@ public enum APIError: Error {
     case exception(message: String)
     case validation(message: String)
     case unknown(RPCResponseError)
-       
+
     init(from error: RPCResponseError) {
         guard
             case let .array(array) = error.value,
@@ -49,7 +64,7 @@ public enum APIError: Error {
             self = .unknown(error)
             return
         }
-        
+
         // https://github.com/neovim/neovim/blob/266a1c61b97313f2a516140fc691dd8be8eed47a/src/nvim/api/private/defs.h#L26-L31
         switch type {
         case 0:
@@ -69,7 +84,7 @@ public struct LinesEvent {
     public let lastLine: LineIndex?
     public let lineData: [String]
     public let more: Bool
-    
+
     init?(from params: [MessagePackValue]) {
         guard
             params.count == 6,
@@ -80,16 +95,16 @@ public struct LinesEvent {
         else {
             return nil
         }
-                
+
         switch params[1] {
         case .nil:
-            self.changedTick = nil
+            changedTick = nil
         case let .uint(changedTick):
             self.changedTick = changedTick
         default:
             return nil
         }
-                
+
         switch params[3] {
         case let .int(lastLine):
             self.lastLine = (lastLine >= 0) ? LineIndex(lastLine) : nil
@@ -98,10 +113,10 @@ public struct LinesEvent {
         default:
             return nil
         }
-        
+
         self.buffer = buffer
         self.firstLine = firstLine
-        
+
         self.lineData = lineData
             .compactMap {
                 guard case let .string(data) = $0 else {
@@ -116,45 +131,44 @@ public struct LinesEvent {
 public typealias BufferHandle = UInt64
 public typealias LineIndex = UInt64
 
-public actor NeoVim {
-
+public actor Nvim {
     public init() {}
-        
+
     private var state: State = .stopped
-        
+
     private enum State {
         case stopped
         case started(StartedState)
-        case failure(NeoVimError)
+        case failure(NvimError)
     }
 
     private class StartedState {
         let process: Process
         let session: RPCSession
-        let sessionTask: Task<(), Error>
+        let sessionTask: Task<Void, Error>
         var notificationHandlers: [NotificationHandler] = []
         var notificationSubscriptionNextId = 0
-        
-        init(process: Process, session: RPCSession, sessionTask: Task<(), Error>) {
+
+        init(process: Process, session: RPCSession, sessionTask: Task<Void, Error>) {
             self.process = process
             self.session = session
             self.sessionTask = sessionTask
         }
     }
-        
+
     private struct NotificationHandler {
         let id: Int
         let notification: String
         let handler: ([MessagePackValue]) -> Void
     }
-        
+
     public class NotificationSubscription {
         private let onCancel: () -> Void
-        
+
         fileprivate init(onCancel: @escaping () -> Void) {
             self.onCancel = onCancel
         }
-        
+
         deinit {
             onCancel()
         }
@@ -192,15 +206,15 @@ public actor NeoVim {
             ))
 
         case .started(session: _):
-            throw NeoVimError.alreadyStarted
+            throw NvimError.alreadyStarted
         }
     }
-    
+
     private func onRPCNotification(method: String, params: [MessagePackValue]) {
         guard let state = try? requireStarted() else {
             return
         }
-        
+
         state.notificationHandlers
             .filter { $0.notification == method }
             .forEach { $0.handler(params) }
@@ -208,10 +222,10 @@ public actor NeoVim {
 
     public func on(_ notification: String, handler: @escaping ([MessagePackValue]) -> Void) throws -> NotificationSubscription {
         let state = try requireStarted()
-        
+
         let id = state.notificationSubscriptionNextId
         state.notificationSubscriptionNextId += 1
-                
+
         let subscription = NotificationSubscription(onCancel: { [weak self] in
             guard let self else {
                 return
@@ -223,16 +237,16 @@ public actor NeoVim {
                 state.notificationHandlers.removeAll { $0.id == id }
             }
         })
-        
+
         state.notificationHandlers.append(NotificationHandler(
             id: id,
             notification: notification,
             handler: handler
         ))
-        
+
         return subscription
     }
-    
+
 //    try await nvim.command("autocmd CursorMoved * call rpcnotify(0, 'moved')")
 //    try await nvim.command("autocmd ModeChanged * call rpcnotify(0, 'mode', mode())")
 //    try await nvim.command("autocmd CmdlineChanged * call rpcnotify(0, 'cmdline', getcmdline())")
@@ -242,14 +256,13 @@ public actor NeoVim {
         if !args.isEmpty {
             argsList = ", " + args.joined(separator: ", ")
         }
-                
+
         try await subscribe(event: id)
         try await request("nvim_create_autocmd",
-            with:
-                .array(events.map { .string($0) }),
-                               .map([.string("command"): .string("call rpcnotify(0, '\(id)'\(argsList))")])
-        )
-               
+                          with:
+                          .array(events.map { .string($0) }),
+                          .map([.string("command"): .string("call rpcnotify(0, '\(id)'\(argsList))")]))
+
         return try on(id, handler: handler)
     }
 
@@ -259,7 +272,7 @@ public actor NeoVim {
         state.process.terminate()
         self.state = .stopped
     }
-    
+
     @discardableResult
     public func command(_ command: String) async throws -> MessagePackValue {
         try await request("nvim_command", with: .string(command))
@@ -273,23 +286,23 @@ public actor NeoVim {
                 case let .uint(buf) = try await request("nvim_get_current_buf"),
                 buf > 0
             else {
-                throw NeoVimError.runtime(RuntimeError(message: "Unexpected nvim_get_current_buf result"))
+                throw NvimError.runtime(RuntimeError(message: "Unexpected nvim_get_current_buf result"))
             }
             handle = buf
         }
         return Buffer(nvim: self, handle: handle)
     }
-    
+
     @discardableResult
     public func input(_ keys: String) async throws -> UInt64 {
         try await request("nvim_input", with: .string(keys))
             .uint64Value ?? 0
     }
-    
+
     public func subscribe(event: String) async throws {
         try await request("nvim_subscribe", with: .string(event))
     }
-    
+
     public func unsubscribe(event: String) async throws {
         try await request("nvim_unsubscribe", with: .string(event))
     }
@@ -300,7 +313,7 @@ public actor NeoVim {
             let res = try await requireSession()
                 .send(method: method, params: params)
             if
-                case .extended(_, let data) = res,
+                case let .extended(_, data) = res,
                 let unpackedRes = try? MessagePack.unpackFirst(data)
             {
                 return unpackedRes
@@ -308,35 +321,35 @@ public actor NeoVim {
                 return res
             }
         } catch {
-            throw NeoVimError.wrap(error)
+            throw NvimError.wrap(error)
         }
     }
 
-    fileprivate func requireSession() throws -> RPCSession {
+    private func requireSession() throws -> RPCSession {
         try requireStarted().session
     }
 
     private func requireStarted() throws -> StartedState {
         guard case let .started(state) = state else {
-            throw NeoVimError.notStarted
+            throw NvimError.notStarted
         }
         return state
     }
 
     private func requireNoFailure() throws {
-        if case .failure(let error) = state {
+        if case let .failure(error) = state {
             throw error
         }
     }
 }
 
 public class Buffer {
-    private let nvim: NeoVim
+    private let nvim: Nvim
     public let handle: BufferHandle
-    
-    private var onLinesHandle: NeoVim.NotificationSubscription?
-    
-    init(nvim: NeoVim, handle: UInt64) {
+
+    private var onLinesHandle: Nvim.NotificationSubscription?
+
+    init(nvim: Nvim, handle: UInt64) {
         precondition(handle > 0)
         self.nvim = nvim
         self.handle = handle
@@ -358,40 +371,9 @@ public class Buffer {
                 }
                 onLines(event)
             }
-        
+
         return try await nvim
             .request("nvim_buf_attach", with: .uint(handle), .bool(sendBuffer), .map(options))
             .boolValue ?? false
     }
 }
-
-//var buffer: Buffer!
-//
-//func nvim(url: URL = URL(fileURLWithPath: "/opt/homebrew/bin/nvim")) throws {
-//    Task {
-//        let nvim = NeoVim()
-//        do {
-//            try await nvim.start(executableURL: url)
-//            try await nvim.input("ihello")
-//            buffer = try await nvim.buffer()
-//            try await buffer.attach(
-//                sendBuffer: true,
-//                onLines: { print("\($0)") }
-//            )
-//            try await nvim.input(" world")
-//            try await nvim.input("<ESC>bx")
-//
-//            try await Task.sleep(for: .seconds(1))
-//            async let a = try await nvim.input("<ESC>x")
-//            async let b = try await nvim.input("it")
-//            let _ = try await [a, b]
-//            try await Task.sleep(for: .seconds(1))
-//            print(try await nvim.input("<ESC>x"))
-//            try await Task.sleep(for: .seconds(1))
-//            print(try await nvim.input("<ESC>x"))
-//
-//        } catch {
-//            print(error)
-//        }
-//    }
-//}
