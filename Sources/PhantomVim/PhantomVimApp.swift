@@ -23,13 +23,64 @@
 import Nvim
 import SwiftUI
 
-let nvim = Nvim()
-var buffer: Buffer!
+private var subscriptions: [EventSubscription] = []
 
-private var subscriptions: [Nvim.NotificationSubscription] = []
-@main
-struct PhantomVimApp: App {
-    private let eventTap = EventTap { type, event in
+final class AppViewModel: ObservableObject {
+    private let process: NvimProcess
+    private var buffer: Buffer?
+
+    private var nvim: Nvim { process.nvim }
+
+    init() throws {
+        process = try NvimProcess.start()
+
+        DispatchQueue.global(qos: .userInteractive).async { [self] in
+            try! self.eventTap.run()
+        }
+    }
+
+    func initialize() async throws {
+        buffer = try await nvim.buffer().get()
+        await buffer?.attach(
+            sendBuffer: true,
+            onLines: { print("\($0.lineData)") }
+        )
+
+        //                try await nvim.subscribe(event: "moved")
+        //                try await nvim.subscribe(event: "mode")
+        //                try await nvim.subscribe(event: "cmdline")
+
+        //                try await nvim.command("autocmd CursorMoved * call rpcnotify(0, 'moved')")
+        //                try await nvim.command("autocmd ModeChanged * call rpcnotify(0, 'mode', mode())")
+        //                try await nvim.command("autocmd CmdlineChanged * call rpcnotify(0, 'cmdline', getcmdline())")
+
+        let events = nvim.events
+
+        try await events.autoCmd(event: "CursorMoved", args: "getcurpos()") { params in
+            print("MOVED \(params)")
+        }.get().store(in: &subscriptions)
+
+        try await events.autoCmd(event: "ModeChanged", args: "mode()") { params in
+            print("MODE \(params)")
+        }.get().store(in: &subscriptions)
+        //                subscriptions.append(try await nvim.createAutocmd(on: "CursorMoved", args: "getcurpos()", "showcmd") { params in
+        //                    print("MOVED \(params)")
+        //                })
+        //
+        //                subscriptions.append(try await nvim.createAutocmd(on: "CursorMovedI", args: "getcurpos()") { params in
+        //                    print("MOVEDI \(params)")
+        //                })
+        //
+        //                subscriptions.append(try await nvim.createAutocmd(on: "ModeChanged", args: "mode()") { params in
+        //                    print("Mode changed \(params)")
+        //                })
+        //
+        //                subscriptions.append(try await nvim.createAutocmd(on: "CmdlineChanged", args: "getcmdline()") { params in
+        //                    print("Cmdline changed \(params)")
+        //                })
+    }
+
+    private lazy var eventTap = EventTap { [unowned self] type, event in
         switch type {
         case .keyDown:
             guard !event.flags.contains(.maskCommand) else {
@@ -47,12 +98,11 @@ struct PhantomVimApp: App {
                     var unicodeString = [UniChar](repeating: 0, count: Int(maxStringLength))
                     event.keyboardGetUnicodeString(maxStringLength: 1, actualStringLength: &actualStringLength, unicodeString: &unicodeString)
                     let character = String(utf16CodeUnits: &unicodeString, count: Int(actualStringLength))
-                    try await nvim.input(character)
+                    await nvim.api.input(character)
 
                     // REQUIRES Neovim 0.9
-                    if case let .map(map) = try await nvim.request("nvim_eval_statusline", with: .string("%S"), .map([:])) {
-                        print("\(map[.string("str")]?.stringValue ?? "")")
-                    }
+                    let sl = try await nvim.api.evalStatusline("%S").get()
+                    print(sl)
                 }
             }
             return nil
@@ -61,52 +111,22 @@ struct PhantomVimApp: App {
         }
         return event
     }
+}
 
-    init() {
-        DispatchQueue.global(qos: .userInteractive).async { [self] in
-            try! self.eventTap.run()
-        }
-
-        Task {
-            do {
-                try await nvim.start()
-//                try await nvim.subscribe(event: "moved")
-//                try await nvim.subscribe(event: "mode")
-//                try await nvim.subscribe(event: "cmdline")
-
-//                try await nvim.command("autocmd CursorMoved * call rpcnotify(0, 'moved')")
-//                try await nvim.command("autocmd ModeChanged * call rpcnotify(0, 'mode', mode())")
-//                try await nvim.command("autocmd CmdlineChanged * call rpcnotify(0, 'cmdline', getcmdline())")
-
-                subscriptions.append(try await nvim.createAutocmd(on: "CursorMoved", args: "getcurpos()", "showcmd") { params in
-                    print("MOVED \(params)")
-                })
-
-                subscriptions.append(try await nvim.createAutocmd(on: "CursorMovedI", args: "getcurpos()") { params in
-                    print("MOVEDI \(params)")
-                })
-
-                subscriptions.append(try await nvim.createAutocmd(on: "ModeChanged", args: "mode()") { params in
-                    print("Mode changed \(params)")
-                })
-
-                subscriptions.append(try await nvim.createAutocmd(on: "CmdlineChanged", args: "getcmdline()") { params in
-                    print("Cmdline changed \(params)")
-                })
-
-                buffer = try await nvim.buffer()
-                try await buffer.attach(
-                    sendBuffer: true,
-                    onLines: { print("\($0.lineData)") }
-                )
-
-            } catch {
-                print(error)
-            }
-        }
-    }
+@main
+struct PhantomVimApp: App {
+    @StateObject private var viewModel = try! AppViewModel()
 
     var body: some Scene {
-        WindowGroup {}
+        WindowGroup {
+            Group {}
+                .task {
+                    do {
+                        try await viewModel.initialize()
+                    } catch {
+                        print(error)
+                    }
+                }
+        }
     }
 }

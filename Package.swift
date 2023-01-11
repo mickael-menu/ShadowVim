@@ -18,8 +18,12 @@ let package = Package(
         .target(
             name: "Nvim",
             dependencies: [
+                "Toolkit",
                 .product(name: "MessagePack", package: "MessagePack.swift"),
             ]
+        ),
+        .target(
+            name: "Toolkit"
         ),
     ]
 )
