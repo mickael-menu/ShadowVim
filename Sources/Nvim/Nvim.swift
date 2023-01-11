@@ -9,11 +9,11 @@ import Foundation
 import MessagePack
 import AppKit
 
-struct RuntimeError: Error {
+public struct RuntimeError: Error {
     let message: String
 }
 
-enum NeoVimError: Error {
+public enum NeoVimError: Error {
     case notStarted
     case alreadyStarted
     case rpc(RPCError)
@@ -34,7 +34,7 @@ enum NeoVimError: Error {
     }
 }
 
-enum APIError: Error {
+public enum APIError: Error {
     case exception(message: String)
     case validation(message: String)
     case unknown(RPCResponseError)
@@ -62,13 +62,13 @@ enum APIError: Error {
     }
 }
 
-struct LinesEvent {
-    let buffer: BufferHandle
-    let changedTick: UInt64?
-    let firstLine: LineIndex
-    let lastLine: LineIndex?
-    let lineData: [String]
-    let more: Bool
+public struct LinesEvent {
+    public let buffer: BufferHandle
+    public let changedTick: UInt64?
+    public let firstLine: LineIndex
+    public let lastLine: LineIndex?
+    public let lineData: [String]
+    public let more: Bool
     
     init?(from params: [MessagePackValue]) {
         guard
@@ -113,12 +113,12 @@ struct LinesEvent {
     }
 }
 
-typealias BufferHandle = UInt64
-typealias LineIndex = UInt64
+public typealias BufferHandle = UInt64
+public typealias LineIndex = UInt64
 
-actor NeoVim {
+public actor NeoVim {
 
-    init() {}
+    public init() {}
         
     private var state: State = .stopped
         
@@ -148,7 +148,7 @@ actor NeoVim {
         let handler: ([MessagePackValue]) -> Void
     }
         
-    class NotificationSubscription {
+    public class NotificationSubscription {
         private let onCancel: () -> Void
         
         fileprivate init(onCancel: @escaping () -> Void) {
@@ -160,7 +160,7 @@ actor NeoVim {
         }
     }
 
-    func start(executableURL: URL = URL(fileURLWithPath: "/opt/homebrew/bin/nvim")) throws {
+    public func start(executableURL: URL = URL(fileURLWithPath: "/opt/homebrew/bin/nvim")) throws {
         switch state {
         case .stopped, .failure:
             let input = Pipe()
@@ -206,7 +206,7 @@ actor NeoVim {
             .forEach { $0.handler(params) }
     }
 
-    func on(_ notification: String, handler: @escaping ([MessagePackValue]) -> Void) throws -> NotificationSubscription {
+    public func on(_ notification: String, handler: @escaping ([MessagePackValue]) -> Void) throws -> NotificationSubscription {
         let state = try requireStarted()
         
         let id = state.notificationSubscriptionNextId
@@ -236,7 +236,7 @@ actor NeoVim {
 //    try await nvim.command("autocmd CursorMoved * call rpcnotify(0, 'moved')")
 //    try await nvim.command("autocmd ModeChanged * call rpcnotify(0, 'mode', mode())")
 //    try await nvim.command("autocmd CmdlineChanged * call rpcnotify(0, 'cmdline', getcmdline())")
-    func createAutocmd(on events: String..., args: String..., handler: @escaping ([MessagePackValue]) -> Void) async throws -> NotificationSubscription {
+    public func createAutocmd(on events: String..., args: String..., handler: @escaping ([MessagePackValue]) -> Void) async throws -> NotificationSubscription {
         let id = "autocmd-\(UUID().uuidString)"
         var argsList = ""
         if !args.isEmpty {
@@ -244,7 +244,7 @@ actor NeoVim {
         }
                 
         try await subscribe(event: id)
-        try await nvim.request("nvim_create_autocmd",
+        try await request("nvim_create_autocmd",
             with:
                 .array(events.map { .string($0) }),
                                .map([.string("command"): .string("call rpcnotify(0, '\(id)'\(argsList))")])
@@ -253,7 +253,7 @@ actor NeoVim {
         return try on(id, handler: handler)
     }
 
-    func stop() throws {
+    public func stop() throws {
         let state = try requireStarted()
         state.sessionTask.cancel()
         state.process.terminate()
@@ -261,12 +261,12 @@ actor NeoVim {
     }
     
     @discardableResult
-    func command(_ command: String) async throws -> MessagePackValue {
+    public func command(_ command: String) async throws -> MessagePackValue {
         try await request("nvim_command", with: .string(command))
     }
 
     /// - Parameter handle: Handle of the buffer, or 0 for the current buffer.
-    func buffer(_ handle: BufferHandle = 0) async throws -> Buffer {
+    public func buffer(_ handle: BufferHandle = 0) async throws -> Buffer {
         var handle = handle
         if handle == 0 {
             guard
@@ -281,21 +281,21 @@ actor NeoVim {
     }
     
     @discardableResult
-    func input(_ keys: String) async throws -> UInt64 {
+    public func input(_ keys: String) async throws -> UInt64 {
         try await request("nvim_input", with: .string(keys))
             .uint64Value ?? 0
     }
     
-    func subscribe(event: String) async throws {
+    public func subscribe(event: String) async throws {
         try await request("nvim_subscribe", with: .string(event))
     }
     
-    func unsubscribe(event: String) async throws {
+    public func unsubscribe(event: String) async throws {
         try await request("nvim_unsubscribe", with: .string(event))
     }
 
     @discardableResult
-    func request(_ method: String, with params: MessagePackValue...) async throws -> MessagePackValue {
+    public func request(_ method: String, with params: MessagePackValue...) async throws -> MessagePackValue {
         do {
             let res = try await requireSession()
                 .send(method: method, params: params)
@@ -330,9 +330,9 @@ actor NeoVim {
     }
 }
 
-class Buffer {
+public class Buffer {
     private let nvim: NeoVim
-    let handle: BufferHandle
+    public let handle: BufferHandle
     
     private var onLinesHandle: NeoVim.NotificationSubscription?
     
@@ -343,7 +343,7 @@ class Buffer {
     }
 
     @discardableResult
-    func attach(
+    public func attach(
         sendBuffer: Bool,
         options: [MessagePackValue: MessagePackValue] = [:],
         onLines: @escaping (LinesEvent) -> Void

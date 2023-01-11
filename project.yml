@@ -1,0 +1,21 @@
+name: PhantomVim
+
+options:
+  bundleIdPrefix: menu.mickael
+  createIntermediateGroups: true
+
+packages:
+  PhantomVim:
+    path: .
+
+targets:
+  PhantomVim:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources: [Sources/PhantomVim]
+    settings:
+      GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - package: PhantomVim
+        product: Nvim

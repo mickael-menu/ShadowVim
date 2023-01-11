@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Nvim
 
 let nvim = NeoVim()
 var buffer: Buffer!

@@ -13,11 +13,11 @@ struct RPCRequest {
     let params: [MessagePackValue]
 }
 
-struct RPCResponseError: Error {
+public struct RPCResponseError: Error {
     let value: MessagePackValue
 }
 
-enum RPCError: Error {
+public enum RPCError: Error {
     case unexpectedMessage(MessagePackValue)
     case unknownRequestId(UInt64)
 }
