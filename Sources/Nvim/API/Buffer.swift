@@ -53,4 +53,18 @@ public class Buffer {
             return await api.bufAttach(buffer: handle, sendBuffer: sendBuffer)
         }
     }
+
+    public func getLines(
+        start: LineIndex = 0,
+        end: LineIndex = -1,
+        strictIndexing: Bool = false
+    ) async -> APIResult<[String]> {
+        await api.request("nvim_buf_get_lines", with: [
+            .buffer(handle),
+            .int(start),
+            .int(end),
+            .bool(strictIndexing),
+        ])
+        .checkedUnpacking { $0.arrayValue?.compactMap(\.stringValue) }
+    }
 }

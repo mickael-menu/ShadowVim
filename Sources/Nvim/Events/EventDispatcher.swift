@@ -22,7 +22,7 @@
 
 import Foundation
 
-public actor EventDispatcher {
+public class EventDispatcher {
     public typealias OnEvent = ([Value]) -> Void
 
     private struct Handler {
@@ -34,15 +34,18 @@ public actor EventDispatcher {
     private let api: API
     private var handlers: [Handler] = []
     private var nextSubscriptionID: EventSubscription.ID = 0
+    private let queue = DispatchQueue(label: "menu.mickael.EventDispatcher")
 
     init(api: API) {
         self.api = api
     }
 
     func dispatch(event: String, data: [Value]) {
-        for handler in handlers {
-            if handler.event == event {
-                handler.callback(data)
+        queue.async { [unowned self] in
+            for handler in handlers {
+                if handler.event == event {
+                    handler.callback(data)
+                }
             }
         }
     }
@@ -81,29 +84,28 @@ public actor EventDispatcher {
     }
 
     private func addHandler(for event: String, callback: @escaping OnEvent) -> EventSubscription {
-        let id = nextSubscriptionID
-        nextSubscriptionID += 1
+        queue.sync { [unowned self] in
+            let id = nextSubscriptionID
+            nextSubscriptionID += 1
 
-        let subscription = EventSubscription {
-            Task.detached { [weak self] in
-                guard let self else {
-                    return
-                }
-                await self.unsubscribe(id)
+            let subscription = EventSubscription { [weak self] in
+                self?.unsubscribe(id)
             }
+
+            handlers.append(Handler(
+                subscriptionID: id,
+                event: event,
+                callback: callback
+            ))
+
+            return subscription
         }
-
-        handlers.append(Handler(
-            subscriptionID: id,
-            event: event,
-            callback: callback
-        ))
-
-        return subscription
     }
 
     func unsubscribe(_ id: EventSubscription.ID) {
-        handlers.removeAll { $0.subscriptionID == id }
+        queue.async { [unowned self] in
+            self.handlers.removeAll { $0.subscriptionID == id }
+        }
     }
 }
 

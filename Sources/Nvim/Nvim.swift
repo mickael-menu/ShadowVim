@@ -56,13 +56,11 @@ public class Nvim {
 }
 
 extension Nvim: RPCSessionDelegate {
-    nonisolated func session(_ session: RPCSession, didReceiveError error: RPCError) {
+    func session(_ session: RPCSession, didReceiveError error: RPCError) {
         print(error.localizedDescription)
     }
 
-    nonisolated func session(_ session: RPCSession, didReceiveNotification method: String, with params: [Value]) {
-        Task {
-            await events.dispatch(event: method, data: params)
-        }
+    func session(_ session: RPCSession, didReceiveNotification method: String, with params: [Value]) {
+        events.dispatch(event: method, data: params)
     }
 }

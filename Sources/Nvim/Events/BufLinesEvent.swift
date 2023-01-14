@@ -78,3 +78,9 @@ public struct BufLinesEvent {
         self.more = more
     }
 }
+
+extension BufLinesEvent: CustomStringConvertible {
+    public var description: String {
+        "BufLinesEvent#\(changedTick ?? -1) \(firstLine)..<\(lastLine ?? -1) \(lineData)"
+    }
+}

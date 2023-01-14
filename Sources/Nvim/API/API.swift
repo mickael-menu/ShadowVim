@@ -52,6 +52,15 @@ public class API {
         .checkedUnpacking { $0.boolValue }
     }
 
+    public func winGetWidth(_ window: WindowHandle = 0) async -> APIResult<Int> {
+        await request("nvim_win_get_width", with: .window(window))
+            .checkedUnpacking { $0.intValue }
+    }
+
+    public func winGetCursor(_ window: WindowHandle = 0) async -> APIResult<Value> {
+        await request("nvim_win_get_cursor", with: .window(window))
+    }
+
     public func input(_ keys: String) async -> APIResult<Int> {
         await request("nvim_input", with: .string(keys))
             .checkedUnpacking { $0.intValue }

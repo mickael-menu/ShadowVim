@@ -47,6 +47,7 @@ protocol RPCSessionDelegate: AnyObject {
 final class RPCSession {
     let input: FileHandle
     let output: FileHandle
+    let debug: Bool = true
 
     weak var delegate: RPCSessionDelegate?
 
@@ -123,7 +124,7 @@ final class RPCSession {
                     .array(params.map(\.messagePackValue)), // method arguments.
                 ])
                 let data = MessagePack.pack(request)
-                print(">\(method)(\(params))\n")
+                log(">\(method)(\(params))\n")
                 do {
                     try input.write(contentsOf: data)
                 } catch {
@@ -154,7 +155,7 @@ final class RPCSession {
                     return .failure(.unexpectedMessage(message))
                 }
                 // TODO:
-                print(">\(id) \(method)(\(params))\n")
+                log(">\(id) \(method)(\(params))\n")
 
             case .response:
                 guard
@@ -179,7 +180,7 @@ final class RPCSession {
                 }()
 
                 await requests.end(id: id, with: result)
-                print("<\(id) \(body[2]) | \(body[3])\n")
+                log("<\(id) \(body[2]) | \(body[3])\n")
 
             case .notification:
                 guard
@@ -189,7 +190,7 @@ final class RPCSession {
                 else {
                     return .failure(.unexpectedMessage(message))
                 }
-                print("@\(method): \(params)\n")
+                log("@\(method): \(params)\n")
                 do {
                     try delegate?.session(self,
                                           didReceiveNotification: method,
@@ -202,6 +203,12 @@ final class RPCSession {
             }
 
             return .success(())
+        }
+    }
+    
+    private func log(_ message: String) {
+        if debug {
+            print(message)
         }
     }
 }
