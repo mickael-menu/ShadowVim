@@ -259,12 +259,6 @@ final class AppViewModel: ObservableObject {
         }()
         var range = CFRange(location: count, length: length)
         try! element.setAttribute(.selectedTextRange, value: range)
-        
-        range = (try! element.attribute(.visibleCharacterRange) as CFRange?)!
-        range.location = 4018
-                 print(range)
-//        range.length += 200
-        try! element.setAttribute(.visibleCharacterRange, value: range)
     }
 
     func initialize() async throws {
@@ -272,6 +266,10 @@ final class AppViewModel: ObservableObject {
 
         print("WIN WIDTH \(try await nvim.api.winGetWidth().get())")
 
+        let document = try! (element.attribute(.window) as UIElement?)?.attribute(.document) as String?
+        let url = URL(string: document!)!
+        try! await nvim.api.bufSetName(name: url.path).get()
+        
         await buffer?.attach(
             sendBuffer: true,
             onLines: { event in
@@ -356,9 +354,18 @@ final class AppViewModel: ObservableObject {
 
     lazy var element: UIElement = {
 //        let app = Application(NSRunningApplication.current)
-        let app = Application.allForBundleID("com.apple.TextEdit").first
-//        let app = Application.allForBundleID("com.apple.dt.Xcode").first
-        return try! (app!.attribute(.focusedUIElement) as UIElement?)!
+//        let app = Application.allForBundleID("com.apple.TextEdit").first
+        let app = Application.allForBundleID("com.apple.dt.Xcode").first
+        let element = try! (app!.attribute(.focusedUIElement) as UIElement?)!
+
+//        Task {
+//            while true {
+//                try await Task.sleep(for: .seconds(2))
+//                let position = try! element.attribute(.position) as CGPoint?
+//                print(position)
+//            }
+//        }
+        return element
     }()
 
     @MainActor

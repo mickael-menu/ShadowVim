@@ -51,6 +51,14 @@ public class API {
         ])
         .checkedUnpacking { $0.boolValue }
     }
+    
+    public func bufSetName(buffer: BufferHandle = 0, name: String) async -> APIResult<Void> {
+        await request("nvim_buf_set_name", with: [
+            .buffer(buffer),
+            .string(name),
+        ])
+        .dropResult()
+    }
 
     public func winGetWidth(_ window: WindowHandle = 0) async -> APIResult<Int> {
         await request("nvim_win_get_width", with: .window(window))
