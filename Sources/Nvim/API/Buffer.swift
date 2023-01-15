@@ -40,17 +40,12 @@ public class Buffer {
         sendBuffer: Bool,
         onLines: @escaping (BufLinesEvent) -> Void
     ) async -> APIResult<Bool> {
-        await events.subscribeToBufLines { [handle] event in
-            guard event.buffer == handle else {
-                return
-            }
-            onLines(event)
-        }
-        .flatMap { subscription in
-            subscriptions.append(subscription)
+        await events.subscribeToBufLines(of: handle, handler: onLines)
+            .flatMap { subscription in
+                subscriptions.append(subscription)
 
-            return await api.bufAttach(buffer: handle, sendBuffer: sendBuffer)
-        }
+                return await api.bufAttach(buffer: handle, sendBuffer: sendBuffer)
+            }
     }
 
     public func getLines(

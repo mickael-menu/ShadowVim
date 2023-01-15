@@ -46,7 +46,7 @@ protocol RPCSessionDelegate: AnyObject {
 final class RPCSession {
     let input: FileHandle
     let output: FileHandle
-    let debug: Bool = true
+    let debug: Bool = false
 
     weak var delegate: RPCSessionDelegate?
 
