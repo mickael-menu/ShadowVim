@@ -27,7 +27,7 @@ import AXSwift
 private var subscriptions: [EventSubscription] = []
 
 final class AppViewModel: ObservableObject {
-    private let process: NvimProcess
+    private var process: NvimProcess!
     private var buffer: Buffer?
 
     private var nvim: Nvim { process.nvim }
@@ -48,11 +48,30 @@ final class AppViewModel: ObservableObject {
     private var lines: [String] = []
 
     init() throws {
-        process = try NvimProcess.start()
+        process = try NvimProcess.start(
+            onRequest: { [unowned self] method, params in
+                switch method {
+                case "SVRefresh":
+                    Task {
+                        print("Refresh")
+                        await self.refresh()
+                    }
+                    return .success(.bool(true))
+                default:
+                    return nil
+                }
+            }
+        )
 
         DispatchQueue.global(qos: .userInteractive).async { [self] in
             try! self.eventTap.run()
         }
+    }
+    
+    @MainActor
+    func refresh() async {
+        let content = await getContent()
+        try! element.setAttribute(.value, value: content)
     }
 
     private func update(_ event: BufLinesEvent) throws {
@@ -205,10 +224,11 @@ final class AppViewModel: ObservableObject {
             }
         }()
         var range = CFRange(location: count, length: length)
-        try! element.setAttribute(.selectedTextRange, value: range)
+        try? element.setAttribute(.selectedTextRange, value: range)
     }
 
     func initialize() async throws {
+        try await nvim.api.command("nmap zr <Cmd>call rpcrequest(1, 'SVRefresh')<CR>").get()
         buffer = try await nvim.buffer().get()
 
         print("WIN WIDTH \(try await nvim.api.winGetWidth().get())")

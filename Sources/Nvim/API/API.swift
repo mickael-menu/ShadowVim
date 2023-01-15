@@ -110,7 +110,7 @@ public class API {
 
     @discardableResult
     public func request(_ method: String, with params: [Value]) async -> APIResult<Value> {
-        await session.send(method: method, params: params)
+        await session.request(method: method, params: params)
             .mapError { APIError(from: $0) }
     }
 }

@@ -23,21 +23,26 @@ import AppKit
 import Foundation
 
 public class Nvim {
+
+    public typealias OnRequest = (_ method: String, _ params: [Value]) -> Result<Value, Error>?
+    
     public let api: API
     public let events: EventDispatcher
+    private let onRequest: OnRequest?
 
-    convenience init(session: RPCSession) {
+    convenience init(session: RPCSession, onRequest: OnRequest?) {
         let api = API(session: session)
         let events = EventDispatcher(api: api)
 
-        self.init(api: api, events: events)
+        self.init(api: api, events: events, onRequest: onRequest)
 
         session.delegate = self
     }
 
-    private init(api: API, events: EventDispatcher) {
+    private init(api: API, events: EventDispatcher, onRequest: OnRequest?) {
         self.api = api
         self.events = events
+        self.onRequest = onRequest
     }
 
     /// - Parameter handle: Handle of the buffer, or 0 for the current buffer.
@@ -61,5 +66,9 @@ extension Nvim: RPCSessionDelegate {
 
     func session(_ session: RPCSession, didReceiveNotification method: String, with params: [Value]) {
         events.dispatch(event: method, data: params)
+    }
+    
+    func session(_ session: RPCSession, didReceiveRequest method: String, with params: [Value]) -> Result<Value, Error>? {
+        return onRequest?(method, params)
     }
 }
