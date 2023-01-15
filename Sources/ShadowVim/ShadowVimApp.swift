@@ -56,69 +56,21 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    private func update(event: BufLinesEvent, control: [String]) {
-        update(event)
-//        assert(lines == control)
-    }
-
-    private func update(_ event: BufLinesEvent) {
+    private func update(_ event: BufLinesEvent) throws {
         print("\(event)")
-        if let lastLine = event.lastLine {
-            print("\n")
-//            applyBufLinesEvent(event: event, to: &lines)
-//            var i = 0
-//            for lineIndex in event.firstLine...lastLine {
-//                i += 1
-//            }
-
-//            replaceLines(in: element.element, startLine: startLine, endLine: endLine - 1, newLines: newLines)
-
-            let (content, lines) = getElementLines()
-
-            if event.lineData.isEmpty {
-                if event.firstLine == event.lastLine {
-                    return
-                }
-                var range = lineIndexesToRange(in: lines, startLine: event.firstLine, endLine: lastLine)
-                print("SET SELECTED RANGE \(event.firstLine) ... \(lastLine): \(range)")
-                if event.firstLine > 0 {
-                    range = CFRange(location: range.location - 1, length: range.length + 1)
-                } else if lastLine < lines.count {
-                    range = CFRange(location: range.location, length: range.length + 1)
-                }
-                try! element.setAttribute(.selectedTextRange, value: range)
-                try! element.setAttribute(.selectedText, value: "")
-
-            } else {
-                let range: CFRange
-                if event.firstLine >= lines.count {
-                    range = CFRange(location: content.count, length: 0)
-                } else {
-                    range = lineIndexesToRange(in: lines, startLine: event.firstLine, endLine: lastLine)
-                    print("SET SELECTED RANGE \(event.firstLine) ... \(lastLine): \(range)")
-                    //                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: {
-                }
-
-                var replacement = event.lineData.joined(separator: "\n")
-                if event.firstLine == lastLine {
-                    if event.firstLine >= lines.count {
-                        replacement = "\n" + replacement
-                    } else {
-                        replacement += "\n"
-                    }
-                }
-
-                try! element.setAttribute(.selectedTextRange, value: range)
-                try! element.setAttribute(.selectedText, value: replacement)
-                //                try! self.element.setAttribute(.value, value: self.lines.joined(separator: "\n"))
-//                            })
-                //            try! element.setAttribute(.value, value: lines.joined(separator: "\n"))
-            }
-
-//            try? element.setAttribute(.selectedTextRange, value: CFRange(location: 5, length: 0))
-        } else {
-            update(event.lineData)
+        print("\n")
+        
+        let content = (try element.attribute(.value) as String?) ?? ""
+        guard let (range, replacement) = event.changes(in: content) else {
+            return
         }
+                
+        let cfRange = CFRange(
+            location: content.distance(from: content.startIndex, to: range.lowerBound),
+            length: content.distance(from: range.lowerBound, to: range.upperBound)
+        )
+        try element.setAttribute(.selectedTextRange, value: cfRange)
+        try element.setAttribute(.selectedText, value: replacement)
     }
 
     func getElementLines() -> (String, [any StringProtocol]) {
@@ -276,7 +228,7 @@ final class AppViewModel: ObservableObject {
 //                    return
 //                }
                 DispatchQueue.main.sync {
-                    self.update(event)
+                    try! self.update(event)
                 }
             }
         )

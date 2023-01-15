@@ -22,6 +22,12 @@ let package = Package(
                 .product(name: "MessagePack", package: "MessagePack.swift"),
             ]
         ),
+        .testTarget(
+            name: "NvimTests",
+            dependencies: [
+                "Nvim",
+            ]
+        ),
         .target(
             name: "Toolkit"
         ),
