@@ -205,7 +205,7 @@ final class RPCSession {
             return .success(())
         }
     }
-    
+
     private func log(_ message: String) {
         if debug {
             print(message)

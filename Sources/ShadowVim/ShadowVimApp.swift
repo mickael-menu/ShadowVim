@@ -74,7 +74,7 @@ final class AppViewModel: ObservableObject {
 //            replaceLines(in: element.element, startLine: startLine, endLine: endLine - 1, newLines: newLines)
 
             let (content, lines) = getElementLines()
-            
+
             if event.lineData.isEmpty {
                 if event.firstLine == event.lastLine {
                     return
@@ -98,7 +98,7 @@ final class AppViewModel: ObservableObject {
                     print("SET SELECTED RANGE \(event.firstLine) ... \(lastLine): \(range)")
                     //                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: {
                 }
-                
+
                 var replacement = event.lineData.joined(separator: "\n")
                 if event.firstLine == lastLine {
                     if event.firstLine >= lines.count {
@@ -107,20 +107,20 @@ final class AppViewModel: ObservableObject {
                         replacement += "\n"
                     }
                 }
-                
+
                 try! element.setAttribute(.selectedTextRange, value: range)
-                try! self.element.setAttribute(.selectedText, value: replacement)
+                try! element.setAttribute(.selectedText, value: replacement)
                 //                try! self.element.setAttribute(.value, value: self.lines.joined(separator: "\n"))
 //                            })
                 //            try! element.setAttribute(.value, value: lines.joined(separator: "\n"))
             }
-                        
+
 //            try? element.setAttribute(.selectedTextRange, value: CFRange(location: 5, length: 0))
         } else {
             update(event.lineData)
         }
     }
-    
+
     func getElementLines() -> (String, [any StringProtocol]) {
         var value: AnyObject?
         guard AXUIElementCopyAttributeValue(element.element, kAXValueAttribute as CFString, &value) == AXError.success else {
@@ -176,9 +176,8 @@ final class AppViewModel: ObservableObject {
         self.mode = mode
         more = ""
     }
-    
-    private func setCursor(line lineIndex: Int, char: Int) {
-    }
+
+    private func setCursor(line lineIndex: Int, char: Int) {}
 
     func applyBufLinesEvent(event: BufLinesEvent, to lines: inout [String]) {
         let startLine = event.firstLine
@@ -220,12 +219,12 @@ final class AppViewModel: ObservableObject {
             return
         }
     }
-        
+
     enum Mode {
         case normal
         case insert
     }
-    
+
     private func onCursorEvent(params: [Value], mode: Mode) {
         guard
             let params = params.first?.arrayValue,
@@ -248,7 +247,7 @@ final class AppViewModel: ObservableObject {
             }
             count += line.count + 1
         }
-                
+
         let length: Int = {
             switch mode {
             case .normal:
@@ -269,7 +268,7 @@ final class AppViewModel: ObservableObject {
         let document = try! (element.attribute(.window) as UIElement?)?.attribute(.document) as String?
         let url = URL(string: document!)!
         try! await nvim.api.bufSetName(name: url.path).get()
-        
+
         await buffer?.attach(
             sendBuffer: true,
             onLines: { event in
@@ -297,7 +296,7 @@ final class AppViewModel: ObservableObject {
             }
 //            print("MOVED \(params)")
 //            Task { [self] in
-////                print("WIN CURSOR \(try? await self.nvim.api.winGetCursor().get())")
+            ////                print("WIN CURSOR \(try? await self.nvim.api.winGetCursor().get())")
 //            }
         }.get().store(in: &subscriptions)
 
@@ -374,22 +373,22 @@ final class AppViewModel: ObservableObject {
         //                    print("APP \(app)")
         //                    print("WINDOW \(try! app?.windows()?.first)")
     }
-    
+
     func getContent() async -> String {
-        let lines: [String] = (try? await self.buffer?.getLines().get()) ?? []
+        let lines: [String] = (try? await buffer?.getLines().get()) ?? []
         return lines.joined(separator: "\n")
     }
 }
 
 @main
-struct PhantomVimApp: App {
+struct ShadowVimApp: App {
     @StateObject private var viewModel = try! AppViewModel()
     @State private var text: String = ""
 
     var body: some Scene {
         WindowGroup {
             VStack(alignment: .leading) {
-                Button(action: { Task { text = await viewModel.getContent() } }, label: { Text("Refresh")})
+                Button(action: { Task { text = await viewModel.getContent() } }, label: { Text("Refresh") })
                 TextEditor(
                     text: $text
                 )

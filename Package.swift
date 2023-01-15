@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "PhantomVim",
+    name: "ShadowVim",
     platforms: [
         .macOS(.v11),
     ],

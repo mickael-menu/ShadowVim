@@ -51,7 +51,7 @@ public class API {
         ])
         .checkedUnpacking { $0.boolValue }
     }
-    
+
     public func bufSetName(buffer: BufferHandle = 0, name: String) async -> APIResult<Void> {
         await request("nvim_buf_set_name", with: [
             .buffer(buffer),
