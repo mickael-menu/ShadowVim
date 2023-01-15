@@ -18,7 +18,6 @@
 //  Use of this source code is governed by the BSD-style license
 //  available in the top-level LICENSE file of the project.
 //
-//
 
 import Nvim
 import SwiftUI
@@ -59,12 +58,12 @@ final class AppViewModel: ObservableObject {
     private func update(_ event: BufLinesEvent) throws {
         print("\(event)")
         print("\n")
-        
+
         let content = (try element.attribute(.value) as String?) ?? ""
         guard let (range, replacement) = event.changes(in: content) else {
             return
         }
-                
+
         let cfRange = CFRange(
             location: content.distance(from: content.startIndex, to: range.lowerBound),
             length: content.distance(from: range.lowerBound, to: range.upperBound)
