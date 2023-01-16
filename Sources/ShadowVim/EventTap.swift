@@ -41,12 +41,17 @@ class EventTap {
         self.handler = handler
     }
 
+    @MainActor
     func run() throws {
         tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
-            eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
+            eventsOfInterest: CGEventMask(
+                1 << CGEventType.keyDown.rawValue |
+                    1 << CGEventType.leftMouseDown.rawValue |
+                    1 << CGEventType.otherMouseDown.rawValue
+            ),
             callback: { proxy, type, event, refcon in
                 Unmanaged<EventTap>.fromOpaque(refcon!)
                     .takeUnretainedValue()
@@ -62,13 +67,18 @@ class EventTap {
         let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        CFRunLoopRun()
     }
 
     private func handle(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> CGEvent? {
         switch type {
         case .tapDisabledByTimeout:
             CGEvent.tapEnable(tap: tap, enable: true)
+            return event
+        case .leftMouseDown:
+            print("LEFT MOUSE DOWN")
+            return event
+        case .otherMouseDown:
+            print("OTHER MOUSE DOWN")
             return event
         default:
             return handler(type, event)

@@ -49,7 +49,7 @@ final class AppViewModel: ObservableObject {
 
     init() throws {
         process = try NvimProcess.start(
-            onRequest: { [unowned self] method, params in
+            onRequest: { [unowned self] method, _ in
                 switch method {
                 case "SVRefresh":
                     Task {
@@ -63,11 +63,11 @@ final class AppViewModel: ObservableObject {
             }
         )
 
-        DispatchQueue.global(qos: .userInteractive).async { [self] in
-            try! self.eventTap.run()
+        Task {
+            try! await self.eventTap.run()
         }
     }
-    
+
     @MainActor
     func refresh() async {
         let content = await getContent()
@@ -102,32 +102,6 @@ final class AppViewModel: ObservableObject {
         return (stringValue, stringValue.split(separator: "\n", omittingEmptySubsequences: false))
     }
 
-    func lineIndexesToRange(in lines: [any StringProtocol], startLine: Int, endLine: Int) -> CFRange {
-        var startIndex = 0
-        var endIndex = 0
-        var count = 0
-        for (i, line) in lines.enumerated() {
-            if i == startLine {
-                startIndex = count
-                //                startIndex += lines[i].startIndex.encodedOffset
-                endIndex = startIndex
-            }
-            if i < endLine {
-                endIndex = count + line.count
-                //                endIndex += lines[i].endIndex.encodedOffset
-            }
-            if i == endLine {
-                break
-            }
-            count += line.count + 1
-            //            if i > startLine && i < endLine {
-            //                endIndex += lines[i].count + 1
-            //            }
-        }
-        print("Create start: \(startIndex) - end: \(endIndex)")
-        return CFRangeMake(startIndex, endIndex - startIndex)
-    }
-
     private func update(_ lines: [String]) {
         self.lines = lines
         try! element.setAttribute(.value, value: lines.joined(separator: "\n"))
@@ -146,64 +120,23 @@ final class AppViewModel: ObservableObject {
 
     private func setCursor(line lineIndex: Int, char: Int) {}
 
-    func applyBufLinesEvent(event: BufLinesEvent, to lines: inout [String]) {
-        let startLine = event.firstLine
-        let endLine = event.lastLine ?? startLine + event.lineData.count - 1
-        let newLines = event.lineData
-        lines.replaceSubrange(startLine ..< endLine, with: newLines)
+    enum Mode: String {
+        case normal = "n"
+        case insert = "i"
     }
 
-    func replaceLines(in element: AXUIElement, startLine: Int, endLine: Int, newLines: [String]) {
-        var newLines = newLines
-
-        var error: CFError?
-        var value: AnyObject?
-        guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value) == AXError.success else {
-            print("Failed to get the element's value.")
-            return
-        }
-
-        guard let stringValue = value as? String else {
-            print("Failed to cast the element's value to a string.")
-            return
-        }
-
-        let lines = stringValue.split(separator: "\n")
-        var newString = ""
-        for (i, line) in lines.enumerated() {
-            if i >= startLine, i <= endLine {
-                newString += newLines.removeFirst() + "\n"
-            } else {
-                newString += line + "\n"
-            }
-        }
-        if newLines.count > 0 {
-            newString += newLines.joined(separator: "\n")
-        }
-
-        guard AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, newString as CFTypeRef) == AXError.success else {
-            print("Failed to set the element's value.")
-            return
-        }
-    }
-
-    enum Mode {
-        case normal
-        case insert
-    }
-
-    private func onCursorEvent(params: [Value], mode: Mode) {
+    private func onCursorEvent(params: [Value]) {
         guard
-            let params = params.first?.arrayValue,
-            params.count == 5,
-            var lnum = params[1].intValue,
-            var col = params[2].intValue
+            params.count == 2,
+            let cursorParams = params[0].arrayValue,
+            cursorParams.count == 5,
+            var lnum = cursorParams[1].intValue,
+            var col = cursorParams[2].intValue
         else {
             return
         }
         lnum -= 1
         col -= 1
-        print("onCursorEvent \(lnum):\(col)")
 
         let (_, lines) = getElementLines()
         var count = 0
@@ -215,6 +148,11 @@ final class AppViewModel: ObservableObject {
             count += line.count + 1
         }
 
+        let mode = params[1].stringValue.flatMap(Mode.init(rawValue:)) ?? .normal
+        setCursor(position: count, mode: mode)
+    }
+
+    private func setCursor(position: Int, mode: Mode) {
         let length: Int = {
             switch mode {
             case .normal:
@@ -223,7 +161,7 @@ final class AppViewModel: ObservableObject {
                 return 0
             }
         }()
-        var range = CFRange(location: count, length: length)
+        let range = CFRange(location: position, length: length)
         try? element.setAttribute(.selectedTextRange, value: range)
     }
 
@@ -251,29 +189,22 @@ final class AppViewModel: ObservableObject {
 
         let events = nvim.events
 
-        try await events.autoCmd(event: "CursorMoved", args: "getcursorcharpos()") { params in
+        try await events.autoCmd(event: "CursorMoved", "CursorMovedI", "ModeChanged", args: "getcursorcharpos()", "mode()") { params in
             DispatchQueue.main.sync {
-                self.onCursorEvent(params: params, mode: .normal)
+                self.onCursorEvent(params: params)
             }
-//            print("MOVED \(lnum):\(col)")
-        }.get().store(in: &subscriptions)
 
-        try await events.autoCmd(event: "CursorMovedI", args: "getcursorcharpos()") { params in
-            DispatchQueue.main.sync {
-                self.onCursorEvent(params: params, mode: .insert)
-            }
-//            print("MOVED \(params)")
-//            Task { [self] in
-            ////                print("WIN CURSOR \(try? await self.nvim.api.winGetCursor().get())")
-//            }
-        }.get().store(in: &subscriptions)
-
-        try await events.autoCmd(event: "ModeChanged", args: "mode()") { params in
             Task {
-                await self.updateMode(mode: params.first?.stringValue ?? "")
+                await self.updateMode(mode: params[1].stringValue ?? "")
             }
-//            print("MODE \(params)")
         }.get().store(in: &subscriptions)
+
+//        try await events.autoCmd(event: "ModeChanged", args: "mode()") { params in
+//            Task {
+//                await self.updateMode(mode: params.first?.stringValue ?? "")
+//            }
+        ////            print("MODE \(params)")
+//        }.get().store(in: &subscriptions)
 
         try await events.autoCmd(event: "CmdlineChanged", args: "getcmdline()") { [weak self] params in
             self?.more = params.first?.stringValue ?? ""
@@ -282,6 +213,12 @@ final class AppViewModel: ObservableObject {
     }
 
     private lazy var eventTap = EventTap { [unowned self] type, event in
+        guard
+            let appFrontmost = try? self.app.attribute(.frontmost) as Bool?, appFrontmost
+        else {
+            return event
+        }
+
         switch type {
         case .keyDown:
             guard !event.flags.contains(.maskCommand) else {
@@ -291,26 +228,37 @@ final class AppViewModel: ObservableObject {
             // See `nvim.paste` "Faster than nvim_input()."
 
             Task {
-                switch event.getIntegerValueField(.keyboardEventKeycode) {
-//                case 0x35:
-//                    try await nvim.input("<ESC>")
-//                case 0x24:
-//                    try await nvim.input("<CR>")
-                default:
-                    let maxStringLength: Int = 4
-                    var actualStringLength: Int = 0
-                    var unicodeString = [UniChar](repeating: 0, count: Int(maxStringLength))
-                    event.keyboardGetUnicodeString(maxStringLength: 1, actualStringLength: &actualStringLength, unicodeString: &unicodeString)
-                    let character = String(utf16CodeUnits: &unicodeString, count: Int(actualStringLength))
-                    await nvim.api.input(character)
+                let input: String = {
+                    switch event.getIntegerValueField(.keyboardEventKeycode) {
+                    case 0x35:
+                        return "<ESC>"
+                    case 0x24:
+                        return "<CR>"
+                    case 0x7B:
+                        return "<left>"
+                    case 0x7C:
+                        return "<right>"
+                    case 0x7D:
+                        return "<down>"
+                    case 0x7E:
+                        return "<up>"
+                    default:
+                        let maxStringLength: Int = 4
+                        var actualStringLength: Int = 0
+                        var unicodeString = [UniChar](repeating: 0, count: Int(maxStringLength))
+                        event.keyboardGetUnicodeString(maxStringLength: 1, actualStringLength: &actualStringLength, unicodeString: &unicodeString)
+                        return String(utf16CodeUnits: &unicodeString, count: Int(actualStringLength))
+                    }
+                }()
 
-                    // REQUIRES Neovim 0.9
-                    let sl = try await nvim.api.evalStatusline("%S").get()
-                    self.cmd = sl
-                    //                    print(sl)
+                try await nvim.api.input(input).get()
+
+                // REQUIRES Neovim 0.9
+                let sl = try await nvim.api.evalStatusline("%S").get()
+                self.cmd = sl
+                //                    print(sl)
 
 //                    try await self.updateText(character)
-                }
             }
             return nil
         default:
@@ -319,11 +267,13 @@ final class AppViewModel: ObservableObject {
         return event
     }
 
+    lazy var app: Application =
+//        Application(NSRunningApplication.current)
+        Application.allForBundleID("com.apple.TextEdit")[0]
+//        Application.allForBundleID("com.apple.dt.Xcode")[0]
+
     lazy var element: UIElement = {
-//        let app = Application(NSRunningApplication.current)
-        let app = Application.allForBundleID("com.apple.TextEdit").first
-//        let app = Application.allForBundleID("com.apple.dt.Xcode").first
-        let element = try! (app!.attribute(.focusedUIElement) as UIElement?)!
+        let element = try! (app.attribute(.focusedUIElement) as UIElement?)!
 
 //        Task {
 //            while true {

@@ -22,7 +22,6 @@
 import Foundation
 
 public class NvimProcess {
-
     public static func start(
         executableURL: URL = URL(fileURLWithPath: "/opt/homebrew/bin/nvim"),
         onRequest: Nvim.OnRequest? = nil

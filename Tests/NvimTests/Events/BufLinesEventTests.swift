@@ -39,13 +39,13 @@ final class BufLinesEventTests: XCTestCase {
 
     // To test diacritics and such.
     let frenchPoemLines = [
-       "Ce cœur où plus rien ne pénètre,",
-       "D'où plus rien désormais ne sort ;",
-       "Je t'aime avec ce que mon être",
-       "A de plus fort contre la mort ;",
+        "Ce cœur où plus rien ne pénètre,",
+        "D'où plus rien désormais ne sort ;",
+        "Je t'aime avec ce que mon être",
+        "A de plus fort contre la mort ;",
     ]
     lazy var frenchPoemContent = frenchPoemLines.joined(separator: "\n")
-    
+
     func testInitialEmptyContent() throws {
         let expected = emptyContent
 
@@ -318,7 +318,7 @@ final class BufLinesEventTests: XCTestCase {
         let event = BufLinesEvent(changedTick: 1, firstLine: lastLineIndex, lastLine: lastLineIndex + 1, lineData: [])
         try assertChanges(from: event, in: nContent, expects: expected)
     }
-        
+
     func testDeleteMultipleLinesOfMultilineBuffer() throws {
         let buffer = nContent
 
@@ -326,7 +326,7 @@ final class BufLinesEventTests: XCTestCase {
             var lines = nLines
             lines.removeSubrange(indices)
             let expected = lines.joined(separator: "\n")
-            
+
             let event = BufLinesEvent(
                 changedTick: 1,
                 firstLine: indices.startIndex,
@@ -336,9 +336,9 @@ final class BufLinesEventTests: XCTestCase {
             try assertChanges(from: event, in: buffer, expects: expected)
         }
 
-        try test(removing: 0..<2)
-        try test(removing: 1..<3)
-        try test(removing: 0..<4)
+        try test(removing: 0 ..< 2)
+        try test(removing: 1 ..< 3)
+        try test(removing: 0 ..< 4)
     }
 
     func testDeleteSecondLineOfDiacriticsBuffer() throws {

@@ -23,9 +23,8 @@ import AppKit
 import Foundation
 
 public class Nvim {
-
     public typealias OnRequest = (_ method: String, _ params: [Value]) -> Result<Value, Error>?
-    
+
     public let api: API
     public let events: EventDispatcher
     private let onRequest: OnRequest?
@@ -67,8 +66,8 @@ extension Nvim: RPCSessionDelegate {
     func session(_ session: RPCSession, didReceiveNotification method: String, with params: [Value]) {
         events.dispatch(event: method, data: params)
     }
-    
+
     func session(_ session: RPCSession, didReceiveRequest method: String, with params: [Value]) -> Result<Value, Error>? {
-        return onRequest?(method, params)
+        onRequest?(method, params)
     }
 }

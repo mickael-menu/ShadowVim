@@ -22,7 +22,6 @@
 import Foundation
 
 public extension Range where Bound == String.Index {
-    
     /// Converts a range of `String.Index` into a `CFRange` of character indices.
     func cfRange(in string: String) -> CFRange {
         CFRange(

@@ -61,7 +61,7 @@ public class EventDispatcher {
     //    try await nvim.command("autocmd ModeChanged * call rpcnotify(0, 'mode', mode())")
     //    try await nvim.command("autocmd CmdlineChanged * call rpcnotify(0, 'cmdline', getcmdline())")
     public func autoCmd(
-        event: String,
+        event: String...,
         args: String...,
         handler: @escaping OnEvent
     ) async -> APIResult<EventSubscription> {

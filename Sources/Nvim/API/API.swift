@@ -89,7 +89,15 @@ public class API {
     }
 
     public func createAutocmd(
-        for events: String...,
+        for event: String,
+        once: Bool = false,
+        command: String
+    ) async -> APIResult<AutocmdID> {
+        await createAutocmd(for: [event], once: once, command: command)
+    }
+
+    public func createAutocmd(
+        for events: [String],
         once: Bool = false,
         command: String
     ) async -> APIResult<AutocmdID> {

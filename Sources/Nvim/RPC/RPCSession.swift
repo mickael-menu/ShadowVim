@@ -31,22 +31,22 @@ public enum RPCError: LocalizedError {
     case ioFailure(Error)
     case unpackFailure(Error)
     case noHandlerForRequest(method: String)
-    
+
     public var errorDescription: String? {
         var description = String(reflecting: self)
         switch self {
-        case .unexpectedMessage(let value), .responseError(let value):
+        case let .unexpectedMessage(value), let .responseError(value):
             description += ": \(value)"
-        case .unknownRequestId(let id):
+        case let .unknownRequestId(id):
             description += ": \(id)"
-        case .ioFailure(let error), .unpackFailure(let error):
+        case let .ioFailure(error), let .unpackFailure(error):
             description += ": \(error.localizedDescription)"
-        case .noHandlerForRequest(method: let method):
+        case let .noHandlerForRequest(method: method):
             description += ": \(method)"
         case .unexpectedMessagePackValue:
             break
         }
-                
+
         return description
     }
 }
@@ -57,18 +57,17 @@ enum RPCType: Int {
     case request = 0
     case response = 1
     case notification = 2
-    
+
     var value: MessagePackValue {
         .uint(UInt64(rawValue))
     }
 }
 
 protocol RPCSessionDelegate: AnyObject {
-
     func session(_ session: RPCSession, didReceiveRequest method: String, with params: [Value]) -> Result<Value, Error>?
-    
+
     func session(_ session: RPCSession, didReceiveNotification method: String, with params: [Value])
-       
+
     func session(_ session: RPCSession, didReceiveError error: RPCError)
 }
 
@@ -161,16 +160,16 @@ final class RPCSession {
             }
         }
     }
-    
+
     func respond(to requestID: RPCMessageID, with result: Result<Value, Error>) -> Result<Void, RPCError> {
         let response = MessagePackValue([
             RPCType.response.value, // message type
             .uint(requestID), // request ID
             result.error.map { .string($0.localizedDescription) } ?? .nil, // error
-            result.value?.messagePackValue ?? .nil // result
+            result.value?.messagePackValue ?? .nil, // result
         ])
         let data = MessagePack.pack(response)
-        
+
         do {
             try input.write(contentsOf: data)
             return .success(())
@@ -199,7 +198,7 @@ final class RPCSession {
                 return .failure(.unexpectedMessage(message))
             }
             log(">\(id) \(method)(\(params))\n")
-                
+
             guard
                 let delegate = delegate,
                 let result = delegate.session(self, didReceiveRequest: method, with: params)

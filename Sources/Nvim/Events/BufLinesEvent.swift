@@ -140,6 +140,24 @@ public struct BufLinesEvent {
 
     public typealias Changes = (range: Range<String.Index>, replacement: String)
 
+    /// Applies the changes in `lines` for this `BufLinesEvent`.
+    public func applyChanges(in lines: [String]) -> [String] {
+        var lines = lines
+        let lastLine = (lastLine > -1) ? lastLine : firstLine + lineData.count - 1
+        lines.replaceSubrange(firstLine ..< lastLine, with: lineData)
+        return lines
+    }
+
+    /// Applies the changes in `content` for this `BufLinesEvent`.
+    public func applyChanges(in content: String) -> String? {
+        guard let (range, replacement) = changes(in: content) else {
+            return nil
+        }
+        var content = content
+        content.replaceSubrange(range, with: replacement)
+        return content
+    }
+
     /// Computes the changes to be made in `content` to apply the `BufLinesEvent`.
     ///
     /// Returns the `range` in `content` to be replaced by `replacement`.
