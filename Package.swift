@@ -29,6 +29,12 @@ let package = Package(
             ]
         ),
         .target(
+            name: "AX",
+            dependencies: [
+                "Toolkit",
+            ]
+        ),
+        .target(
             name: "Toolkit"
         ),
     ]
