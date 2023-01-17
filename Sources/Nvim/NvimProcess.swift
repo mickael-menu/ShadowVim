@@ -30,7 +30,7 @@ public class NvimProcess {
         let output = Pipe()
         let process = Process()
         process.executableURL = executableURL
-        process.arguments = ["--headless", "--embed", "--clean"]
+        process.arguments = ["--headless", "--embed", "--clean", "-n"]
         process.standardInput = input
         process.standardOutput = output
         try process.run()

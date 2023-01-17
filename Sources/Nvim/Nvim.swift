@@ -44,17 +44,19 @@ public class Nvim {
         self.onRequest = onRequest
     }
 
-    /// - Parameter handle: Handle of the buffer, or 0 for the current buffer.
-    public func buffer(_ handle: BufferHandle = 0) async -> APIResult<Buffer> {
-        let handle: APIResult<BufferHandle> = await {
-            if handle > 0 {
-                return .success(handle)
-            } else {
-                return await api.getCurrentBuf()
-            }
-        }()
+    public func edit(url: URL) async throws {
+        let path = url.path.replacingOccurrences(of: "%", with: "\\%")
+        _ = try await api.cmd("edit", args: .string(path)).get()
+    }
 
-        return handle.map { Buffer(handle: $0, api: api, events: events) }
+    /// - Parameter handle: Handle of the buffer, or 0 for the current buffer.
+    public func buffer(_ handle: BufferHandle = 0) async throws -> Buffer {
+        var handle = handle
+        if handle == 0 {
+            handle = try await api.getCurrentBuf().get()
+        }
+
+        return Buffer(handle: handle, api: api, events: events)
     }
 }
 

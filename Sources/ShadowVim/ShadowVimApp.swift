@@ -165,27 +165,32 @@ final class AppViewModel: ObservableObject {
         try? element.setAttribute(.selectedTextRange, value: range)
     }
 
+    var synchronizer: BufferSynchronizer!
+
     func initialize() async throws {
         try await nvim.api.command("nmap zr <Cmd>call rpcrequest(1, 'SVRefresh')<CR>").get()
-        buffer = try await nvim.buffer().get()
+        synchronizer = BufferSynchronizer(nvim: nvim, element: element)
+        try await synchronizer.edit()
 
-        print("WIN WIDTH \(try await nvim.api.winGetWidth().get())")
-
-//        let document = try! (element.attribute(.window) as UIElement?)?.attribute(.document) as String?
-//        let url = URL(string: document!)!
-//        try! await nvim.api.bufSetName(name: url.path).get()
-
-        await buffer?.attach(
-            sendBuffer: true,
-            onLines: { event in
-//                guard let lines = try? await self.buffer?.getLines().get() else {
-//                    return
+//        buffer = try await nvim.buffer().get()
+//
+//        print("WIN WIDTH \(try await nvim.api.winGetWidth().get())")
+//
+        ////        let document = try! (element.attribute(.window) as UIElement?)?.attribute(.document) as String?
+        ////        let url = URL(string: document!)!
+        ////        try! await nvim.api.bufSetName(name: url.path).get()
+//
+//        await buffer?.attach(
+//            sendBuffer: true,
+//            onLines: { event in
+        ////                guard let lines = try? await self.buffer?.getLines().get() else {
+        ////                    return
+        ////                }
+//                DispatchQueue.main.sync {
+//                    try! self.update(event)
 //                }
-                DispatchQueue.main.sync {
-                    try! self.update(event)
-                }
-            }
-        )
+//            }
+//        )
 
         let events = nvim.events
 
@@ -269,8 +274,8 @@ final class AppViewModel: ObservableObject {
 
     lazy var app: Application =
 //        Application(NSRunningApplication.current)
-        Application.allForBundleID("com.apple.TextEdit")[0]
-//        Application.allForBundleID("com.apple.dt.Xcode")[0]
+//        Application.allForBundleID("com.apple.TextEdit")[0]
+        Application.allForBundleID("com.apple.dt.Xcode")[0]
 
     lazy var element: UIElement = {
         let element = try! (app.attribute(.focusedUIElement) as UIElement?)!

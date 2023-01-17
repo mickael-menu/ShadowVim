@@ -32,9 +32,21 @@ public class API {
         self.session = session
     }
 
-    @discardableResult
     public func command(_ command: String) async -> APIResult<Value> {
         await request("nvim_command", with: .string(command))
+    }
+
+    public func cmd(_ cmd: String, args: Value...) async -> APIResult<String> {
+        await request("nvim_cmd", with: [
+            .dict([
+                .string("cmd"): .string(cmd),
+                .string("args"): .array(args),
+            ]),
+            .dict([
+                .string("output"): .bool(true),
+            ]),
+        ])
+        .checkedUnpacking { $0.stringValue }
     }
 
     public func getCurrentBuf() async -> APIResult<BufferHandle> {

@@ -75,10 +75,10 @@ class EventTap {
             CGEvent.tapEnable(tap: tap, enable: true)
             return event
         case .leftMouseDown:
-            print("LEFT MOUSE DOWN")
+//            print("LEFT MOUSE DOWN")
             return event
         case .otherMouseDown:
-            print("OTHER MOUSE DOWN")
+//            print("OTHER MOUSE DOWN")
             return event
         default:
             return handler(type, event)
