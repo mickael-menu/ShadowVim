@@ -78,35 +78,6 @@ final class RPCSession {
 
     weak var delegate: RPCSessionDelegate?
 
-    actor Requests {
-        typealias Continuation = CheckedContinuation<Result<Value, RPCError>, Never>
-
-        private var lastRequestId: RPCMessageID = 0
-        private var requests: [RPCMessageID: Continuation] = [:]
-        private let onError: (RPCError) -> Void
-        var delegate: RPCSessionDelegate?
-
-        init(onError: @escaping (RPCError) -> Void) {
-            self.onError = onError
-        }
-
-        func start(for continuation: Continuation) -> RPCMessageID {
-            lastRequestId += 1
-            requests[lastRequestId] = continuation
-            return lastRequestId
-        }
-
-        func end(id: UInt64, with result: Result<Value, RPCError>) {
-            guard let continuation = requests.removeValue(forKey: id) else {
-                onError(.unknownRequestId(id))
-                return
-            }
-            continuation.resume(returning: result)
-        }
-    }
-
-    private var requests: Requests!
-
     init(
         input: FileHandle,
         output: FileHandle,
@@ -115,15 +86,10 @@ final class RPCSession {
         self.input = input
         self.output = output
         self.delegate = delegate
-
-        requests = Requests(
-            onError: { [unowned self] in
-                self.delegate?.session(self, didReceiveError: $0)
-            }
-        )
     }
 
     func run() async {
+        precondition(!Thread.isMainThread)
         var data = output.availableData
         while data.count > 0, !Task.isCancelled {
             do {
@@ -141,22 +107,22 @@ final class RPCSession {
 
     func request(method: String, params: [Value]) async -> Result<Value, RPCError> {
         await withCheckedContinuation { continuation in
-            Task {
-                let id = await requests.start(for: continuation)
+            let id = $requests.write {
+                $0.start(for: continuation)
+            }
 
-                let request = MessagePackValue([
-                    RPCType.request.value, // message type
-                    .uint(id), // request ID
-                    .string(method), // method name
-                    .array(params.map(\.messagePackValue)), // method arguments.
-                ])
-                let data = MessagePack.pack(request)
-                log(">\(method)(\(params))\n")
-                do {
-                    try input.write(contentsOf: data)
-                } catch {
-                    await requests.end(id: id, with: .failure(.ioFailure(error)))
-                }
+            let request = MessagePackValue([
+                RPCType.request.value, // message type
+                .uint(id), // request ID
+                .string(method), // method name
+                .array(params.map(\.messagePackValue)), // method arguments.
+            ])
+            let data = MessagePack.pack(request)
+            log(">\(method)(\(params))\n")
+            do {
+                try input.write(contentsOf: data)
+            } catch {
+                endRequest(id: id, with: .failure(.ioFailure(error)))
             }
         }
     }
@@ -225,7 +191,7 @@ final class RPCSession {
                 return .success(body[3])
             }()
 
-            await requests.end(id: id, with: result)
+            endRequest(id: id, with: result)
             log("<\(id) \(body[2]) | \(body[3])\n")
 
         case .notification:
@@ -241,6 +207,35 @@ final class RPCSession {
         }
 
         return .success(())
+    }
+
+    @Atomic private var requests = Requests()
+
+    struct Requests {
+        typealias Continuation = CheckedContinuation<Result<Value, RPCError>, Never>
+
+        private var lastRequestId: RPCMessageID = 0
+        private var requests: [RPCMessageID: Continuation] = [:]
+
+        mutating func start(for continuation: Continuation) -> RPCMessageID {
+            lastRequestId += 1
+            requests[lastRequestId] = continuation
+            return lastRequestId
+        }
+
+        mutating func end(id: RPCMessageID, with result: Result<Value, RPCError>) -> Result<Void, RPCError> {
+            guard let continuation = requests.removeValue(forKey: id) else {
+                return .failure(.unknownRequestId(id))
+            }
+            continuation.resume(returning: result)
+            return .success(())
+        }
+    }
+
+    func endRequest(id: RPCMessageID, with result: Result<Value, RPCError>) {
+        $requests
+            .write { $0.end(id: id, with: result) }
+            .onError { delegate?.session(self, didReceiveError: $0) }
     }
 
     private func log(_ message: String) {
