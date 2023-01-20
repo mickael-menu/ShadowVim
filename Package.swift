@@ -9,12 +9,19 @@ let package = Package(
         .macOS(.v11),
     ],
     products: [
+        .library(name: "AX", targets: ["AX"]),
         .library(name: "Nvim", targets: ["Nvim"]),
     ],
     dependencies: [
         .package(url: "https://github.com/a2/MessagePack.swift.git", from: "4.0.0"),
     ],
     targets: [
+        .target(
+            name: "AX",
+            dependencies: [
+                "Toolkit",
+            ]
+        ),
         .target(
             name: "Nvim",
             dependencies: [
@@ -26,12 +33,6 @@ let package = Package(
             name: "NvimTests",
             dependencies: [
                 "Nvim",
-            ]
-        ),
-        .target(
-            name: "AX",
-            dependencies: [
-                "Toolkit",
             ]
         ),
         .target(

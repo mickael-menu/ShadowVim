@@ -19,68 +19,104 @@
 //  available in the top-level LICENSE file of the project.
 //
 
+import ApplicationServices
 import Foundation
 
 /// Error codes returned by accessibility functions (`AXError.h`).
-public enum AXError: Int, LocalizedError {
+public enum AXError: LocalizedError {
     /// Received an unknown error code.
-    case unknown = -1
+    case unknown(ApplicationServices.AXError)
+
+    /// Received a value with an unexpected type.
+    case unexpectedValue(AnyObject)
 
     /// A system error occurred, such as the failure to allocate an object.
-    case failure = -25200
+    case failure
 
     /// An illegal argument was passed to the function.
-    case illegalArgument = -25201
+    case illegalArgument
 
     /// The AXUIElementRef passed to the function is invalid.
-    case invalidUIElement = -25202
+    case invalidUIElement
 
     /// The AXObserverRef passed to the function is not a valid observer.
-    case invalidUIElementObserver = -25203
+    case invalidUIElementObserver
 
     /// The function cannot complete because messaging failed in some way or
     /// because the application with which the function is communicating is busy
     /// or unresponsive.
-    case cannotComplete = -25204
+    case cannotComplete
 
     /// The attribute is not supported by the AXUIElementRef.
-    case attributeUnsupported = -25205
+    case attributeUnsupported
 
     /// The action is not supported by the AXUIElementRef.
-    case actionUnsupported = -25206
+    case actionUnsupported
 
     /// The notification is not supported by the AXUIElementRef.
-    case notificationUnsupported = -25207
+    case notificationUnsupported
 
     /// Indicates that the function or method is not implemented (this can be
     /// returned if a process does not support the accessibility API).
-    case notImplemented = -25208
+    case notImplemented
 
     /// This notification has already been registered for.
-    case notificationAlreadyRegistered = -25209
+    case notificationAlreadyRegistered
 
     /// Indicates that a notification is not registered yet.
-    case notificationNotRegistered = -25210
+    case notificationNotRegistered
 
     /// The accessibility API is disabled (as when, for example, the user
     /// deselects "Enable access for assistive devices" in Universal Access
     /// Preferences).
-    case apiDisabled = -25211
+    case apiDisabled
 
     /// The requested value or `AXUIElementRef` does not exist.
-    case noValue = -25212
+    case noValue
 
     /// The parameterized attribute is not supported by the `AXUIElementRef`.
-    case parameterizedAttributeUnsupported = -25213
+    case parameterizedAttributeUnsupported
 
     /// Not enough precision.
-    case notEnoughPrecision = -25214
+    case notEnoughPrecision
 
-    init?(code: Int) {
-        guard code != 0 else {
+    init?(code: ApplicationServices.AXError) {
+        switch code {
+        case .success:
             return nil
+        case .failure:
+            self = .failure
+        case .illegalArgument:
+            self = .illegalArgument
+        case .invalidUIElement:
+            self = .invalidUIElement
+        case .invalidUIElementObserver:
+            self = .invalidUIElementObserver
+        case .cannotComplete:
+            self = .cannotComplete
+        case .attributeUnsupported:
+            self = .attributeUnsupported
+        case .actionUnsupported:
+            self = .actionUnsupported
+        case .notificationUnsupported:
+            self = .notificationUnsupported
+        case .notImplemented:
+            self = .notImplemented
+        case .notificationAlreadyRegistered:
+            self = .notificationAlreadyRegistered
+        case .notificationNotRegistered:
+            self = .notificationNotRegistered
+        case .apiDisabled:
+            self = .apiDisabled
+        case .noValue:
+            self = .noValue
+        case .parameterizedAttributeUnsupported:
+            self = .parameterizedAttributeUnsupported
+        case .notEnoughPrecision:
+            self = .notEnoughPrecision
+        @unknown default:
+            self = .unknown(code)
         }
-        self = AXError(rawValue: code) ?? .unknown
     }
 
     public var errorDescription: String? {
