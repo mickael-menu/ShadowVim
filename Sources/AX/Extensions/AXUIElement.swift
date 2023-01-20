@@ -23,7 +23,9 @@ import ApplicationServices
 import Foundation
 
 extension AXUIElement {
-    func attribute(_ attribute: AXAttribute) throws -> Any? {
+    func get(_ attribute: AXAttribute) throws -> Any? {
+        precondition(Thread.isMainThread)
+
         var value: AnyObject?
         let code = AXUIElementCopyAttributeValue(self, attribute.rawValue as CFString, &value)
         if let error = AXError(code: code) {
@@ -50,7 +52,7 @@ extension AXUIElement {
     }
 
     private func wrapElement(_ element: AXUIElement) throws -> AXElement {
-        guard let rawRole = try element.attribute(.role) as? String else {
+        guard let rawRole = try element.get(.role) as? String else {
             return AXElement(element: element)
         }
         let role = AXRole(rawValue: rawRole)
@@ -98,6 +100,38 @@ extension AXUIElement {
             return value
         @unknown default:
             return value
+        }
+    }
+
+    func set(_ attribute: AXAttribute, value: Any) throws {
+        precondition(Thread.isMainThread)
+
+        guard let value = pack(value) else {
+            throw AXError.packFailure(value)
+        }
+
+        let result = AXUIElementSetAttributeValue(self, attribute.rawValue as CFString, value)
+        if let error = AXError(code: result) {
+            throw error
+        }
+    }
+
+    private func pack(_ value: Any) -> AnyObject? {
+        switch value {
+        case let value as AXElement:
+            return value.element
+        case let value as [Any]:
+            return value.compactMap(pack) as CFArray
+        case var value as CGPoint:
+            return AXValueCreate(AXValueType(rawValue: kAXValueCGPointType)!, &value)
+        case var value as CGSize:
+            return AXValueCreate(AXValueType(rawValue: kAXValueCGSizeType)!, &value)
+        case var value as CGRect:
+            return AXValueCreate(AXValueType(rawValue: kAXValueCGRectType)!, &value)
+        case var value as CFRange:
+            return AXValueCreate(AXValueType(rawValue: kAXValueCFRangeType)!, &value)
+        default:
+            return value as AnyObject
         }
     }
 }

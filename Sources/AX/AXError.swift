@@ -30,6 +30,9 @@ public enum AXError: LocalizedError {
     /// Received a value with an unexpected type.
     case unexpectedValue(AnyObject)
 
+    /// Failed to pack the given value to send to AX APIs.
+    case packFailure(Any)
+
     /// A system error occurred, such as the failure to allocate an object.
     case failure
 

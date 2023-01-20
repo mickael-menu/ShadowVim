@@ -31,55 +31,63 @@ import Foundation
 /// Accessibility objects respond to messages sent by assistive applications and
 /// send notifications that describe state changes.
 open class AXElement {
-    private let element: AXUIElement
+    let element: AXUIElement
 
     init(element: AXUIElement) {
         self.element = element
     }
 
-    public func attribute<Value>(_ attribute: AXAttribute) throws -> Value? {
-        try element.attribute(attribute) as? Value
+    public func get<Value>(_ attribute: AXAttribute) throws -> Value? {
+        try element.get(attribute) as? Value
     }
 
-    public func attribute<Value: RawRepresentable>(_ attribute: AXAttribute) throws -> Value? {
-        let rawValue = try element.attribute(attribute) as? Value.RawValue
+    public func get<Value: RawRepresentable>(_ attribute: AXAttribute) throws -> Value? {
+        let rawValue = try get(attribute) as Value.RawValue?
         return rawValue.flatMap(Value.init(rawValue:))
+    }
+
+    public func set<Value>(_ attribute: AXAttribute, value: Value) throws {
+        try element.set(attribute, value: value)
+    }
+
+    public func set<Value: RawRepresentable>(_ attribute: AXAttribute, value: Value) throws {
+        try set(attribute, value: value.rawValue)
     }
 }
 
 public extension AXElement {
     func role() throws -> AXRole? {
-        try attribute(.role)
+        try get(.role)
     }
 
     func subrole() throws -> AXSubrole? {
-        try attribute(.subrole)
+        try get(.subrole)
     }
 
     func roleDescription() throws -> String? {
-        try attribute(.roleDescription)
+        try get(.roleDescription)
     }
 
     func description() throws -> String? {
-        try attribute(.description)
+        try get(.description)
     }
 
     func help() throws -> String? {
-        try attribute(.help)
+        try get(.help)
     }
 
     func isBusy() throws -> Bool {
-        try attribute(.elementBusy) ?? false
+        try get(.elementBusy) ?? false
     }
 
     // FIXME: Here?
     func document() throws -> String? {
-        try attribute(.document)
+        try get(.document)
     }
 
     // FIXME: Here?
     func url() throws -> String? {
-        try attribute(.url)
+        try get(.url)
     }
 }
 
@@ -87,11 +95,11 @@ public class AXSystemWideElement: AXElement {
     public static let shared = AXSystemWideElement(element: AXUIElementCreateSystemWide())
 
     public func focusedApplication() throws -> AXApplication? {
-        try attribute(.focusedApplication)
+        try get(.focusedApplication)
     }
 
     public func focusedUIElement() throws -> AXElement? {
-        try attribute(.focusedUIElement)
+        try get(.focusedUIElement)
     }
 }
 
@@ -123,73 +131,73 @@ public class AXApplication: AXElement,
     }
 
     public func isFrontmost() throws -> Bool {
-        try attribute(.frontmost) ?? false
+        try get(.frontmost) ?? false
     }
 
     public func isHidden() throws -> Bool {
-        try attribute(.hidden) ?? false
+        try get(.hidden) ?? false
     }
 
     public func windows() throws -> [AXWindow] {
-        try attribute(.windows) ?? []
+        try get(.windows) ?? []
     }
 
     public func mainWindow() throws -> AXWindow? {
-        try attribute(.mainWindow)
+        try get(.mainWindow)
     }
 
     public func focusedWindow() throws -> AXWindow? {
-        try attribute(.focusedWindow)
+        try get(.focusedWindow)
     }
 
     public func focusedUIElement() throws -> AXFocusableElement? {
-        try attribute(.focusedUIElement)
+        try get(.focusedUIElement)
     }
 }
 
 open class AXWindow: AXElement,
-    AXTitledElement, AXPositionedElement, AXParentingElement, AXFocusableElement
+    AXTitledElement, AXPositionedElement, AXParentingElement
 {
     public typealias Child = AXElement
 
     public func isMain() throws -> Bool {
-        try attribute(.main) ?? false
+        try get(.main) ?? false
     }
 
     public func isMinimized() throws -> Bool {
-        try attribute(.minimized) ?? false
+        try get(.minimized) ?? false
     }
 
     public func isModal() throws -> Bool {
-        try attribute(.modal) ?? false
+        try get(.modal) ?? false
     }
 
     public func defaultButton() throws -> AXButton? {
-        try attribute(.defaultButton)
+        try get(.defaultButton)
     }
 
     public func cancelButton() throws -> AXButton? {
-        try attribute(.cancelButton)
+        try get(.cancelButton)
     }
 
     public func closeButton() throws -> AXButton? {
-        try attribute(.closeButton)
+        try get(.closeButton)
     }
 
     public func zoomButton() throws -> AXButton? {
-        try attribute(.zoomButton)
+        try get(.zoomButton)
     }
 
     public func fullScreenButton() throws -> AXButton? {
-        try attribute(.fullScreenButton)
+        try get(.fullScreenButton)
     }
 
     public func minimizeButton() throws -> AXButton? {
-        try attribute(.minimizeButton)
+        try get(.minimizeButton)
     }
 
     public func toolbarButton() throws -> AXButton? {
-        try attribute(.toolbarButton)
+        try get(.toolbarButton)
     }
 }
 
@@ -197,15 +205,15 @@ open class AXView: AXElement,
     AXPositionedElement
 {
     public func isEnabled() throws -> Bool {
-        try attribute(.enabled) ?? false
+        try get(.enabled) ?? false
     }
 
     public func window() throws -> AXWindow? {
-        try attribute(.window)
+        try get(.window)
     }
 
     public func topLevelUIElement() throws -> AXElement? {
-        try attribute(.topLevelUIElement)
+        try get(.topLevelUIElement)
     }
 }
 
@@ -221,15 +229,15 @@ public class AXTextArea: AXView,
 public protocol AXPositionedElement: AXElement {}
 public extension AXPositionedElement {
     func position() throws -> CGPoint {
-        try attribute(.position) ?? .zero
+        try get(.position) ?? .zero
     }
 
     func size() throws -> CGSize {
-        try attribute(.size) ?? .zero
+        try get(.size) ?? .zero
     }
 
     func parent() throws -> AXElement? {
-        try attribute(.parent)
+        try get(.parent)
     }
 }
 
@@ -239,40 +247,37 @@ public protocol AXParentingElement: AXPositionedElement {
 
 public extension AXParentingElement {
     func children() throws -> [Child] {
-        try attribute(.children) ?? []
+        try get(.children) ?? []
     }
 
     func visibleChildren() throws -> [Child] {
-        try attribute(.visibleChildren) ?? []
+        try get(.visibleChildren) ?? []
     }
 
     func contents() throws -> [Child] {
-        try attribute(.contents) ?? []
+        try get(.contents) ?? []
     }
 }
 
-public protocol AXFocusableElement: AXElement {
-    func focus() throws
-}
-
+public protocol AXFocusableElement: AXElement {}
 public extension AXFocusableElement {
     func focus() throws {
-        // TODO:
+        try set(.focused, value: true)
     }
 
     func isFocused() throws -> Bool {
-        try attribute(.focused) ?? false
+        try get(.focused) ?? false
     }
 
     func sharedFocusElements() throws -> [AXElement] {
-        try attribute(.sharedFocusElements) ?? []
+        try get(.sharedFocusElements) ?? []
     }
 }
 
 public protocol AXTitledElement: AXElement {}
 public extension AXTitledElement {
     func title() throws -> String? {
-        try attribute(.title)
+        try get(.title)
     }
 }
 
@@ -284,19 +289,19 @@ public protocol AXValuedElement: AXElement {
 
 public extension AXValuedElement {
     func setValue(_ value: Value) throws {
-        // TODO:
+        try set(.value, value: value)
     }
 
     func value() throws -> Value? {
-        try attribute(.value)
+        try get(.value)
     }
 
     func valueDescription() throws -> String? {
-        try attribute(.valueDescription)
+        try get(.valueDescription)
     }
 
     func valueWraps() throws -> Bool {
-        try attribute(.valueWraps) ?? false
+        try get(.valueWraps) ?? false
     }
 }
 
@@ -307,30 +312,30 @@ public extension AXTextualElement {
     }
 
     func placeholder() throws -> String? {
-        try attribute(.placeholderValue)
+        try get(.placeholderValue)
     }
 
     func numberOfCharacters() throws -> Int {
-        try attribute(.numberOfCharacters) ?? 0
+        try get(.numberOfCharacters) ?? 0
     }
 
     func selectedText() throws -> String? {
-        try attribute(.selectedText)
+        try get(.selectedText)
     }
 
     func selectedTextRange() throws -> CFRange? {
-        try attribute(.selectedTextRange)
+        try get(.selectedTextRange)
     }
 
     func selectedTextRanges() throws -> [CFRange] {
-        try attribute(.selectedTextRanges) ?? []
+        try get(.selectedTextRanges) ?? []
     }
 
     func insertionPointLineNumber() throws -> Int? {
-        try attribute(.insertionPointLineNumber)
+        try get(.insertionPointLineNumber)
     }
 
     func visibleCharacterRange() throws -> CFRange? {
-        try attribute(.visibleCharacterRange)
+        try get(.visibleCharacterRange)
     }
 }
