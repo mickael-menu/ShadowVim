@@ -23,6 +23,16 @@ import ApplicationServices
 import Foundation
 
 extension AXUIElement {
+
+    func count(_ attribute: AXAttribute) throws -> Int {
+        var count: Int = 0
+        let code = AXUIElementGetAttributeValueCount(self, attribute.rawValue as CFString, &count)
+        if let error = AXError(code: code) {
+            throw error
+        }
+        return count
+    }
+    
     func get(_ attribute: AXAttribute) throws -> Any? {
         precondition(Thread.isMainThread)
 

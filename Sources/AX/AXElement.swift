@@ -55,6 +55,10 @@ open class AXElement {
         self.element = element
     }
     
+    public func count(_ attribute: AXAttribute) throws -> Int {
+        try element.count(attribute)
+    }
+    
     public func attributes() throws -> [AXAttribute] {
         var names: CFArray?
         let result = AXUIElementCopyAttributeNames(element, &names)
@@ -134,6 +138,7 @@ open class AXElement {
         return pid
     }
 
+    /// Returns a new publisher for a notification emitted by this element.
     public func publisher(for notification: AXNotification) -> AnyPublisher<AXElement, Error> {
         do {
             return try AXNotificationObserver.shared(for: pid())
@@ -170,16 +175,6 @@ public extension AXElement {
 
     func isBusy() throws -> Bool {
         try get(.elementBusy) ?? false
-    }
-
-    // FIXME: Here?
-    func document() throws -> String? {
-        try get(.document)
-    }
-
-    // FIXME: Here?
-    func url() throws -> String? {
-        try get(.url)
     }
 }
 
