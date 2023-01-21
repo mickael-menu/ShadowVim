@@ -52,9 +52,13 @@ public final class Atomic<Value> {
     /// We could use a serial queue but that would impact performances as
     /// concurrent reads would not be possible. To make sure we don't get data
     /// races, writes are done using a `.barrier` flag.
-    private let queue = DispatchQueue(label: "org.readium.Atomic", attributes: .concurrent)
+    private let queue: DispatchQueue
 
-    public init(wrappedValue value: Value) {
+    public init(
+        wrappedValue value: Value,
+        queue: DispatchQueue = DispatchQueue(label: "menu.mickael.Atomic", attributes: .concurrent)
+    ) {
+        self.queue = queue
         self.value = value
     }
 
@@ -82,12 +86,12 @@ public final class Atomic<Value> {
     }
 
     /// Writes the value synchronously in a safe way.
-    public func write<T>(_ changes: (inout Value) -> T) -> T {
+    public func write<T>(_ changes: (inout Value) throws -> T) rethrows -> T {
         // The `barrier` flag here guarantees that we will never have a
         // concurrent read on `value` while we are modifying it. This prevents
         // a data race.
-        queue.sync(flags: .barrier) {
-            changes(&value)
+        try queue.sync(flags: .barrier) {
+            try changes(&value)
         }
     }
 }

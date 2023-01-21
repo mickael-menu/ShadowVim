@@ -33,7 +33,7 @@ public class EventDispatcher {
     private let api: API
     private var handlers: [Handler] = []
     private var nextSubscriptionID: EventSubscription.ID = 0
-    private let queue = DispatchQueue(label: "menu.mickael.EventDispatcher")
+    private let queue = DispatchQueue(label: "menu.mickael.Nvim.EventDispatcher")
 
     init(api: API) {
         self.api = api

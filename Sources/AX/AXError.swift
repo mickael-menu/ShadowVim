@@ -33,6 +33,9 @@ public enum AXError: LocalizedError {
     /// Failed to pack the given value to send to AX APIs.
     case packFailure(Any)
 
+    /// Invalid process id.
+    case invalidPid(pid_t)
+
     /// A system error occurred, such as the failure to allocate an object.
     case failure
 

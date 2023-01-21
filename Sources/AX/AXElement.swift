@@ -21,6 +21,7 @@
 
 import AppKit
 import ApplicationServices
+import Combine
 import Foundation
 
 /// An accessibility object provides information about the user interface object
@@ -31,7 +32,24 @@ import Foundation
 /// Accessibility objects respond to messages sent by assistive applications and
 /// send notifications that describe state changes.
 open class AXElement {
-    let element: AXUIElement
+    public let element: AXUIElement
+
+    public class func wrap(_ element: AXUIElement) -> AXElement {
+        guard let rawRole = try? element.get(.role) as? String else {
+            return AXElement(element: element)
+        }
+        let role = AXRole(rawValue: rawRole)
+        switch role {
+        case .application: return AXApplication(element: element)
+        case .systemWide: return AXSystemWideElement(element: element)
+        case .window, .sheet, .drawer: return AXWindow(element: element)
+        case .button: return AXButton(element: element)
+        case .textField: return AXTextField(element: element)
+        case .textArea: return AXTextArea(element: element)
+        default:
+            return AXElement(element: element)
+        }
+    }
 
     init(element: AXUIElement) {
         self.element = element
@@ -52,6 +70,31 @@ open class AXElement {
 
     public func set<Value: RawRepresentable>(_ attribute: AXAttribute, value: Value) throws {
         try set(attribute, value: value.rawValue)
+    }
+
+    /// Returns the process ID associated with this accessibility object.
+    public func pid() throws -> pid_t {
+        var pid: pid_t = -1
+        let result = AXUIElementGetPid(element, &pid)
+        if let error = AXError(code: result) {
+            throw error
+        }
+        guard pid > 0 else {
+            throw AXError.invalidPid(pid)
+        }
+        return pid
+    }
+
+    public func publisher(for notification: AXNotification) -> AnyPublisher<AXElement, Error> {
+        do {
+            return try AXNotificationObserver.shared(for: pid())
+                .publisher(for: notification, element: element)
+                .map { AXElement.wrap($0) }
+                .eraseToAnyPublisher()
+        } catch {
+            return Fail<AXElement, Error>(error: error)
+                .eraseToAnyPublisher()
+        }
     }
 }
 

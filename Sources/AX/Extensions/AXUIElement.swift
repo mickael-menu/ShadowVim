@@ -41,30 +41,13 @@ extension AXUIElement {
     private func unpack(_ value: AnyObject) throws -> Any {
         switch CFGetTypeID(value) {
         case AXUIElementGetTypeID():
-            return try wrapElement(value as! AXUIElement)
+            return AXElement.wrap(value as! AXUIElement)
         case CFArrayGetTypeID():
             return try (value as! [AnyObject]).map(unpack)
         case AXValueGetTypeID():
             return unpackValue(value as! AXValue)
         default:
             return value
-        }
-    }
-
-    private func wrapElement(_ element: AXUIElement) throws -> AXElement {
-        guard let rawRole = try element.get(.role) as? String else {
-            return AXElement(element: element)
-        }
-        let role = AXRole(rawValue: rawRole)
-        switch role {
-        case .application: return AXApplication(element: element)
-        case .systemWide: return AXSystemWideElement(element: element)
-        case .window, .sheet, .drawer: return AXWindow(element: element)
-        case .button: return AXButton(element: element)
-        case .textField: return AXTextField(element: element)
-        case .textArea: return AXTextArea(element: element)
-        default:
-            return AXElement(element: element)
         }
     }
 

@@ -29,6 +29,10 @@ public struct AXNotification: Hashable, RawRepresentable {
         self.rawValue = rawValue
     }
 
+    public init(_ notification: CFString) {
+        self.init(rawValue: notification as String)
+    }
+
     // Focus notifications
 
     /// Notification of a change in the main window.
@@ -174,34 +178,4 @@ public struct AXNotification: Hashable, RawRepresentable {
 
     /// Notification to request an announcement to be spoken.
     public static let announcementRequested = AXNotification(rawValue: kAXAnnouncementRequestedNotification)
-}
-
-public struct AXNotificationValueKey: Hashable, RawRepresentable {
-    public let rawValue: String
-
-    public init(rawValue: String) {
-        self.rawValue = rawValue
-    }
-
-    /// Notification info key used to specify an element.
-    public static let uiElements = AXNotificationValueKey(rawValue: kAXUIElementsKey)
-
-    /// Notification info key used to specify a priority for the notification.
-    /// See `AXPriority`.
-    public static let priority = AXNotificationValueKey(rawValue: kAXPriorityKey)
-
-    /// Notification info key used to specify an announcement to be spoken with
-    /// a notification.
-    public static let announcement = AXNotificationValueKey(rawValue: kAXAnnouncementKey)
-
-    /// Notification info key used to specify the title of an element to be
-    /// spoken with a notification.
-    public static let uiElementTitle = AXNotificationValueKey(rawValue: kAXUIElementTitleKey)
-}
-
-/// Priority values used for kAXPriorityKey
-public enum AXPriority: Int {
-    case low = 10
-    case medium = 50
-    case high = 90
 }
