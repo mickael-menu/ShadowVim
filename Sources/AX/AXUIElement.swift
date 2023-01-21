@@ -19,21 +19,68 @@
 //  available in the top-level LICENSE file of the project.
 //
 
+import AppKit
 import ApplicationServices
+import Combine
 import Foundation
 
-extension AXUIElement {
+public extension AXUIElement {
+    static var systemWide: AXUIElement { AXUIElementCreateSystemWide() }
+
+    static func app(_ application: NSRunningApplication) -> AXUIElement {
+        app(pid: application.processIdentifier)
+    }
+
+    static func app(pid: pid_t) -> AXUIElement {
+        precondition(pid >= 0)
+        return AXUIElementCreateApplication(pid)
+    }
+
+    static func app(bundleID: String) -> AXUIElement? {
+        NSWorkspace.shared.runningApplications
+            .first(where: { $0.bundleIdentifier == bundleID })
+            .map { app($0) }
+    }
+
+    func attributes() throws -> [AXAttribute] {
+        var names: CFArray?
+        let result = AXUIElementCopyAttributeNames(self, &names)
+        if let error = AXError(code: result) {
+            throw error
+        }
+
+        return (names! as [AnyObject]).map { AXAttribute(rawValue: $0 as! String) }
+    }
+
+    func attributeValues() throws -> [AXAttribute: Any] {
+        let attributes = try attributes()
+        let values = try get(attributes)
+        guard attributes.count == values.count else {
+            throw AXError.unexpectedValueCount(values)
+        }
+        return Dictionary(zip(attributes, values), uniquingKeysWith: { _, b in b })
+    }
+
+    func parameterizedAttributes() throws -> [AXAttribute] {
+        var names: CFArray?
+        let result = AXUIElementCopyParameterizedAttributeNames(self, &names)
+        if let error = AXError(code: result) {
+            throw error
+        }
+
+        return (names! as [AnyObject]).map { AXAttribute(rawValue: $0 as! String) }
+    }
 
     func count(_ attribute: AXAttribute) throws -> Int {
-        var count: Int = 0
+        var count = 0
         let code = AXUIElementGetAttributeValueCount(self, attribute.rawValue as CFString, &count)
         if let error = AXError(code: code) {
             throw error
         }
         return count
     }
-    
-    func get(_ attribute: AXAttribute) throws -> Any? {
+
+    func get<Value>(_ attribute: AXAttribute) throws -> Value? {
         precondition(Thread.isMainThread)
 
         var value: AnyObject?
@@ -45,10 +92,31 @@ extension AXUIElement {
                 throw error
             }
         }
-        return try unpack(value!)
+        return try unpack(value!) as? Value
     }
-    
-    func get<Parameter>(_ attribute: AXAttribute, with param: Parameter) throws -> Any? {
+
+    func get<Value: RawRepresentable>(_ attribute: AXAttribute) throws -> Value? {
+        let rawValue = try get(attribute) as Value.RawValue?
+        return rawValue.flatMap(Value.init(rawValue:))
+    }
+
+    func get<V1, V2>(_ attribute1: AXAttribute, _ attribute2: AXAttribute) throws -> (V1?, V2?) {
+        let values = try get([attribute1, attribute2])
+        guard values.count == 2 else {
+            throw AXError.unexpectedValueCount(values)
+        }
+        return (values[0] as? V1, values[1] as? V2)
+    }
+
+    func get<V1, V2, V3>(_ attribute1: AXAttribute, _ attribute2: AXAttribute, _ attribute3: AXAttribute) throws -> (V1?, V2?, V3?) {
+        let values = try get([attribute1, attribute2, attribute3])
+        guard values.count == 3 else {
+            throw AXError.unexpectedValueCount(values)
+        }
+        return (values[0] as? V1, values[1] as? V2, values[2] as? V3)
+    }
+
+    func get<Value, Parameter>(_ attribute: AXAttribute, with param: Parameter) throws -> Value? {
         precondition(Thread.isMainThread)
 
         var value: AnyObject?
@@ -60,11 +128,11 @@ extension AXUIElement {
                 throw error
             }
         }
-        return try unpack(value!)
+        return try unpack(value!) as? Value
     }
 
     func get(_ attributes: [AXAttribute]) throws -> [Any] {
-        let attributes = attributes.map { $0.rawValue } as CFArray
+        let attributes = attributes.map(\.rawValue) as CFArray
         var values: CFArray?
         let code = AXUIElementCopyMultipleAttributeValues(self, attributes, AXCopyMultipleAttributeOptions(), &values)
         if let error = AXError(code: code) {
@@ -76,7 +144,7 @@ extension AXUIElement {
     private func unpack(_ value: AnyObject) throws -> Any {
         switch CFGetTypeID(value) {
         case AXUIElementGetTypeID():
-            return AXElement.wrap(value as! AXUIElement)
+            return value as! AXUIElement
         case CFArrayGetTypeID():
             return try (value as! [AnyObject]).map(unpack)
         case AXValueGetTypeID():
@@ -121,7 +189,7 @@ extension AXUIElement {
         }
     }
 
-    func set(_ attribute: AXAttribute, value: Any) throws {
+    func set<Value>(_ attribute: AXAttribute, value: Value) throws {
         precondition(Thread.isMainThread)
 
         guard let value = pack(value) else {
@@ -134,10 +202,14 @@ extension AXUIElement {
         }
     }
 
+    func set<Value: RawRepresentable>(_ attribute: AXAttribute, value: Value) throws {
+        try set(attribute, value: value.rawValue)
+    }
+
     private func pack(_ value: Any) -> AnyObject? {
         switch value {
-        case let value as AXElement:
-            return value.element
+        case let value as AXUIElement:
+            return value
         case let value as [Any]:
             return value.compactMap(pack) as CFArray
         case var value as CGPoint:
@@ -151,5 +223,42 @@ extension AXUIElement {
         default:
             return value as AnyObject
         }
+    }
+
+    // MARK: Notifications
+
+    /// Returns a new publisher for a notification emitted by this element.
+    func publisher(for notification: AXNotification) -> AnyPublisher<AXUIElement, Error> {
+        do {
+            return try AXNotificationObserver.shared(for: pid())
+                .publisher(for: notification, element: self)
+                .eraseToAnyPublisher()
+        } catch {
+            return Fail<AXUIElement, Error>(error: error)
+                .eraseToAnyPublisher()
+        }
+    }
+
+    // MARK: Metadata
+
+    /// Returns the process ID associated with this accessibility object.
+    func pid() throws -> pid_t {
+        var pid: pid_t = -1
+        let result = AXUIElementGetPid(self, &pid)
+        if let error = AXError(code: result) {
+            throw error
+        }
+        guard pid > 0 else {
+            throw AXError.invalidPid(pid)
+        }
+        return pid
+    }
+
+    func role() throws -> AXRole? {
+        try get(.role)
+    }
+
+    func subrole() throws -> AXSubrole? {
+        try get(.subrole)
     }
 }

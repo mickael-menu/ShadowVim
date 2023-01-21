@@ -236,3 +236,22 @@ struct AXNotificationPublisher: Publisher {
         }
     }
 }
+
+private extension AXObserver {
+    func add(notification: AXNotification, element: AXUIElement, context: AnyObject) throws {
+        let notification = notification.rawValue as CFString
+        let context = Unmanaged.passUnretained(context).toOpaque()
+        let result = AXObserverAddNotification(self, element, notification, context)
+        if let error = AXError(code: result), case .notificationAlreadyRegistered = error {
+            throw error
+        }
+    }
+
+    func remove(notification: AXNotification, element: AXUIElement) throws {
+        let notification = notification.rawValue as CFString
+        let result = AXObserverRemoveNotification(self, element, notification)
+        if let error = AXError(code: result), case .notificationNotRegistered = error {
+            throw error
+        }
+    }
+}

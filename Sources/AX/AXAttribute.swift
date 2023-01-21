@@ -169,9 +169,9 @@ public struct AXAttribute: Hashable, RawRepresentable {
     public static let focusedApplication = AXAttribute(rawValue: kAXFocusedApplicationAttribute)
     public static let elementBusy = AXAttribute(rawValue: kAXElementBusyAttribute)
     public static let alternateUIVisible = AXAttribute(rawValue: kAXAlternateUIVisibleAttribute)
-    
+
     // MARK: - Parameterized attributes
-    
+
     // Text suite parameterized attributes
     public static let lineForIndex = AXAttribute(rawValue: kAXLineForIndexParameterizedAttribute)
     public static let rangeForLine = AXAttribute(rawValue: kAXRangeForLineParameterizedAttribute)
