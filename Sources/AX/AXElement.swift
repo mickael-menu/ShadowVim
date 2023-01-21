@@ -73,6 +73,16 @@ open class AXElement {
         }
         return Dictionary(zip(attributes, values), uniquingKeysWith: { a, b in b })
     }
+    
+    public func parameterizedAttributes() throws -> [AXAttribute] {
+        var names: CFArray?
+        let result = AXUIElementCopyParameterizedAttributeNames(element, &names)
+        if let error = AXError(code: result) {
+            throw error
+        }
+
+        return (names! as [AnyObject]).map { AXAttribute(rawValue: $0 as! String) }
+    }
 
     public func get<Value>(_ attribute: AXAttribute) throws -> Value? {
         try element.get(attribute) as? Value
@@ -81,6 +91,10 @@ open class AXElement {
     public func get<Value: RawRepresentable>(_ attribute: AXAttribute) throws -> Value? {
         let rawValue = try get(attribute) as Value.RawValue?
         return rawValue.flatMap(Value.init(rawValue:))
+    }
+
+    public func get<Value, Parameter>(_ attribute: AXAttribute, with param: Parameter) throws -> Value? {
+        try element.get(attribute, with: param) as? Value
     }
 
     public func get<V1, V2>(_ attribute1: AXAttribute, _ attribute2: AXAttribute) throws -> (V1?, V2?) {

@@ -169,6 +169,28 @@ public struct AXAttribute: Hashable, RawRepresentable {
     public static let focusedApplication = AXAttribute(rawValue: kAXFocusedApplicationAttribute)
     public static let elementBusy = AXAttribute(rawValue: kAXElementBusyAttribute)
     public static let alternateUIVisible = AXAttribute(rawValue: kAXAlternateUIVisibleAttribute)
+    
+    // MARK: - Parameterized attributes
+    
+    // Text suite parameterized attributes
+    public static let lineForIndex = AXAttribute(rawValue: kAXLineForIndexParameterizedAttribute)
+    public static let rangeForLine = AXAttribute(rawValue: kAXRangeForLineParameterizedAttribute)
+    public static let stringForRange = AXAttribute(rawValue: kAXStringForRangeParameterizedAttribute)
+    public static let rangeForPosition = AXAttribute(rawValue: kAXRangeForPositionParameterizedAttribute)
+    public static let rangeForIndex = AXAttribute(rawValue: kAXRangeForIndexParameterizedAttribute)
+    public static let boundsForRange = AXAttribute(rawValue: kAXBoundsForRangeParameterizedAttribute)
+    public static let rtfForRange = AXAttribute(rawValue: kAXRTFForRangeParameterizedAttribute)
+    public static let attributedStringForRange = AXAttribute(rawValue: kAXAttributedStringForRangeParameterizedAttribute)
+    public static let styleRangeForIndex = AXAttribute(rawValue: kAXStyleRangeForIndexParameterizedAttribute)
+
+    // Cell-based table parameterized attributes
+    public static let cellForColumnAndRow = AXAttribute(rawValue: kAXCellForColumnAndRowParameterizedAttribute)
+
+    // Layout area parameterized attributes
+    public static let layoutPointForScreenPoint = AXAttribute(rawValue: kAXLayoutPointForScreenPointParameterizedAttribute)
+    public static let layoutSizeForScreenSize = AXAttribute(rawValue: kAXLayoutSizeForScreenSizeParameterizedAttribute)
+    public static let screenPointForLayoutPoint = AXAttribute(rawValue: kAXScreenPointForLayoutPointParameterizedAttribute)
+    public static let screenSizeForLayoutSize = AXAttribute(rawValue: kAXScreenSizeForLayoutSizeParameterizedAttribute)
 }
 
 extension AXAttribute: CustomStringConvertible {

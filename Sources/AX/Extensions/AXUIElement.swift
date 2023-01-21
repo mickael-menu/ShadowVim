@@ -38,6 +38,21 @@ extension AXUIElement {
         return try unpack(value!)
     }
     
+    func get<Parameter>(_ attribute: AXAttribute, with param: Parameter) throws -> Any? {
+        precondition(Thread.isMainThread)
+
+        var value: AnyObject?
+        let code = AXUIElementCopyParameterizedAttributeValue(self, attribute.rawValue as CFString, param as AnyObject, &value)
+        if let error = AXError(code: code) {
+            if case .noValue = error {
+                return nil
+            } else {
+                throw error
+            }
+        }
+        return try unpack(value!)
+    }
+
     func get(_ attributes: [AXAttribute]) throws -> [Any] {
         let attributes = attributes.map { $0.rawValue } as CFArray
         var values: CFArray?
