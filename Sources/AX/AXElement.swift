@@ -54,6 +54,25 @@ open class AXElement {
     init(element: AXUIElement) {
         self.element = element
     }
+    
+    public func attributes() throws -> [AXAttribute] {
+        var names: CFArray?
+        let result = AXUIElementCopyAttributeNames(element, &names)
+        if let error = AXError(code: result) {
+            throw error
+        }
+
+        return (names! as [AnyObject]).map { AXAttribute(rawValue: $0 as! String) }
+    }
+        
+    public func attributeValues() throws -> [AXAttribute: Any] {
+        let attributes = try attributes()
+        let values = try element.get(attributes)
+        guard attributes.count == values.count else {
+            throw AXError.unexpectedValueCount(values)
+        }
+        return Dictionary(zip(attributes, values), uniquingKeysWith: { a, b in b })
+    }
 
     public func get<Value>(_ attribute: AXAttribute) throws -> Value? {
         try element.get(attribute) as? Value

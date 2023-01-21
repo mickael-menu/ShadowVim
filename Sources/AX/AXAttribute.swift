@@ -171,6 +171,12 @@ public struct AXAttribute: Hashable, RawRepresentable {
     public static let alternateUIVisible = AXAttribute(rawValue: kAXAlternateUIVisibleAttribute)
 }
 
+extension AXAttribute: CustomStringConvertible {
+    public var description: String {
+        rawValue
+    }
+}
+
 public struct AXRole: Hashable, RawRepresentable {
     public let rawValue: String
 
