@@ -64,6 +64,22 @@ open class AXElement {
         return rawValue.flatMap(Value.init(rawValue:))
     }
 
+    public func get<V1, V2>(_ attribute1: AXAttribute, _ attribute2: AXAttribute) throws -> (V1?, V2?) {
+        let values = try element.get([attribute1, attribute2])
+        guard values.count == 2 else {
+            throw AXError.unexpectedValueCount(values)
+        }
+        return (values[0] as? V1, values[1] as? V2)
+    }
+
+    public func get<V1, V2, V3>(_ attribute1: AXAttribute, _ attribute2: AXAttribute, _ attribute3: AXAttribute) throws -> (V1?, V2?, V3?) {
+        let values = try element.get([attribute1, attribute2, attribute3])
+        guard values.count == 3 else {
+            throw AXError.unexpectedValueCount(values)
+        }
+        return (values[0] as? V1, values[1] as? V2, values[2] as? V3)
+    }
+
     public func set<Value>(_ attribute: AXAttribute, value: Value) throws {
         try element.set(attribute, value: value)
     }
@@ -337,6 +353,15 @@ public extension AXValuedElement {
 
     func value() throws -> Value? {
         try get(.value)
+    }
+
+    func valuePublisher() throws -> AnyPublisher<Value?, Error> {
+        publisher(for: .valueChanged)
+            .tryMap { [element] el in
+                precondition(el.element == element)
+                return try (el as? Self)?.value() as? Value
+            }
+            .eraseToAnyPublisher()
     }
 
     func valueDescription() throws -> String? {

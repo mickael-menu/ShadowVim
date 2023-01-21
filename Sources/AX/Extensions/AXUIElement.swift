@@ -35,7 +35,17 @@ extension AXUIElement {
                 throw error
             }
         }
-        return try value.map(unpack)
+        return try unpack(value!)
+    }
+    
+    func get(_ attributes: [AXAttribute]) throws -> [Any] {
+        let attributes = attributes.map { $0.rawValue } as CFArray
+        var values: CFArray?
+        let code = AXUIElementCopyMultipleAttributeValues(self, attributes, AXCopyMultipleAttributeOptions(), &values)
+        if let error = AXError(code: code) {
+            throw error
+        }
+        return try (values! as [AnyObject]).map(unpack)
     }
 
     private func unpack(_ value: AnyObject) throws -> Any {
