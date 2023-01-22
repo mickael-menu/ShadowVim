@@ -58,4 +58,8 @@ public extension Result {
             return .failure(error)
         }
     }
+
+    func `throw`() throws {
+        _ = try get()
+    }
 }

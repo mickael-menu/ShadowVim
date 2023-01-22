@@ -82,6 +82,24 @@ public extension AXUIElement {
         return count
     }
 
+    subscript<Value>(_ attribute: AXAttribute) -> Value? {
+        get {
+            do {
+                return try get(attribute)
+            } catch {
+                print(error) // FIXME:
+                return nil
+            }
+        }
+        set(value) {
+            do {
+                try set(attribute, value: value)
+            } catch {
+                print(error) // FIXME:
+            }
+        }
+    }
+
     func get<Value>(_ attribute: AXAttribute) throws -> Value? {
         var value: AnyObject?
         let code = AXUIElementCopyAttributeValue(self, attribute.rawValue as CFString, &value)

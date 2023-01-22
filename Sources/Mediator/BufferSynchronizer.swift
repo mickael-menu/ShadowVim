@@ -23,38 +23,39 @@ import AX
 import Foundation
 import Nvim
 
+enum Mode: String {
+    case normal = "n"
+    case insert = "i"
+}
+
 enum BufferSynchronizerError: Error {}
 
 final class BufferSynchronizer {
+    var element: AXUIElement
+
     private let nvim: Nvim
-    private let element: AXUIElement
+    private let name: String
     private var buffer: Buffer!
 
-    init(nvim: Nvim, element: AXUIElement) {
+    init(nvim: Nvim, element: AXUIElement, name: String) {
         self.nvim = nvim
         self.element = element
+        self.name = name
     }
 
-    lazy var name: String = {
-        if
-            let window = try? element.get(.window) as AXUIElement?,
-            let documentPath = try? window.get(.document) as String?,
-            let documentURL = URL(string: documentPath)
-        {
-            return documentURL
-                .resolvingSymlinksInPath()
-                .path
-                .replacingOccurrences(of: "/", with: "%")
-                .replacingOccurrences(of: ":", with: "%")
-        } else {
-            return UUID().uuidString
-        }
-    }()
-
     func edit() async throws {
-        let url = URL.temporaryDirectory.appending(path: name)
+        let caches = URL.cachesDirectory
+            .appending(component: "menu.mickael.ShadowVim")
+        try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
+        let url = caches.appending(path: name)
 
-        let content = (try element.get(.value) as String?) ?? ""
+        var pos: CursorPosition = (0, 0)
+        var selection: CFRange = element[.selectedTextRange] ?? CFRange(location: 0, length: 0)
+        selection = CFRange(location: selection.location, length: 1) // Normal mode
+//        pos.row = element[.lineForIndex] ?? 0
+//        pos.col = element[.lineForIndex] ?? 0
+
+        let content: String = element[.value] ?? ""
         try content.write(to: url, atomically: true, encoding: .utf8)
 
         print("EDIT \(url.path)")
@@ -63,13 +64,15 @@ final class BufferSynchronizer {
         buffer = try await nvim.buffer()
 
         await buffer.attach(
-            sendBuffer: true,
+            sendBuffer: false,
             onLines: { event in
                 DispatchQueue.main.sync {
                     try! self.update(event)
                 }
             }
         )
+
+//        element[.selectedTextRange] = selection
     }
 
     private func update(_ event: BufLinesEvent) throws {
@@ -81,8 +84,27 @@ final class BufferSynchronizer {
             return
         }
 
-        let cfRange = range.cfRange(in: content)
-        try element.set(.selectedTextRange, value: cfRange)
-        try element.set(.selectedText, value: replacement)
+        element[.selectedTextRange] = range.cfRange(in: content)
+        element[.selectedText] = replacement
+    }
+
+    func lines() -> (String, [Substring]) {
+        guard let value: String = element[.value] else {
+            return ("", [])
+        }
+        return (value, value.split(separator: "\n", omittingEmptySubsequences: false))
+    }
+
+    func setCursor(position: Int, mode: Mode) {
+        let length: Int = {
+            switch mode {
+            case .normal:
+                return 1
+            case .insert:
+                return 0
+            }
+        }()
+        let range = CFRange(location: position, length: length)
+        try? element.set(.selectedTextRange, value: range)
     }
 }

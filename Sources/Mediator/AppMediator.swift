@@ -52,8 +52,10 @@ public final class AppMediator {
     private let element: AXUIElement
     private let nvimProcess: NvimProcess
     private var nvim: Nvim { nvimProcess.nvim }
-    private var synchronizer: BufferSynchronizer?
-    private var textArea: AXUIElement?
+
+    private var buffers: [String: BufferSynchronizer] = [:]
+    private var currentBuffer: BufferSynchronizer?
+
     private var subscriptions: Set<AnyCancellable> = []
 
     private init(app: NSRunningApplication) throws {
@@ -61,15 +63,28 @@ public final class AppMediator {
         element = AXUIElement.app(app)
         nvimProcess = try NvimProcess.start()
         nvim.delegate = self
-        
-        Task {
-            guard
-                let textArea = try? element.get(.focusedUIElement) as AXUIElement?,
-                (try? textArea.role()) == .textArea
-            else {
-                return
-            }
 
+        element.publisher(for: .focusedUIElementChanged)
+            .assertNoFailure()
+            .sink { [unowned self] element in
+                if (try? element.role()) == .textArea {
+                    let name = name(for: element)
+                    let buffer = buffers.getOrPut(
+                        key: name,
+                        defaultValue: BufferSynchronizer(nvim: nvim, element: element, name: name)
+                    )
+                    buffer.element = element
+                    currentBuffer = buffer
+                    Task {
+                        try! await buffer.edit()
+                    }
+                } else {
+                    currentBuffer = nil
+                }
+            }
+            .store(in: &subscriptions)
+
+        Task {
             await nvim.events.autoCmd(event: "CursorMoved", "CursorMovedI", "ModeChanged", args: "getcursorcharpos()", "mode()")
                 .assertNoFailure()
                 .receive(on: DispatchQueue.main)
@@ -88,15 +103,31 @@ public final class AppMediator {
                     //            print("MODE \(params)")
                 }
                 .store(in: &subscriptions)
-                        
-            self.textArea = textArea
-            self.synchronizer = BufferSynchronizer(nvim: nvim, element: textArea)
-            try await synchronizer?.edit()
+        }
+    }
+
+    func name(for element: AXUIElement) -> String {
+        if
+            let window = try? element.get(.window) as AXUIElement?,
+            let documentPath = try? window.get(.document) as String?,
+            let documentURL = URL(string: documentPath)
+        {
+            return documentURL
+                .resolvingSymlinksInPath()
+                .path
+                .replacingOccurrences(of: "/", with: "%")
+                .replacingOccurrences(of: ":", with: "%")
+        } else {
+            return UUID().uuidString
         }
     }
 
     public func handle(_ event: CGEvent) -> CGEvent? {
         precondition(app.isActive)
+
+        guard currentBuffer != nil else {
+            return event
+        }
 
         switch event.type {
         case .keyDown:
@@ -149,13 +180,9 @@ public final class AppMediator {
         return event
     }
 
-    enum Mode: String {
-        case normal = "n"
-        case insert = "i"
-    }
-
     private func onCursorEvent(params: [Value]) {
         guard
+            let buffer = currentBuffer,
             params.count == 2,
             let cursorParams = params[0].arrayValue,
             cursorParams.count == 5,
@@ -167,7 +194,7 @@ public final class AppMediator {
         lnum -= 1
         col -= 1
 
-        let (_, lines) = getElementLines()
+        let (_, lines) = buffer.lines()
         var count = 0
         for (i, line) in lines.enumerated() {
             if i == lnum {
@@ -178,58 +205,30 @@ public final class AppMediator {
         }
 
         let mode = params[1].stringValue.flatMap(Mode.init(rawValue:)) ?? .normal
-        setCursor(position: count, mode: mode)
+        buffer.setCursor(position: count, mode: mode)
     }
 
-    private func setCursor(position: Int, mode: Mode) {
-        guard let textArea = textArea else {
-            return
-        }
-        let length: Int = {
-            switch mode {
-            case .normal:
-                return 1
-            case .insert:
-                return 0
-            }
-        }()
-        let range = CFRange(location: position, length: length)
-        try? textArea.set(.selectedTextRange, value: range)
+    private var cmd: String = "" {
+        didSet { Task { await updateCmdline() } }
     }
 
-    private func getElementLines() -> (String, [any StringProtocol]) {
-        guard let value = try? textArea?.get(.value) as String? else {
-            return ("", [])
-        }
-        return (value, value.split(separator: "\n", omittingEmptySubsequences: false))
+    private var more: String = "" {
+        didSet { Task { await updateCmdline() } }
     }
-        
-        private var cmd: String = "" {
-            didSet { Task { await updateCmdline() } }
-        }
 
-        private var more: String = "" {
-            didSet { Task { await updateCmdline() } }
-        }
+    @Published private(set) var cmdline: String = ""
 
-        @Published private(set) var cmdline: String = ""
+    @Published private(set) var mode: String = ""
 
-        @Published private(set) var mode: String = ""
+    @MainActor
+    private func updateCmdline() {
+        cmdline = cmd + more
+    }
 
-        @MainActor
-        private func updateCmdline() {
-            cmdline = cmd + more
-        }
-
-        @MainActor
-        private func updateMode(mode: String) {
-            self.mode = mode
-            more = ""
-        }
-    
-    func getContent() async -> String {
-        let lines: [String] = (try? await nvim.buffer().getLines().get()) ?? []
-        return lines.joined(separator: "\n")
+    @MainActor
+    private func updateMode(mode: String) {
+        self.mode = mode
+        more = ""
     }
 }
 
@@ -237,10 +236,10 @@ extension AppMediator: NvimDelegate {
     public func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>? {
         switch method {
         case "SVRefresh":
-            Task {
-                let content = await getContent()
-                try! element.set(.value, value: content)
-            }
+//            Task {
+//                let content = await getContent()
+//                try! element.set(.value, value: content)
+//            }
             return .success(.bool(true))
         default:
             return nil

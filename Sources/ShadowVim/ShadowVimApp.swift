@@ -54,7 +54,7 @@ final class AppViewModel: ObservableObject {
             try! await self.eventTap.run()
         }
     }
-    
+
     private lazy var eventTap = EventTap { [unowned self] _, event in
         guard
             let nsApp = NSWorkspace.shared.frontmostApplication,

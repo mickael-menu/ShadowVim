@@ -48,7 +48,7 @@ public class Nvim {
 
     public func edit(url: URL) async throws {
         let path = url.path.replacingOccurrences(of: "%", with: "\\%")
-        _ = try await api.cmd("edit", args: .string(path)).get()
+        try await api.cmd("edit", args: .string(path)).throw()
     }
 
     /// - Parameter handle: Handle of the buffer, or 0 for the current buffer.
