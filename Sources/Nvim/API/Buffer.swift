@@ -19,6 +19,7 @@
 //  available in the top-level LICENSE file of the project.
 //
 
+import Combine
 import Foundation
 
 public class Buffer {
@@ -26,7 +27,7 @@ public class Buffer {
 
     private let api: API
     private let events: EventDispatcher
-    private var subscriptions: [EventSubscription] = []
+    private var subscriptions: Set<AnyCancellable> = []
 
     init(handle: BufferHandle, api: API, events: EventDispatcher) {
         precondition(handle > 0, "The `current buffer` handle is not valid")
@@ -40,12 +41,12 @@ public class Buffer {
         sendBuffer: Bool,
         onLines: @escaping (BufLinesEvent) -> Void
     ) async -> APIResult<Bool> {
-        await events.subscribeToBufLines(of: handle, handler: onLines)
-            .flatMap { subscription in
-                subscriptions.append(subscription)
+        events.subscribeToBufLines(of: handle)
+            .assertNoFailure()
+            .sink(receiveValue: onLines)
+            .store(in: &subscriptions)
 
-                return await api.bufAttach(buffer: handle, sendBuffer: sendBuffer)
-            }
+        return await api.bufAttach(buffer: handle, sendBuffer: sendBuffer)
     }
 
     public func getLines(

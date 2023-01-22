@@ -19,42 +19,27 @@
 //  available in the top-level LICENSE file of the project.
 //
 
+import Combine
 import Foundation
+import Toolkit
 
+public typealias Event = String
+
+/// Receives Neovim RPC events and dispatch them to observers using publishers.
 public class EventDispatcher {
-    public typealias OnEvent = ([Value]) -> Void
-
-    private struct Handler {
-        let subscriptionID: EventSubscription.ID
-        let event: String
-        let callback: OnEvent
-    }
-
     private let api: API
-    private var handlers: [Handler] = []
-    private var nextSubscriptionID: EventSubscription.ID = 0
-    private let queue = DispatchQueue(label: "menu.mickael.Nvim.EventDispatcher")
 
     init(api: API) {
         self.api = api
     }
 
     func dispatch(event: String, data: [Value]) {
-        queue.async { [unowned self] in
-            for handler in handlers {
-                if handler.event == event {
-                    handler.callback(data)
-                }
-            }
-        }
+        subscriptions[event]?.receive(with: data)
     }
 
-    public func subscribe(
-        to event: String,
-        handler: @escaping OnEvent
-    ) async -> APIResult<EventSubscription> {
-        await api.subscribe(to: event)
-            .map { addHandler(for: event, callback: handler) }
+    public func subscribe(to event: String) -> AnyPublisher<[Value], APIError> {
+        EventPublisher(dispatcher: self, event: event)
+            .eraseToAnyPublisher()
     }
 
     //    try await nvim.command("autocmd CursorMoved * call rpcnotify(0, 'moved')")
@@ -62,9 +47,8 @@ public class EventDispatcher {
     //    try await nvim.command("autocmd CmdlineChanged * call rpcnotify(0, 'cmdline', getcmdline())")
     public func autoCmd(
         event: String...,
-        args: String...,
-        handler: @escaping OnEvent
-    ) async -> APIResult<EventSubscription> {
+        args: String...
+    ) async -> AnyPublisher<[Value], APIError> {
         let eventName = "autocmd-\(UUID().uuidString)"
         var argsList = ""
         if !args.isEmpty {
@@ -76,61 +60,159 @@ public class EventDispatcher {
             command: "call rpcnotify(0, '\(eventName)'\(argsList))"
         )
         if case let .failure(error) = autocmdID {
-            return .failure(error)
+            return Fail(error: error)
+                .eraseToAnyPublisher()
         }
 
-        return await subscribe(to: eventName, handler: handler)
+        return subscribe(to: eventName)
     }
 
-    private func addHandler(for event: String, callback: @escaping OnEvent) -> EventSubscription {
-        queue.sync { [unowned self] in
-            let id = nextSubscriptionID
-            nextSubscriptionID += 1
+    // MARK: - Subscriptions
 
-            let subscription = EventSubscription { [weak self] in
-                self?.unsubscribe(id)
+    @Atomic private var subscriptions: [Event: EventSubscription] = [:]
+
+    /// Registers a new `receiver`, creating a shared `NotificationSubscription` if needed.
+    fileprivate func register(_ receiver: any EventReceiver) async -> APIResult<Void> {
+        let event = receiver.event
+
+        var needsSubscribe = false
+        $subscriptions.write {
+            let subscription = $0.getOrPut(
+                key: event,
+                defaultValue: EventSubscription(event: event)
+            )
+            needsSubscribe = subscription.isEmpty
+            subscription.add(receiver)
+        }
+
+        return needsSubscribe
+            ? await api.subscribe(to: event)
+            : .success(())
+    }
+
+    /// Removes a `receiver` previously registered.
+    fileprivate func deregister(_ receiver: EventReceiver) async -> APIResult<Void> {
+        let event = receiver.event
+
+        var needsUnsubscribe = false
+        $subscriptions.write {
+            guard let subscription = $0[event] else {
+                assertionFailure("No subscription found")
+                return
             }
 
-            handlers.append(Handler(
-                subscriptionID: id,
-                event: event,
-                callback: callback
-            ))
+            subscription.remove(receiver)
 
-            return subscription
+            if subscription.isEmpty {
+                needsUnsubscribe = true
+                $0.removeValue(forKey: event)
+            }
         }
+
+        return needsUnsubscribe
+            ? await api.unsubscribe(from: event)
+            : .success(())
+    }
+}
+
+/// A subscription to the given `event` shared between several receivers.
+///
+/// It manages a list of `EventReceiver` representing individual publisher
+/// subscriptions.
+private class EventSubscription {
+    let event: Event
+    private var receivers: [any EventReceiver] = []
+
+    init(event: Event) {
+        self.event = event
     }
 
-    func unsubscribe(_ id: EventSubscription.ID) {
-        queue.async { [unowned self] in
-            self.handlers.removeAll { $0.subscriptionID == id }
+    var isEmpty: Bool {
+        receivers.isEmpty
+    }
+
+    func add(_ receiver: any EventReceiver) {
+        precondition(receiver.event == event)
+        receivers.append(receiver)
+    }
+
+    func remove(_ receiver: any EventReceiver) {
+        precondition(receiver.event == event)
+        receivers.removeAll { ObjectIdentifier($0) == ObjectIdentifier(receiver) }
+    }
+
+    func receive(with data: [Value]) {
+        for receiver in receivers {
+            receiver.receive(with: data)
         }
     }
 }
 
-public class EventSubscription {
-    public typealias ID = Int
+/// Adapter protocol used to connect an `EventSubscription` with a publisher
+/// subscription.
+private protocol EventReceiver: AnyObject {
+    /// Event to observe.
+    var event: Event { get }
 
-    private let onCancel: () -> Void
-    private var isCancelled: Bool = false
+    func receive(with data: [Value])
+}
 
-    fileprivate init(onCancel: @escaping () -> Void) {
-        self.onCancel = onCancel
+/// Combine publisher to observe Neovim events.
+public struct EventPublisher: Publisher {
+    public typealias Output = [Value]
+    public typealias Failure = APIError
+
+    private let dispatcher: EventDispatcher
+    private let event: Event
+    private var tasks: [Task<Void, Never>] = []
+
+    init(dispatcher: EventDispatcher, event: Event) {
+        self.dispatcher = dispatcher
+        self.event = event
     }
 
-    deinit {
-        cancel()
-    }
-
-    public func cancel() {
-        guard !isCancelled else {
-            return
+    public func receive<S>(
+        subscriber: S
+    ) where S: Subscriber, S.Input == [Value], S.Failure == APIError {
+        Task {
+            let subscription = Subscription(dispatcher: dispatcher, event: event, subscriber: subscriber)
+            let result = await dispatcher.register(subscription)
+            switch result {
+            case .success:
+                subscriber.receive(subscription: subscription)
+            case let .failure(error):
+                subscriber.receive(completion: .failure(error))
+            }
         }
-        isCancelled = true
-        onCancel()
     }
 
-    public func store(in set: inout [EventSubscription]) {
-        set.append(self)
+    private class Subscription<S: Subscriber>:
+        EventReceiver,
+        Combine.Subscription where S.Input == [Value], S.Failure == APIError
+    {
+        private let dispatcher: EventDispatcher
+        let event: Event
+        private var subscriber: S?
+
+        init(dispatcher: EventDispatcher, event: Event, subscriber: S) {
+            self.dispatcher = dispatcher
+            self.event = event
+            self.subscriber = subscriber
+        }
+
+        func request(_ demand: Subscribers.Demand) {}
+
+        func cancel() {
+            subscriber = nil
+
+            Task {
+                await dispatcher.deregister(self)
+                    .onError { Swift.print($0) } // FIXME:
+            }
+        }
+
+        func receive(with data: [Value]) {
+            _ = subscriber?.receive(data)
+        }
     }
 }

@@ -30,7 +30,13 @@ public class NvimProcess {
         let output = Pipe()
         let process = Process()
         process.executableURL = executableURL
-        process.arguments = ["--headless", "--embed", "--clean", "-n"]
+        process.arguments = [
+            "--headless",
+            "--embed",
+            "--clean", // Don't load default config and plugins.
+            "-n", // Ignore swap files.
+            "-u", "~/.config/shadowvim/init.vim", // Load this config file.
+        ]
         process.standardInput = input
         process.standardOutput = output
         try process.run()

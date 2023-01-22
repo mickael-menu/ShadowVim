@@ -19,24 +19,26 @@
 //  available in the top-level LICENSE file of the project.
 //
 
+import Combine
 import Foundation
 
 extension EventDispatcher {
     /// Subscribes a new handler for the `nvim_buf_lines_event` event of the given `buffer`.
     func subscribeToBufLines(
-        of buffer: BufferHandle,
-        handler: @escaping (BufLinesEvent) -> Void
-    ) async -> APIResult<EventSubscription> {
-        await subscribe(to: "nvim_buf_lines_event") { params in
-            guard
-                let eventBuffer = params.first?.bufferValue,
-                eventBuffer == buffer,
-                let event = BufLinesEvent(params: params)
-            else {
-                return
+        of buffer: BufferHandle
+    ) -> AnyPublisher<BufLinesEvent, APIError> {
+        subscribe(to: "nvim_buf_lines_event")
+            .compactMap { data in
+                guard
+                    let eventBuffer = data.first?.bufferValue,
+                    eventBuffer == buffer,
+                    let event = BufLinesEvent(params: data)
+                else {
+                    return nil
+                }
+                return event
             }
-            handler(event)
-        }
+            .eraseToAnyPublisher()
     }
 }
 
