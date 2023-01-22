@@ -19,7 +19,7 @@
 //  available in the top-level LICENSE file of the project.
 //
 
-import AXSwift
+import AX
 import Foundation
 import Nvim
 
@@ -27,18 +27,18 @@ enum BufferSynchronizerError: Error {}
 
 final class BufferSynchronizer {
     private let nvim: Nvim
-    private let element: UIElement
+    private let element: AXUIElement
     private var buffer: Buffer!
 
-    init(nvim: Nvim, element: UIElement) {
+    init(nvim: Nvim, element: AXUIElement) {
         self.nvim = nvim
         self.element = element
     }
 
     lazy var name: String = {
         if
-            let window = try? element.attribute(.window) as UIElement?,
-            let documentPath = try? window.attribute(.document) as String?,
+            let window = try? element.get(.window) as AXUIElement?,
+            let documentPath = try? window.get(.document) as String?,
             let documentURL = URL(string: documentPath)
         {
             return documentURL
@@ -54,7 +54,7 @@ final class BufferSynchronizer {
     func edit() async throws {
         let url = URL.temporaryDirectory.appending(path: name)
 
-        let content = (try element.attribute(.value) as String?) ?? ""
+        let content = (try element.get(.value) as String?) ?? ""
         try content.write(to: url, atomically: true, encoding: .utf8)
 
         print("EDIT \(url.path)")
@@ -76,13 +76,13 @@ final class BufferSynchronizer {
         print("\(event)")
         print("\n")
 
-        let content = (try element.attribute(.value) as String?) ?? ""
+        let content = (try element.get(.value) as String?) ?? ""
         guard let (range, replacement) = event.changes(in: content) else {
             return
         }
 
         let cfRange = range.cfRange(in: content)
-        try element.setAttribute(.selectedTextRange, value: cfRange)
-        try element.setAttribute(.selectedText, value: replacement)
+        try element.set(.selectedTextRange, value: cfRange)
+        try element.set(.selectedText, value: replacement)
     }
 }

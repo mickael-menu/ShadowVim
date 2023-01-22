@@ -24,6 +24,8 @@ import ApplicationServices
 import Combine
 import Foundation
 
+public typealias AXUIElement = ApplicationServices.AXUIElement
+
 public extension AXUIElement {
     static var systemWide: AXUIElement { AXUIElementCreateSystemWide() }
 
@@ -81,8 +83,6 @@ public extension AXUIElement {
     }
 
     func get<Value>(_ attribute: AXAttribute) throws -> Value? {
-        precondition(Thread.isMainThread)
-
         var value: AnyObject?
         let code = AXUIElementCopyAttributeValue(self, attribute.rawValue as CFString, &value)
         if let error = AXError(code: code) {

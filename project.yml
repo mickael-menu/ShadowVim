@@ -8,6 +8,10 @@ packages:
   ShadowVim:
     path: .
 
+settings:
+  CODE_SIGN_STYLE: Automatic
+  DEVELOPMENT_TEAM: ${SV_DEVELOPMENT_TEAM}
+
 targets:
   ShadowVim:
     type: application

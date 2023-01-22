@@ -10,6 +10,7 @@ let package = Package(
     ],
     products: [
         .library(name: "AX", targets: ["AX"]),
+        .library(name: "Mediator", targets: ["Mediator"]),
         .library(name: "Nvim", targets: ["Nvim"]),
     ],
     dependencies: [
@@ -19,6 +20,14 @@ let package = Package(
         .target(
             name: "AX",
             dependencies: [
+                "Toolkit",
+            ]
+        ),
+        .target(
+            name: "Mediator",
+            dependencies: [
+                "AX",
+                "Nvim",
                 "Toolkit",
             ]
         ),

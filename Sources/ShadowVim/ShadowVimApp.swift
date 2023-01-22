@@ -19,12 +19,10 @@
 //  available in the top-level LICENSE file of the project.
 //
 
+import AX
+import Combine
 import Nvim
 import SwiftUI
-
-import AXSwift
-
-private var subscriptions: [EventSubscription] = []
 
 final class AppViewModel: ObservableObject {
     private var process: NvimProcess!
@@ -46,8 +44,68 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var mode: String = ""
 
     private var lines: [String] = []
+    private var subs: Set<AnyCancellable> = []
 
     init() throws {
+        AXUIElement.systemWide
+            .publisher(for: .focusedUIElementChanged)
+            .sink(receiveCompletion: { compl in
+                print("Compl \(compl)")
+            }, receiveValue: { elem in
+                print("Created: \(elem.hashValue)")
+            })
+            .store(in: &subs)
+
+        print(element)
+        app
+            .publisher(for: .focusedUIElementChanged)
+            .sink(receiveCompletion: { compl in
+                print("Compl \(compl)")
+            }, receiveValue: { elem in
+                print("Created: \(elem.hashValue)")
+            })
+            .store(in: &subs)
+
+        app.publisher(for: .created)
+            .assertNoFailure()
+            .sink { info in
+                print("RECEIVE CREATED \(info)")
+            }
+            .store(in: &subs)
+
+//        let t1 = try app.get(.title) as String?
+//        let w1 = try app.get(.window) as AXElement?
+        let (title, win, subrole) = try app.get(.title, .mainWindow, .role) as (String?, AXUIElement?, AXRole?)
+        print("received", title, win, subrole)
+
+        app.publisher(for: .focusedUIElementChanged)
+            .assertNoFailure()
+            .sink { element in
+                print("lineForIndex", try? element.get(.lineForIndex, with: 10) as Int?)
+            }
+            .store(in: &subs)
+
+        app.publisher(for: .focusedUIElementChanged)
+            .map {
+                $0.publisher(for: .valueChanged)
+            }
+            .switchToLatest()
+            .assertNoFailure()
+            .sink { info in
+                print("RECEIVE value changed for \(info)")
+            }
+            .store(in: &subs)
+//        let window = try app.mainWindow()!
+//        let element = try? app.focusedUIElement()
+//        Task {
+//            while true {
+//                DispatchQueue.main.async {
+//                    try? element?.focus()
+//                }
+//                try await Task.sleep(for: .seconds(5))
+//            }
+//        }
+
         process = try NvimProcess.start(
             onRequest: { [unowned self] method, _ in
                 switch method {
@@ -71,40 +129,19 @@ final class AppViewModel: ObservableObject {
     @MainActor
     func refresh() async {
         let content = await getContent()
-        try! element.setAttribute(.value, value: content)
-    }
-
-    private func update(_ event: BufLinesEvent) throws {
-        print("\(event)")
-        print("\n")
-
-        let content = (try element.attribute(.value) as String?) ?? ""
-        guard let (range, replacement) = event.changes(in: content) else {
-            return
-        }
-
-        let cfRange = range.cfRange(in: content)
-        try element.setAttribute(.selectedTextRange, value: cfRange)
-        try element.setAttribute(.selectedText, value: replacement)
+        try! element.set(.value, value: content)
     }
 
     func getElementLines() -> (String, [any StringProtocol]) {
-        var value: AnyObject?
-        guard AXUIElementCopyAttributeValue(element.element, kAXValueAttribute as CFString, &value) == AXError.success else {
-            print("Failed to get the element's value.")
+        guard let value = try? element.get(.value) as String? else {
             return ("", [])
         }
-        guard let stringValue = value as? String else {
-            print("Failed to cast the element's value to a string.")
-            return ("", [])
-        }
-
-        return (stringValue, stringValue.split(separator: "\n", omittingEmptySubsequences: false))
+        return (value, value.split(separator: "\n", omittingEmptySubsequences: false))
     }
 
     private func update(_ lines: [String]) {
         self.lines = lines
-        try! element.setAttribute(.value, value: lines.joined(separator: "\n"))
+        try! element.set(.value, value: lines.joined(separator: "\n"))
     }
 
     @MainActor
@@ -162,7 +199,7 @@ final class AppViewModel: ObservableObject {
             }
         }()
         let range = CFRange(location: position, length: length)
-        try? element.setAttribute(.selectedTextRange, value: range)
+        try? element.set(.selectedTextRange, value: range)
     }
 
     var synchronizer: BufferSynchronizer!
@@ -172,37 +209,22 @@ final class AppViewModel: ObservableObject {
         synchronizer = BufferSynchronizer(nvim: nvim, element: element)
         try await synchronizer.edit()
 
-//        buffer = try await nvim.buffer().get()
-//
-//        print("WIN WIDTH \(try await nvim.api.winGetWidth().get())")
-//
-        ////        let document = try! (element.attribute(.window) as UIElement?)?.attribute(.document) as String?
-        ////        let url = URL(string: document!)!
-        ////        try! await nvim.api.bufSetName(name: url.path).get()
-//
-//        await buffer?.attach(
-//            sendBuffer: true,
-//            onLines: { event in
-        ////                guard let lines = try? await self.buffer?.getLines().get() else {
-        ////                    return
-        ////                }
-//                DispatchQueue.main.sync {
-//                    try! self.update(event)
-//                }
-//            }
-//        )
-
         let events = nvim.events
 
-        try await events.autoCmd(event: "CursorMoved", "CursorMovedI", "ModeChanged", args: "getcursorcharpos()", "mode()") { params in
-            DispatchQueue.main.sync {
-                self.onCursorEvent(params: params)
-            }
+//        await nvim.api.command("autocmd CmdlineEnter * redir! >/tmp/log")
+//        await nvim.api.command("autocmd CmdlineEnter * redir END")
+//        await nvim.api.command("autocmd CmdwinLeave * redir END")
 
-            Task {
-                await self.updateMode(mode: params[1].stringValue ?? "")
+        await events.autoCmd(event: "CursorMoved", "CursorMovedI", "ModeChanged", args: "getcursorcharpos()", "mode()")
+            .assertNoFailure()
+            .receive(on: DispatchQueue.main)
+            .sink { params in
+                self.onCursorEvent(params: params)
+                Task {
+                    await self.updateMode(mode: params[1].stringValue ?? "")
+                }
             }
-        }.get().store(in: &subscriptions)
+            .store(in: &subs)
 
 //        try await events.autoCmd(event: "ModeChanged", args: "mode()") { params in
 //            Task {
@@ -211,15 +233,18 @@ final class AppViewModel: ObservableObject {
         ////            print("MODE \(params)")
 //        }.get().store(in: &subscriptions)
 
-        try await events.autoCmd(event: "CmdlineChanged", args: "getcmdline()") { [weak self] params in
-            self?.more = params.first?.stringValue ?? ""
-//            print("MODE \(params)")
-        }.get().store(in: &subscriptions)
+        await events.autoCmd(event: "CmdlineChanged", args: "getcmdline()")
+            .assertNoFailure()
+            .sink { [weak self] params in
+                self?.more = params.first?.stringValue ?? ""
+                //            print("MODE \(params)")
+            }
+            .store(in: &subs)
     }
 
     private lazy var eventTap = EventTap { [unowned self] type, event in
         guard
-            let appFrontmost = try? self.app.attribute(.frontmost) as Bool?, appFrontmost
+            let appFrontmost = try? self.app.get(.frontmost) as Bool?, appFrontmost
         else {
             return event
         }
@@ -238,6 +263,14 @@ final class AppViewModel: ObservableObject {
                     case 0x35:
                         return "<ESC>"
                     case 0x24:
+//                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+//                            Task {
+//                                print("END")
+//                                await nvim.api.command("redir END")
+//                                print(try! String(contentsOf: URL(filePath: "/tmp/log")))
+//                            }
+//                        }
+
                         return "<CR>"
                     case 0x7B:
                         return "<left>"
@@ -272,23 +305,13 @@ final class AppViewModel: ObservableObject {
         return event
     }
 
-    lazy var app: Application =
-//        Application(NSRunningApplication.current)
-//        Application.allForBundleID("com.apple.TextEdit")[0]
-        Application.allForBundleID("com.apple.dt.Xcode")[0]
+    lazy var app: AXUIElement =
+        AXUIElement
+            .app(bundleID: "com.apple.TextEdit")!
+//        .app(bundleID: "com.apple.dt.Xcode")!
 
-    lazy var element: UIElement = {
-        let element = try! (app.attribute(.focusedUIElement) as UIElement?)!
-
-//        Task {
-//            while true {
-//                try await Task.sleep(for: .seconds(2))
-//                let position = try! element.attribute(.position) as CGPoint?
-//                print(position)
-//            }
-//        }
-        return element
-    }()
+    lazy var element: AXUIElement =
+        try! app.get(.focusedUIElement)!
 
     @MainActor
     func updateText(_ char: String) throws {
