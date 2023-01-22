@@ -22,26 +22,28 @@
 import AppKit
 import Foundation
 
-public class Nvim {
-    public typealias OnRequest = (_ method: String, _ params: [Value]) -> Result<Value, Error>?
+public protocol NvimDelegate: AnyObject {
+    func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>?
+}
 
+public class Nvim {
     public let api: API
     public let events: EventDispatcher
-    private let onRequest: OnRequest?
+    public weak var delegate: NvimDelegate?
 
-    convenience init(session: RPCSession, onRequest: OnRequest?) {
+    convenience init(session: RPCSession, delegate: NvimDelegate? = nil) {
         let api = API(session: session)
         let events = EventDispatcher(api: api)
 
-        self.init(api: api, events: events, onRequest: onRequest)
+        self.init(api: api, events: events, delegate: delegate)
 
         session.delegate = self
     }
 
-    private init(api: API, events: EventDispatcher, onRequest: OnRequest?) {
+    private init(api: API, events: EventDispatcher, delegate: NvimDelegate? = nil) {
         self.api = api
         self.events = events
-        self.onRequest = onRequest
+        self.delegate = delegate
     }
 
     public func edit(url: URL) async throws {
@@ -70,6 +72,6 @@ extension Nvim: RPCSessionDelegate {
     }
 
     func session(_ session: RPCSession, didReceiveRequest method: String, with params: [Value]) -> Result<Value, Error>? {
-        onRequest?(method, params)
+        delegate?.nvim(self, didRequest: method, with: params)
     }
 }

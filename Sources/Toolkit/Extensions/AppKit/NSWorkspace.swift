@@ -19,8 +19,17 @@
 //  available in the top-level LICENSE file of the project.
 //
 
-import AX
+import AppKit
+import Combine
 import Foundation
-import Nvim
 
-public final class Application {}
+public extension NSWorkspace {
+    var didActivateApplicationPublisher: AnyPublisher<NSRunningApplication, Never> {
+        notificationCenter
+            .publisher(for: NSWorkspace.didActivateApplicationNotification)
+            .map { $0.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication }
+            .replaceError(with: nil)
+            .compactMap { $0 }
+            .eraseToAnyPublisher()
+    }
+}

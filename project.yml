@@ -24,4 +24,6 @@ targets:
       - package: ShadowVim
         product: AX
       - package: ShadowVim
+        product: Mediator
+      - package: ShadowVim
         product: Nvim

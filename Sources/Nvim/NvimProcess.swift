@@ -23,8 +23,7 @@ import Foundation
 
 public class NvimProcess {
     public static func start(
-        executableURL: URL = URL(fileURLWithPath: "/opt/homebrew/bin/nvim"),
-        onRequest: Nvim.OnRequest? = nil
+        executableURL: URL = URL(fileURLWithPath: "/opt/homebrew/bin/nvim")
     ) throws -> NvimProcess {
         let input = Pipe()
         let output = Pipe()
@@ -47,7 +46,7 @@ public class NvimProcess {
         )
 
         return NvimProcess(
-            nvim: Nvim(session: session, onRequest: onRequest),
+            nvim: Nvim(session: session),
             process: process,
             sessionTask: Task {
                 await session.run()
@@ -64,6 +63,10 @@ public class NvimProcess {
         self.nvim = nvim
         self.process = process
         self.sessionTask = sessionTask
+    }
+
+    deinit {
+        stop()
     }
 
     public func stop() {

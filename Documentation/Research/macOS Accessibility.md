@@ -8,6 +8,11 @@ Some apps don't update the text area scroll when moving the caret (e.g. with hjk
 
 Neovim requires the file path to determine the `filetype`. We can get it using the `kAXDocumentAttribute` on the document window.
 
-## Converting between line numbers and character indices.
+## Converting between line numbers and character indices
 
 Some APIs might do it for us, like [`rangeForLine`](https://developer.apple.com/documentation/appkit/deprecated_symbols/nsaccessibility/text-specific_parameterized_attributes).
+
+## Observing current application
+
+We can use `NSWorkspace.didActivateApplicationNotification` to be notified when the current application changes.
+

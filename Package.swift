@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "ShadowVim",
     platforms: [
-        .macOS(.v11),
+        .macOS(.v13),
     ],
     products: [
         .library(name: "AX", targets: ["AX"]),
