@@ -45,13 +45,13 @@ class CmdlineController {
         window.canHide = false
         window.level = .floating
         window.isMovableByWindowBackground = true
-        
+
         let contentView = window.contentView!
-        contentView.wantsLayer                =   true
-        contentView.layer?.cornerRadius       =   10
-        contentView.layer?.backgroundColor    =   NSColor.white.cgColor
+        contentView.wantsLayer = true
+        contentView.layer?.cornerRadius = 10
+        contentView.layer?.backgroundColor = NSColor.white.cgColor
         window.invalidateShadow()
-        
+
         let visualEffect = NSVisualEffectView()
         visualEffect.material = .sidebar
         visualEffect.blendingMode = .behindWindow
@@ -65,7 +65,7 @@ class CmdlineController {
         hostingView.frame = contentView.bounds
         hostingView.autoresizingMask = [.height, .width]
         contentView.addSubview(hostingView)
-        
+
         // To pin the window to an element's bottom:
 //        let parent = (element[.parent] as AXUIElement?)!
 //        var pos = parent[.position] as CGPoint? ?? .zero

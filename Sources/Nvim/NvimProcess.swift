@@ -23,21 +23,31 @@ import Foundation
 
 public class NvimProcess {
     public static func start(
-        executableURL: URL = URL(fileURLWithPath: "/opt/homebrew/bin/nvim")
+        executableURL: URL = URL(fileURLWithPath: "/usr/bin/env")
     ) throws -> NvimProcess {
         let input = Pipe()
         let output = Pipe()
         let process = Process()
         process.executableURL = executableURL
         process.arguments = [
+            "nvim",
             "--headless",
             "--embed",
-            "--clean", // Don't load default config and plugins.
             "-n", // Ignore swap files.
-            "-u", "~/.config/shadowvim/init.vim", // Load this config file.
+            "--clean", // Don't load default config and plugins.
+            "-u", configURL().path,
         ]
         process.standardInput = input
         process.standardOutput = output
+        process.environment = [
+            "PATH": "$PATH:$HOME/bin"
+                // MacPorts: https://guide.macports.org/#installing.shell.postflight
+                + ":/usr/local/bin"
+                // Homebrew: https://docs.brew.sh/FAQ#why-should-i-install-homebrew-in-the-default-location
+                + ":/opt/homebrew/bin:/opt/local/bin"
+                // XDG: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+                + ":$HOME/.local/bin"
+        ]
         try process.run()
 
         let session = RPCSession(
@@ -52,6 +62,30 @@ public class NvimProcess {
                 await session.run()
             }
         )
+    }
+
+    /// Locates ShadowVim's default configuration file.
+    ///
+    /// Precedence:
+    ///   1. $XDG_CONFIG_HOME/svim/init.vim
+    ///   2. $XDG_CONFIG_HOME/svim/init.lua
+    ///   3. ~/.config/svim/init.vim
+    ///   4. ~/.config/svim/init.lua
+    ///
+    /// See https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+    private static func configURL() -> URL {
+        var configDir = ProcessInfo.processInfo
+            .environment["XDG_CONFIG_HOME"] ?? "~/.config"
+        configDir = NSString(string: configDir).expandingTildeInPath
+
+        let configBase = URL(filePath: configDir, directoryHint: .isDirectory)
+            .appending(path: "svim/init", directoryHint: .notDirectory)
+        let vimlConfig = configBase.appendingPathExtension("vim")
+        let luaConfig = configBase.appendingPathExtension("lua")
+
+        return ((try? vimlConfig.checkResourceIsReachable()) ?? false)
+            ? vimlConfig
+            : luaConfig
     }
 
     public let nvim: Nvim
