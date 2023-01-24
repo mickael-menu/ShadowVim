@@ -1,0 +1,44 @@
+name: Checks
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install dependencies
+        run: brew install swiftformat
+      - name: Check formatting
+        run: make lint-format
+
+  build:
+    name: Build
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install dependencies
+        run: brew install xcodegen
+      - name: Generate project
+        run: make project
+      - name: Build
+        run: |
+          xcodebuild build-for-testing -scheme "ShadowVim"
+      # - name: Test
+      #   run: |
+      #     xcodebuild test-without-building -scheme "ShadowVim"
+
+  test:
+    name: Test
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Run tests
+        run: xcodebuild test -scheme "ShadowVim-Package" -destination "platform=macOS"
