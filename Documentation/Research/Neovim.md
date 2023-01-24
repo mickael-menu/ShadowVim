@@ -33,3 +33,12 @@ autocmd CmdlineLeave * let v:event.abort=v:true
 ```
 
 Note that this will not work if a command is called with `<Cmd>`.
+
+## Replacing built-in commands
+
+* vscode-neovim uses [vim-altercmd](https://github.com/kana/vim-altercmd)
+* [cmdalias.vim](https://www.vim.org/scripts/script.php?script_id=746) could also be helpful 
+
+## Investigate
+
+* `hidden` option to hide instead of unloading buffers.

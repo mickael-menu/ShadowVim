@@ -25,3 +25,11 @@ To identify the popup, we can look for the `selectedRowsChanged` AX event for an
 ## Fix-it suggestions
 
 When a fix-it is suggested by Xcode, we can look for the matching element (class `SourceEditor.LineAnnotationAccessibility`) and perform the Press action to trigger it.
+
+## Position of the source editors
+
+The `position` and `size` AX attributes seem to return incorrect values with Xcode. We can get the proper one by querying the text area's parents.
+
+## Command line
+
+Integrate it directly in Xcode's UI?

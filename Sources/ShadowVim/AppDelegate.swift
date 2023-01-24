@@ -31,15 +31,15 @@ private let apps = [
 ]
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    private var cmdline: CmdlineController!
+
     private var subscriptions: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Prevent showing the menu bar and dock icon.
 //        NSApp.setActivationPolicy(.accessory)
 
-        cmdline = CmdlineController(frame: NSRect(x: 0, y: 0, width: 480, height: 16))
-        cmdline.show()
+//        let cmdline = CmdlineController(frame: NSRect(x: 0, y: 0, width: 480, height: 44))
+//        cmdline.show()
 
         NSWorkspace.shared
             .didActivateApplicationPublisher
@@ -51,13 +51,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         print(error)
                     }
                 },
-                receiveValue: { app in
-                    print(app)
-                }
+                receiveValue: { _ in }
             )
             .store(in: &subscriptions)
 
         try! self.eventTap.run()
+        
+        NSRunningApplication.current.hide()
     }
 
     private lazy var eventTap = EventTap { [unowned self] _, event in
@@ -74,16 +74,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             print(error)
             return event
-        }
-    }
-}
-
-struct Cmdline: View {
-    var body: some View {
-        HStack {
-            Text("Normal")
-                .background(.red)
-            Spacer()
         }
     }
 }

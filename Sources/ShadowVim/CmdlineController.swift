@@ -30,7 +30,7 @@ class CmdlineController {
     init(frame: CGRect) {
         window = NSPanel(
             contentRect: frame,
-            styleMask: [.resizable, .borderless, .nonactivatingPanel],
+            styleMask: [.resizable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -40,17 +40,21 @@ class CmdlineController {
     }
 
     private func setupWindow() {
-        window.hasShadow = false
+//        window.hasShadow = false
         window.backgroundColor = .clear
-        window.alphaValue = 0.95
         window.canHide = false
         window.level = .floating
         window.isMovableByWindowBackground = true
-
+        
         let contentView = window.contentView!
+        contentView.wantsLayer                =   true
+        contentView.layer?.cornerRadius       =   10
+        contentView.layer?.backgroundColor    =   NSColor.white.cgColor
+        window.invalidateShadow()
         
         let visualEffect = NSVisualEffectView()
-        visualEffect.material = .fullScreenUI
+        visualEffect.material = .sidebar
+        visualEffect.blendingMode = .behindWindow
         visualEffect.state = .active
         visualEffect.wantsLayer = true
         visualEffect.frame = contentView.bounds
@@ -61,6 +65,18 @@ class CmdlineController {
         hostingView.frame = contentView.bounds
         hostingView.autoresizingMask = [.height, .width]
         contentView.addSubview(hostingView)
+        
+        // To pin the window to an element's bottom:
+//        let parent = (element[.parent] as AXUIElement?)!
+//        var pos = parent[.position] as CGPoint? ?? .zero
+//        var size = parent[.size] as CGSize? ?? .zero
+//        pos.y += size.height - 44
+//        size.height = 44
+//
+//        var frame = NSRect(origin: pos, size: size)
+//        let screenHeight = NSScreen.main!.frame.size.height
+//        frame.origin.y = screenHeight - frame.origin.y - size.height
+//        window.setFrame(frame, display: true, animate: false)
     }
 
     func show() {
@@ -70,5 +86,19 @@ class CmdlineController {
 
     func close() {
         controller.close()
+    }
+}
+
+struct Cmdline: View {
+    var body: some View {
+        HStack {
+            Image("NeovimIcon")
+                .resizable()
+                .frame(width: 24, height: 24)
+                .aspectRatio(contentMode: .fit)
+                .foregroundColor(Color(nsColor: NSColor.darkGray))
+            Text("Normal")
+            Spacer()
+        }.padding(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
     }
 }

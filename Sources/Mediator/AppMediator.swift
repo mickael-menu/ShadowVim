@@ -57,30 +57,21 @@ public final class AppMediator {
     private var currentBuffer: BufferSynchronizer?
 
     private var subscriptions: Set<AnyCancellable> = []
-
+    
     private init(app: NSRunningApplication) throws {
         self.app = app
         element = AXUIElement.app(app)
         nvimProcess = try NvimProcess.start()
         nvim.delegate = self
 
+        if let focusedElement = element[.focusedUIElement] as AXUIElement? {
+            focusedUIElementDidChange(focusedElement)
+        }
+        
         element.publisher(for: .focusedUIElementChanged)
             .assertNoFailure()
-            .sink { [unowned self] element in
-                if (try? element.role()) == .textArea {
-                    let name = name(for: element)
-                    let buffer = buffers.getOrPut(
-                        key: name,
-                        defaultValue: BufferSynchronizer(nvim: nvim, element: element, name: name)
-                    )
-                    buffer.element = element
-                    currentBuffer = buffer
-                    Task {
-                        try! await buffer.edit()
-                    }
-                } else {
-                    currentBuffer = nil
-                }
+            .sink { [weak self] element in
+                self?.focusedUIElementDidChange(element)
             }
             .store(in: &subscriptions)
 
@@ -103,6 +94,25 @@ public final class AppMediator {
                     //            print("MODE \(params)")
                 }
                 .store(in: &subscriptions)
+        }
+    }
+    
+    private func focusedUIElementDidChange(_ element: AXUIElement) {
+        guard (try? element.role()) == .textArea else {
+            currentBuffer = nil
+            return
+        }
+                
+        let name = name(for: element)
+        let buffer = buffers.getOrPut(
+            key: name,
+            defaultValue: BufferSynchronizer(nvim: nvim, element: element, name: name)
+        )
+            
+        buffer.element = element
+        currentBuffer = buffer
+        Task {
+            try! await buffer.edit()
         }
     }
 

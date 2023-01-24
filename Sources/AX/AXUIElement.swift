@@ -207,8 +207,17 @@ public extension AXUIElement {
         }
     }
 
+    func isSettable(_ attribute: AXAttribute) throws -> Bool {
+        var settable: DarwinBoolean = false
+        let code = AXUIElementIsAttributeSettable(self, attribute.rawValue as CFString, &settable)
+        if let error = AXError(code: code) {
+            throw error
+        }
+        return settable.boolValue
+    }
+
     func set<Value>(_ attribute: AXAttribute, value: Value) throws {
-        precondition(Thread.isMainThread)
+//        precondition(Thread.isMainThread)
 
         guard let value = pack(value) else {
             throw AXError.packFailure(value)

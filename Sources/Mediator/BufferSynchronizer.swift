@@ -49,16 +49,16 @@ final class BufferSynchronizer {
         try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
         let url = caches.appending(path: name)
 
-        var pos: CursorPosition = (0, 0)
-        var selection: CFRange = element[.selectedTextRange] ?? CFRange(location: 0, length: 0)
-        selection = CFRange(location: selection.location, length: 1) // Normal mode
+//        var pos: CursorPosition = (0, 0)
+//        var selection: CFRange = element[.selectedTextRange] ?? CFRange(location: 0, length: 0)
+//        selection = CFRange(location: selection.location, length: 1) // Normal mode
 //        pos.row = element[.lineForIndex] ?? 0
 //        pos.col = element[.lineForIndex] ?? 0
 
         let content: String = element[.value] ?? ""
         try content.write(to: url, atomically: true, encoding: .utf8)
 
-        print("EDIT \(url.path)")
+        print("edit \(url.path)")
         try await nvim.edit(url: url)
 
         buffer = try await nvim.buffer()
