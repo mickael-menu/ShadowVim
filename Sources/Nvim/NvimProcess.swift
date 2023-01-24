@@ -46,7 +46,7 @@ public class NvimProcess {
                 // Homebrew: https://docs.brew.sh/FAQ#why-should-i-install-homebrew-in-the-default-location
                 + ":/opt/homebrew/bin:/opt/local/bin"
                 // XDG: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-                + ":$HOME/.local/bin"
+                + ":$HOME/.local/bin",
         ]
         try process.run()
 
