@@ -57,7 +57,7 @@ public final class AppMediator {
     private var currentBuffer: BufferSynchronizer?
 
     private var subscriptions: Set<AnyCancellable> = []
-    
+
     private init(app: NSRunningApplication) throws {
         self.app = app
         element = AXUIElement.app(app)
@@ -67,7 +67,7 @@ public final class AppMediator {
         if let focusedElement = element[.focusedUIElement] as AXUIElement? {
             focusedUIElementDidChange(focusedElement)
         }
-        
+
         element.publisher(for: .focusedUIElementChanged)
             .assertNoFailure()
             .sink { [weak self] element in
@@ -96,19 +96,19 @@ public final class AppMediator {
                 .store(in: &subscriptions)
         }
     }
-    
+
     private func focusedUIElementDidChange(_ element: AXUIElement) {
         guard (try? element.role()) == .textArea else {
             currentBuffer = nil
             return
         }
-                
+
         let name = name(for: element)
         let buffer = buffers.getOrPut(
             key: name,
             defaultValue: BufferSynchronizer(nvim: nvim, element: element, name: name)
         )
-            
+
         buffer.element = element
         currentBuffer = buffer
         Task {
