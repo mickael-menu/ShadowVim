@@ -26,8 +26,8 @@ import UserNotifications
 import Mediator
 
 private let apps = [
-    "com.apple.TextEdit",
     "com.apple.dt.Xcode",
+//    "com.apple.TextEdit",
 ]
 
 class AppDelegate: NSObject, NSApplicationDelegate {
