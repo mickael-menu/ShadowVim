@@ -78,8 +78,8 @@ public class NvimProcess {
             .environment["XDG_CONFIG_HOME"] ?? "~/.config"
         configDir = NSString(string: configDir).expandingTildeInPath
 
-        let configBase = URL(filePath: configDir, directoryHint: .isDirectory)
-            .appending(path: "svim/init", directoryHint: .notDirectory)
+        let configBase = URL(fileURLWithPath: configDir, isDirectory: true)
+            .appendingPathComponent("svim/init", isDirectory: false)
         let vimlConfig = configBase.appendingPathExtension("vim")
         let luaConfig = configBase.appendingPathExtension("lua")
 

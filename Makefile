@@ -1,7 +1,7 @@
 help:
 	@echo "Usage: make <target>\n\n\
 	  project\t\tGenerate the Xcode project with xcodegen\n\
-	  lint-format\t\tVerify the project is properly formatted\n\
+	  lint-format\tVerify the project is properly formatted\n\
 	  format\t\tReformat files with SwiftFormat\n\
 	"
 
