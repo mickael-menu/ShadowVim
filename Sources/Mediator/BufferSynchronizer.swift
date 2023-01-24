@@ -44,10 +44,12 @@ final class BufferSynchronizer {
     }
 
     func edit() async throws {
-        let caches = URL.cachesDirectory
-            .appending(component: "menu.mickael.ShadowVim")
+        let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        let caches = cachesDir
+            .appendingPathComponent("menu.mickael.ShadowVim")
         try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
-        let url = caches.appending(path: name)
+        let url = caches.appendingPathComponent(name)
 
 //        var pos: CursorPosition = (0, 0)
 //        var selection: CFRange = element[.selectedTextRange] ?? CFRange(location: 0, length: 0)

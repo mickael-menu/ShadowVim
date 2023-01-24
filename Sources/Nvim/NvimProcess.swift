@@ -46,7 +46,7 @@ public class NvimProcess {
                 // Homebrew: https://docs.brew.sh/FAQ#why-should-i-install-homebrew-in-the-default-location
                 + ":/opt/homebrew/bin:/opt/local/bin"
                 // XDG: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-                + ":$HOME/.local/bin"
+                + ":$HOME/.local/bin",
         ]
         try process.run()
 
@@ -78,8 +78,8 @@ public class NvimProcess {
             .environment["XDG_CONFIG_HOME"] ?? "~/.config"
         configDir = NSString(string: configDir).expandingTildeInPath
 
-        let configBase = URL(filePath: configDir, directoryHint: .isDirectory)
-            .appending(path: "svim/init", directoryHint: .notDirectory)
+        let configBase = URL(fileURLWithPath: configDir, isDirectory: true)
+            .appendingPathComponent("svim/init", isDirectory: false)
         let vimlConfig = configBase.appendingPathExtension("vim")
         let luaConfig = configBase.appendingPathExtension("lua")
 
