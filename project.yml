@@ -1,0 +1,29 @@
+name: ShadowVim
+
+options:
+  bundleIdPrefix: menu.mickael
+  createIntermediateGroups: true
+
+packages:
+  ShadowVim:
+    path: .
+
+settings:
+  CODE_SIGN_STYLE: Automatic
+  DEVELOPMENT_TEAM: ${SV_DEVELOPMENT_TEAM}
+
+targets:
+  ShadowVim:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources: [Sources/ShadowVim]
+    settings:
+      GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - package: ShadowVim
+        product: AX
+      - package: ShadowVim
+        product: Mediator
+      - package: ShadowVim
+        product: Nvim
