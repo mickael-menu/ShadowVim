@@ -169,9 +169,9 @@ public struct AXAttribute: Hashable, RawRepresentable {
     public static let focusedApplication = AXAttribute(rawValue: kAXFocusedApplicationAttribute)
     public static let elementBusy = AXAttribute(rawValue: kAXElementBusyAttribute)
     public static let alternateUIVisible = AXAttribute(rawValue: kAXAlternateUIVisibleAttribute)
-    
+
     // Undocumented attributes
-    
+
     /// Enable additional metadata for VoiceOver.
     public static let enhancedUserInterface = AXAttribute(rawValue: "AXEnhancedUserInterface")
     /// Enable accessibility with Electron apps.

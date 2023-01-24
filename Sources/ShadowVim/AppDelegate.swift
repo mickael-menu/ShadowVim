@@ -21,9 +21,9 @@
 
 import Cocoa
 import Combine
+import Mediator
 import SwiftUI
 import UserNotifications
-import Mediator
 
 private let apps = [
     "com.apple.dt.Xcode",
@@ -31,7 +31,6 @@ private let apps = [
 ]
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-
     private var subscriptions: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
@@ -55,8 +54,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             )
             .store(in: &subscriptions)
 
-        try! self.eventTap.run()
-        
+        try! eventTap.run()
+
         NSRunningApplication.current.hide()
     }
 
