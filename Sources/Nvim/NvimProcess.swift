@@ -50,13 +50,11 @@ public class NvimProcess {
             input: input.fileHandleForWriting,
             output: output.fileHandleForReading
         )
+        session.start()
 
         return NvimProcess(
             nvim: Nvim(session: session),
-            process: process,
-            sessionTask: Task {
-                await session.run()
-            }
+            process: process
         )
     }
 
@@ -85,14 +83,11 @@ public class NvimProcess {
     }
 
     public let nvim: Nvim
-
     private let process: Process
-    private let sessionTask: Task<Void, Error>
 
-    init(nvim: Nvim, process: Process, sessionTask: Task<Void, Error>) {
+    init(nvim: Nvim, process: Process) {
         self.nvim = nvim
         self.process = process
-        self.sessionTask = sessionTask
     }
 
     deinit {
@@ -100,7 +95,6 @@ public class NvimProcess {
     }
 
     public func stop() {
-        sessionTask.cancel()
         process.terminate()
     }
 }

@@ -68,36 +68,56 @@ protocol RPCSessionDelegate: AnyObject {
 }
 
 final class RPCSession {
-    let input: FileHandle
-    let output: FileHandle
-    let debug: Bool = false
+    private let send: (Data) throws -> Void
+    private let receive: () -> Data
+    private var receiveTask: Task<Void, Never>?
+    private let debug: Bool = true
 
     weak var delegate: RPCSessionDelegate?
 
     init(
+        send: @escaping (Data) throws -> Void,
+        receive: @escaping () -> Data,
+        delegate: RPCSessionDelegate? = nil
+    ) {
+        self.send = send
+        self.receive = receive
+        self.delegate = delegate
+    }
+
+    convenience init(
         input: FileHandle,
         output: FileHandle,
         delegate: RPCSessionDelegate? = nil
     ) {
-        self.input = input
-        self.output = output
-        self.delegate = delegate
+        self.init(
+            send: { try input.write(contentsOf: $0) },
+            receive: { output.availableData },
+            delegate: delegate
+        )
+    }
+        
+    deinit {
+        receiveTask?.cancel()
     }
 
-    func run() async {
-        precondition(!Thread.isMainThread)
-        var data = output.availableData
-        while data.count > 0, !Task.isCancelled {
-            do {
-                for message in try MessagePack.unpackAll(data) {
-                    await Value.from(message)
-                        .flatMap { await receive(message: $0) }
-                        .onError { delegate?.session(self, didReceiveError: $0) }
+    func start() {
+        precondition(receiveTask == nil)
+        
+        receiveTask = Task.detached(priority: .high) { [unowned self] in
+            var data = receive()
+            while data.count > 0, !Task.isCancelled {
+                do {
+                    for message in try MessagePack.unpackAll(data) {
+                        await Value.from(message)
+                            .flatMap { await receive(message: $0) }
+                            .onError { delegate?.session(self, didReceiveError: $0) }
+                    }
+                } catch {
+                    delegate?.session(self, didReceiveError: .unpackFailure(error))
                 }
-            } catch {
-                delegate?.session(self, didReceiveError: .unpackFailure(error))
+                data = receive()
             }
-            data = output.availableData
         }
     }
 
@@ -116,7 +136,7 @@ final class RPCSession {
             let data = MessagePack.pack(request)
             log(">\(method)(\(params))\n")
             do {
-                try input.write(contentsOf: data)
+                try send(data)
             } catch {
                 endRequest(id: id, with: .failure(.ioFailure(error)))
             }
@@ -133,7 +153,7 @@ final class RPCSession {
         let data = MessagePack.pack(response)
 
         do {
-            try input.write(contentsOf: data)
+            try send(data)
             return .success(())
         } catch {
             return .failure(.ioFailure(error))
