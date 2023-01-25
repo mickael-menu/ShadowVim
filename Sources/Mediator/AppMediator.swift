@@ -87,14 +87,16 @@ public final class AppMediator {
                 .assertNoFailure()
                 .sink { [weak self] params in
                     self?.more = params.first?.stringValue ?? ""
-                    //            print("MODE \(params)")
                 }
                 .store(in: &subscriptions)
         }
     }
 
     private func focusedUIElementDidChange(_ element: AXUIElement) {
-        guard (try? element.role()) == .textArea else {
+        guard
+            element[.role] == AXRole.textArea,
+            element[.description] == "Source Editor"
+        else {
             currentBuffer = nil
             return
         }
