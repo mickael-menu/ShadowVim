@@ -67,78 +67,65 @@ protocol RPCSessionDelegate: AnyObject {
     func session(_ session: RPCSession, didReceiveError error: RPCError)
 }
 
+/// Represents a MessagePack-RPC on-going session.
+///
+/// It can receive and send messages to the server.
+///
+/// Note that Swift async tasks are not used because the order of execution
+/// is important when interacting with Nvim. We want the input keys and events
+/// be sent in the proper order.
 final class RPCSession {
+    typealias RequestCompletion = (Result<Value, RPCError>) -> Void
+
     private let send: (Data) throws -> Void
     private let receive: () -> Data
     private var receiveTask: Task<Void, Never>?
-    private let debug: Bool = true
+    private let debug: Bool = false
 
     weak var delegate: RPCSessionDelegate?
 
     init(
         send: @escaping (Data) throws -> Void,
-        receive: @escaping () -> Data,
-        delegate: RPCSessionDelegate? = nil
+        receive: @escaping () -> Data
     ) {
         self.send = send
         self.receive = receive
-        self.delegate = delegate
     }
 
     convenience init(
         input: FileHandle,
-        output: FileHandle,
-        delegate: RPCSessionDelegate? = nil
+        output: FileHandle
     ) {
         self.init(
             send: { try input.write(contentsOf: $0) },
-            receive: { output.availableData },
-            delegate: delegate
+            receive: { output.availableData }
         )
     }
-        
+
     deinit {
         receiveTask?.cancel()
     }
 
-    func start() {
+    // MARK: - Receive
+
+    func start(delegate: RPCSessionDelegate? = nil) {
         precondition(receiveTask == nil)
-        
+
+        self.delegate = delegate
+
         receiveTask = Task.detached(priority: .high) { [unowned self] in
             var data = receive()
             while data.count > 0, !Task.isCancelled {
                 do {
                     for message in try MessagePack.unpackAll(data) {
-                        await Value.from(message)
-                            .flatMap { await receive(message: $0) }
+                        Value.from(message)
+                            .flatMap { receive(message: $0) }
                             .onError { delegate?.session(self, didReceiveError: $0) }
                     }
                 } catch {
                     delegate?.session(self, didReceiveError: .unpackFailure(error))
                 }
                 data = receive()
-            }
-        }
-    }
-
-    func request(method: String, params: [Value]) async -> Result<Value, RPCError> {
-        await withCheckedContinuation { continuation in
-            let id = $requests.write {
-                $0.start(for: continuation)
-            }
-
-            let request = MessagePackValue([
-                RPCType.request.value, // message type
-                .uint(id), // request ID
-                .string(method), // method name
-                .array(params.map(\.messagePackValue)), // method arguments.
-            ])
-            let data = MessagePack.pack(request)
-            log(">\(method)(\(params))\n")
-            do {
-                try send(data)
-            } catch {
-                endRequest(id: id, with: .failure(.ioFailure(error)))
             }
         }
     }
@@ -160,7 +147,7 @@ final class RPCSession {
         }
     }
 
-    private func receive(message: Value) async -> Result<Void, RPCError> {
+    private func receive(message: Value) -> Result<Void, RPCError> {
         guard
             let body = message.arrayValue,
             let intType = body.first?.intValue,
@@ -225,34 +212,48 @@ final class RPCSession {
         return .success(())
     }
 
-    @Atomic private var requests = Requests()
+    // MARK: - Send
 
-    struct Requests {
-        typealias Continuation = CheckedContinuation<Result<Value, RPCError>, Never>
+    private let sendQueue = DispatchQueue(label: "menu.mickael.RPCSession")
+    private var nextMessageId: RPCMessageID = 0
+    private var requests: [RPCMessageID: RequestCompletion] = [:]
 
-        private var lastRequestId: RPCMessageID = 0
-        private var requests: [RPCMessageID: Continuation] = [:]
+    /// Send the RPC request `method` to the server, with the given `params`.
+    ///
+    /// Note: This is not an async method, because we need to guarantee that
+    /// every request is sent in order.
+    func request(method: String, params: [Value]) -> Deferred<Value, RPCError> {
+        Deferred(on: sendQueue) { [self] completion in
+            let id = nextMessageId
+            nextMessageId += 1
+            requests[id] = completion
 
-        mutating func start(for continuation: Continuation) -> RPCMessageID {
-            lastRequestId += 1
-            requests[lastRequestId] = continuation
-            return lastRequestId
-        }
+            let request = MessagePackValue([
+                RPCType.request.value, // message type
+                .uint(id), // request ID
+                .string(method), // method name
+                .array(params.map(\.messagePackValue)), // method arguments.
+            ])
+            let data = MessagePack.pack(request)
 
-        mutating func end(id: RPCMessageID, with result: Result<Value, RPCError>) -> Result<Void, RPCError> {
-            guard let continuation = requests.removeValue(forKey: id) else {
-                return .failure(.unknownRequestId(id))
+            log(">\(method)(\(params))\n")
+            do {
+                try send(data)
+            } catch {
+                endRequest(id: id, with: .failure(.ioFailure(error)))
             }
-            continuation.resume(returning: result)
-            return .success(())
         }
     }
 
     func endRequest(id: RPCMessageID, with result: Result<Value, RPCError>) {
-        $requests
-            .write { $0.end(id: id, with: result) }
-            .onError { delegate?.session(self, didReceiveError: $0) }
+        guard let completion = requests.removeValue(forKey: id) else {
+            delegate?.session(self, didReceiveError: .unknownRequestId(id))
+            return
+        }
+        completion(result)
     }
+
+    // MARK: - Toolkit
 
     private func log(_ message: String) {
         if debug {

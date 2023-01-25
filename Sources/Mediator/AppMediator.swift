@@ -72,6 +72,10 @@ public final class AppMediator {
             .store(in: &subscriptions)
 
         Task {
+            try await nvim.api.command("set hidden")
+                .discardResult()
+                .async()
+
             await nvim.events.autoCmd(event: "CursorMoved", "CursorMovedI", "ModeChanged", args: "getcursorcharpos()", "mode()")
                 .assertNoFailure()
                 .receive(on: DispatchQueue.main)
@@ -169,8 +173,10 @@ public final class AppMediator {
                     }
                 }()
 
-                await nvim.api.input(input)
-                    .onError { print($0) } // FIXME: better error handling
+                nvim.api.input(input)
+                    .discardResult()
+                    // FIXME: better error handling
+                    .get(onFailure: { print($0) })
 
                 // REQUIRES Neovim 0.9
 //                let sl = try await nvim.api.evalStatusline("%S").get()

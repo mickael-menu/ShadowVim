@@ -33,7 +33,7 @@ public class Nvim {
 
         self.init(api: api, events: events, delegate: delegate)
 
-        session.delegate = self
+        session.start(delegate: self)
     }
 
     private init(api: API, events: EventDispatcher, delegate: NvimDelegate? = nil) {
@@ -42,16 +42,18 @@ public class Nvim {
         self.delegate = delegate
     }
 
-    public func edit(url: URL) async throws {
+    public func edit(url: URL, discard: Bool = false) async throws {
         let path = url.path.replacingOccurrences(of: "%", with: "\\%")
-        try await api.cmd("edit", args: .string(path)).throw()
+        try await api.cmd("edit", bang: discard, args: .string(path))
+            .discardResult()
+            .async()
     }
 
     /// - Parameter handle: Handle of the buffer, or 0 for the current buffer.
     public func buffer(_ handle: BufferHandle = 0) async throws -> Buffer {
         var handle = handle
         if handle == 0 {
-            handle = try await api.getCurrentBuf().get()
+            handle = try await api.getCurrentBuf().async()
         }
 
         return Buffer(handle: handle, api: api, events: events)

@@ -42,7 +42,7 @@ public extension Result {
         }
     }
 
-    func dropResult() -> Result<Void, Failure> {
+    func discardResult() -> Result<Void, Failure> {
         map { _ in () }
     }
 

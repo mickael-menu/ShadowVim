@@ -31,7 +31,7 @@ final class BufferSynchronizer {
 
     private let nvim: Nvim
     private let name: String
-    private var buffer: Buffer!
+    private var buffer: Buffer?
 
     init(nvim: Nvim, element: AXUIElement, name: String) {
         self.nvim = nvim
@@ -60,8 +60,7 @@ final class BufferSynchronizer {
         try await nvim.edit(url: url)
 
         buffer = try await nvim.buffer()
-
-        await buffer.attach(
+        try await buffer?.attach(
             sendBuffer: false,
             onLines: { event in
                 DispatchQueue.main.sync {
@@ -69,6 +68,8 @@ final class BufferSynchronizer {
                 }
             }
         )
+        .discardResult()
+        .async()
 
 //        element[.selectedTextRange] = selection
     }
@@ -76,7 +77,6 @@ final class BufferSynchronizer {
     private func update(_ event: BufLinesEvent) throws {
         print("\(event)")
         print("\n")
-
         let content = (try element.get(.value) as String?) ?? ""
         guard let (range, replacement) = event.changes(in: content) else {
             return

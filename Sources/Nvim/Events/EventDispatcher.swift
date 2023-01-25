@@ -51,14 +51,12 @@ public class EventDispatcher {
             argsList = ", " + args.joined(separator: ", ")
         }
 
-        let autocmdID = await api.createAutocmd(
+        api.createAutocmd(
             for: event,
             command: "call rpcnotify(0, '\(eventName)'\(argsList))"
         )
-        if case let .failure(error) = autocmdID {
-            return Fail(error: error)
-                .eraseToAnyPublisher()
-        }
+        .assertNoFailure()
+        .get { _ in }
 
         return subscribe(to: eventName)
     }
@@ -68,7 +66,7 @@ public class EventDispatcher {
     @Atomic private var subscriptions: [Event: EventSubscription] = [:]
 
     /// Registers a new `receiver`, creating a shared `NotificationSubscription` if needed.
-    fileprivate func register(_ receiver: any EventReceiver) async -> APIResult<Void> {
+    fileprivate func register(_ receiver: any EventReceiver) -> APIDeferred<Void> {
         let event = receiver.event
 
         var needsSubscribe = false
@@ -82,12 +80,12 @@ public class EventDispatcher {
         }
 
         return needsSubscribe
-            ? await api.subscribe(to: event)
+            ? api.subscribe(to: event)
             : .success(())
     }
 
     /// Removes a `receiver` previously registered.
-    fileprivate func deregister(_ receiver: EventReceiver) async -> APIResult<Void> {
+    fileprivate func deregister(_ receiver: EventReceiver) -> APIDeferred<Void> {
         let event = receiver.event
 
         var needsUnsubscribe = false
@@ -106,7 +104,7 @@ public class EventDispatcher {
         }
 
         return needsUnsubscribe
-            ? await api.unsubscribe(from: event)
+            ? api.unsubscribe(from: event)
             : .success(())
     }
 }
@@ -170,16 +168,13 @@ public struct EventPublisher: Publisher {
     public func receive<S>(
         subscriber: S
     ) where S: Subscriber, S.Input == [Value], S.Failure == APIError {
-        Task {
-            let subscription = Subscription(dispatcher: dispatcher, event: event, subscriber: subscriber)
-            let result = await dispatcher.register(subscription)
-            switch result {
-            case .success:
-                subscriber.receive(subscription: subscription)
-            case let .failure(error):
+        let subscription = Subscription(dispatcher: dispatcher, event: event, subscriber: subscriber)
+        subscriber.receive(subscription: subscription)
+
+        dispatcher.register(subscription)
+            .get(onFailure: { error in
                 subscriber.receive(completion: .failure(error))
-            }
-        }
+            })
     }
 
     private class Subscription<S: Subscriber>:
@@ -201,10 +196,9 @@ public struct EventPublisher: Publisher {
         func cancel() {
             subscriber = nil
 
-            Task {
-                await dispatcher.deregister(self)
-                    .onError { Swift.print($0) } // FIXME:
-            }
+            dispatcher.deregister(self)
+                .assertNoFailure()
+                .get()
         }
 
         func receive(with data: [Value]) {

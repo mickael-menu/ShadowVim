@@ -50,7 +50,6 @@ public class NvimProcess {
             input: input.fileHandleForWriting,
             output: output.fileHandleForReading
         )
-        session.start()
 
         return NvimProcess(
             nvim: Nvim(session: session),

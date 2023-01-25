@@ -36,21 +36,21 @@ public class Buffer {
     public func attach(
         sendBuffer: Bool,
         onLines: @escaping (BufLinesEvent) -> Void
-    ) async -> APIResult<Bool> {
+    ) -> APIDeferred<Bool> {
         events.subscribeToBufLines(of: handle)
             .assertNoFailure()
             .sink(receiveValue: onLines)
             .store(in: &subscriptions)
 
-        return await api.bufAttach(buffer: handle, sendBuffer: sendBuffer)
+        return api.bufAttach(buffer: handle, sendBuffer: sendBuffer)
     }
 
     public func getLines(
         start: LineIndex = 0,
         end: LineIndex = -1,
         strictIndexing: Bool = false
-    ) async -> APIResult<[String]> {
-        await api.request("nvim_buf_get_lines", with: [
+    ) -> APIDeferred<[String]> {
+        api.request("nvim_buf_get_lines", with: [
             .buffer(handle),
             .int(start),
             .int(end),
