@@ -47,6 +47,20 @@ public class EventDispatcher {
             .eraseToAnyPublisher()
     }
 
+    public func subscribe<UnpackedValue>(
+        to event: String,
+        unpack: @escaping ([Value]) -> UnpackedValue?
+    ) -> AnyPublisher<UnpackedValue, APIError> {
+        subscribe(to: event)
+            .flatMap { data -> AnyPublisher<UnpackedValue, APIError> in
+                guard let payload = unpack(data) else {
+                    return .fail(.unexpectedNotificationPayload(event: event, payload: data))
+                }
+                return .just(payload)
+            }
+            .eraseToAnyPublisher()
+    }
+
     //    try await nvim.command("autocmd CursorMoved * call rpcnotify(0, 'moved')")
     //    try await nvim.command("autocmd ModeChanged * call rpcnotify(0, 'mode', mode())")
     //    try await nvim.command("autocmd CmdlineChanged * call rpcnotify(0, 'cmdline', getcmdline())")
@@ -104,15 +118,15 @@ private class EventMediator {
     let event: Event
 
     private let api: API
-    private let onSetup: () -> APIDeferred<Void>
-    private let onTeardown: () -> APIDeferred<Void>
+    private let onSetup: () -> APIAsync<Void>
+    private let onTeardown: () -> APIAsync<Void>
     @Atomic private var receivers: [any EventReceiver] = []
 
     init(
         event: Event,
         api: API,
-        onSetup: @escaping () -> APIDeferred<Void> = { .success(()) },
-        onTeardown: @escaping () -> APIDeferred<Void> = { .success(()) }
+        onSetup: @escaping () -> APIAsync<Void> = { .success(()) },
+        onTeardown: @escaping () -> APIAsync<Void> = { .success(()) }
     ) {
         self.event = event
         self.api = api

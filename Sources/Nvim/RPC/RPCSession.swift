@@ -67,6 +67,12 @@ protocol RPCSessionDelegate: AnyObject {
     func session(_ session: RPCSession, didReceiveError error: RPCError)
 }
 
+struct RPCRequestCallbacks {
+    var prepare: () -> Async<Void, Never> = { .success(()) }
+    var onSent: () -> Void = {}
+    var onAnswered: () -> Void = {}
+}
+
 /// Represents a MessagePack-RPC on-going session.
 ///
 /// It can receive and send messages to the server.
@@ -214,7 +220,7 @@ final class RPCSession {
 
     // MARK: - Send
 
-    private let sendQueue = DispatchQueue(label: "menu.mickael.RPCSession")
+    private let sendQueue = DispatchQueue(label: "menu.mickael.RPCSession", qos: .userInitiated)
     private var nextMessageId: RPCMessageID = 0
     private var requests: [RPCMessageID: RequestCompletion] = [:]
 
@@ -222,27 +228,35 @@ final class RPCSession {
     ///
     /// Note: This is not an async method, because we need to guarantee that
     /// every request is sent in order.
-    func request(method: String, params: [Value]) -> Deferred<Value, RPCError> {
-        Deferred(on: sendQueue) { [self] completion in
-            let id = nextMessageId
-            nextMessageId += 1
-            requests[id] = completion
+    func request(
+        method: String,
+        params: [Value],
+        callbacks: RPCRequestCallbacks
+    ) -> Async<Value, RPCError> {
+        callbacks.prepare().setFailureType(to: RPCError.self)
+            .asyncMap(on: sendQueue) { [self] _, completion in
+                let id = nextMessageId
+                nextMessageId += 1
+                requests[id] = completion
 
-            let request = MessagePackValue([
-                RPCType.request.value, // message type
-                .uint(id), // request ID
-                .string(method), // method name
-                .array(params.map(\.messagePackValue)), // method arguments.
-            ])
-            let data = MessagePack.pack(request)
+                let request = MessagePackValue([
+                    RPCType.request.value, // message type
+                    .uint(id), // request ID
+                    .string(method), // method name
+                    .array(params.map(\.messagePackValue)), // method arguments.
+                ])
+                let data = MessagePack.pack(request)
 
-            log(">\(method)(\(params))\n")
-            do {
-                try send(data)
-            } catch {
-                endRequest(id: id, with: .failure(.ioFailure(error)))
+                log(">\(method)(\(params))\n")
+                do {
+                    try send(data)
+                } catch {
+                    endRequest(id: id, with: .failure(.ioFailure(error)))
+                }
+
+                callbacks.onSent()
             }
-        }
+            .onCompletion { _ in callbacks.onAnswered() }
     }
 
     func endRequest(id: RPCMessageID, with result: Result<Value, RPCError>) {

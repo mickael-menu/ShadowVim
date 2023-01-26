@@ -17,6 +17,13 @@
 
 import Foundation
 
+/// Default queue the async tasks are run on.
+public let defaultAsyncQueue = DispatchQueue(
+    label: "menu.mickael.Async",
+    qos: .default,
+    attributes: [.concurrent]
+)
+
 /// Continuation monad implementation to manipulate asynchronous values easily,
 /// with error forwarding.
 ///
@@ -49,14 +56,14 @@ import Foundation
 ///         }
 ///     }
 ///
-/// becomes (if the async functions return `Deferred` objects):
+/// becomes (if the async functions return `Async` objects):
 ///
 ///     fetchFoo()
 ///         // Transforms the value synchronously with map
 ///         .map { status in "\(status + 100)" }
 ///
 ///         // Transforms using an async function with flatMap, if it returns
-///         // a Deferred
+///         // an Async
 ///         .flatMap(parseBar)
 ///
 ///         // If you don't call `get` nothing is executed, unlike Promises
@@ -65,7 +72,7 @@ import Foundation
 ///             onFailure: { print($0) },
 ///             onSuccess: { handle($0) }
 ///         )
-public final class Deferred<Success, Failure: Error> {
+public final class Async<Success, Failure: Error> {
     /// Traditional completion closure signature.
     public typealias Completion = (Result<Success, Failure>) -> Void
 
@@ -78,26 +85,25 @@ public final class Deferred<Success, Failure: Error> {
     /// Task to run asynchronously.
     private let task: (@escaping Completion) -> Void
 
-    /// Indicates whether the `Deferred` was executed already. It can only be
+    /// Indicates whether the `Async` was executed already. It can only be
     /// executed once.
     private var done: Bool = false
-
-    /// Constructs a `Deferred` from a task taking a traditional completion
+    /// Constructs an `Async` from a task taking a traditional completion
     /// block to return its result.
     ///
     /// The task will be executed asynchronously on the given `queue`.
     public init(
-        on queue: DispatchQueue = .global(),
+        on queue: DispatchQueue = defaultAsyncQueue,
         task: @escaping (@escaping Completion) -> Void
     ) {
         self.task = task
         self.queue = queue
     }
 
-    /// Constructs a `Deferred` in a Promise style with two completion closures:
+    /// Constructs an `Async` in a Promise style with two completion closures:
     /// one for the success, and one for the failure.
     ///
-    ///     Deferred<Data, FetchError> { success, failure in
+    ///     Async<Data, FetchError> { success, failure in
     ///         fetch(input) { response in
     ///             guard response.status == 200 else {
     ///                 failure(.wrongStatus)
@@ -106,8 +112,8 @@ public final class Deferred<Success, Failure: Error> {
     ///             success(response.data)
     ///         }
     ///     }
-    convenience init(
-        on queue: DispatchQueue = .global(),
+    public convenience init(
+        on queue: DispatchQueue = defaultAsyncQueue,
         task: @escaping (
             @escaping (Success) -> Void,
             @escaping (Failure) -> Void
@@ -121,29 +127,40 @@ public final class Deferred<Success, Failure: Error> {
         }
     }
 
-    /// Shortcut to build a `Deferred` from a success value.
+    /// Constructs an `Async` by wrapping another `Async` returned by the
+    /// given `task`.
+    public convenience init(
+        on queue: DispatchQueue = defaultAsyncQueue,
+        task: @escaping () -> Async<Success, Failure>
+    ) {
+        self.init(on: queue) { completion in
+            task().run(completion: completion)
+        }
+    }
+
+    /// Shortcut to build an `Async` from a success value.
     ///
     /// Can be useful to return early a value in a `.flatMap`.
     public class func success(_ value: Success) -> Self {
         Self { $0(.success(value)) }
     }
 
-    /// Shortcut to build a `Deferred` from an error.
+    /// Shortcut to build an `Async` from an error.
     ///
     /// Can be useful to return early a value in a `.flatMap`.
     public class func failure(_ error: Failure) -> Self {
         Self { $0(.failure(error)) }
     }
 
-    /// Constructs a `Deferred` from a closure taking a traditional completion
+    /// Constructs an `Async` from a closure taking a traditional completion
     /// block to return its result.
     ///
     /// Any thrown error is caught and wrapped in a `Result`.
     public class func catching(
-        on queue: DispatchQueue = .global(),
-        task: @escaping (@escaping Deferred<Success, Error>.Completion) throws -> Void
-    ) -> Deferred<Success, Error> {
-        Deferred<Success, Error>(on: queue) { completion in
+        on queue: DispatchQueue = defaultAsyncQueue,
+        task: @escaping (@escaping Async<Success, Error>.Completion) throws -> Void
+    ) -> Async<Success, Error> {
+        Async<Success, Error>(on: queue) { completion in
             do {
                 try task(completion)
             } catch {
@@ -190,8 +207,8 @@ public final class Deferred<Success, Failure: Error> {
     public func map<NewSuccess, NewFailure>(
         success: @escaping (Success, @escaping NewCompletion<NewSuccess, NewFailure>) -> Void,
         failure: @escaping (Failure, @escaping NewCompletion<NewSuccess, NewFailure>) -> Void
-    ) -> Deferred<NewSuccess, NewFailure> {
-        Deferred<NewSuccess, NewFailure> { completion in
+    ) -> Async<NewSuccess, NewFailure> {
+        Async<NewSuccess, NewFailure> { completion in
             self.run { result in
                 switch result {
                 case let .success(value):
@@ -208,13 +225,13 @@ public final class Deferred<Success, Failure: Error> {
     ///
     /// To keep things simple, this can only be called once.
     private func run(completion: @escaping Completion) {
-        precondition(!done, "Deferred doesn't cache the task's value. It must only be called once.")
+        precondition(!done, "Async doesn't cache the task's value. It must only be called once.")
         done = true
         queue.async { self.task(completion) }
     }
 }
 
-public extension Deferred where Success == Void {
+public extension Async where Success == Void {
     /// Runs the deferred task and forwards any error to `onFailure`.
     func get(
         on completionQueue: DispatchQueue = .main,
@@ -228,19 +245,19 @@ public extension Deferred where Success == Void {
     }
 }
 
-public extension Deferred where Failure == Never {
+public extension Async where Failure == Never {
     /// Runs the deferred task and forwards the result to `onResult`.
     func get(on completionQueue: DispatchQueue = .main, onResult: @escaping (Success) -> Void) {
         get(
             on: completionQueue,
             onFailure: { _ in
-                fatalError("Received an unexpected Error for a Deferred<_, Never>")
+                fatalError("Received an unexpected Error for an Async<_, Never>")
             },
             onSuccess: onResult
         )
     }
 
-    /// Bridges the `Deferred` to async `Task`.
+    /// Bridges the `Async` to async `Task`.
     func async() async -> Success {
         await withCheckedContinuation { continuation in
             get(onResult: {
@@ -248,9 +265,21 @@ public extension Deferred where Failure == Never {
             })
         }
     }
+
+    /// Changes the failure type declared by the upstream `Async`.
+    func setFailureType<NewFailure: Error>(
+        to failureType: NewFailure.Type
+    ) -> Async<Success, NewFailure> {
+        map(
+            success: { val, compl in compl(.success(val)) },
+            failure: { _, _ in
+                fatalError("Received an unexpected Error for an Async<_, Never>")
+            }
+        )
+    }
 }
 
-public extension Deferred where Success == Void, Failure == Never {
+public extension Async where Success == Void, Failure == Never {
     /// Runs the deferred task on the given `queue`.
     func run(on completionQueue: DispatchQueue = .main) {
         get(
@@ -260,11 +289,27 @@ public extension Deferred where Success == Void, Failure == Never {
     }
 }
 
-public extension Deferred {
+public extension Async {
+    /// Closure called with the result when the deferred task is run.
+    func onCompletion(
+        _ callback: @escaping Completion
+    ) -> Async<Success, Failure> {
+        map(
+            success: { val, compl in
+                callback(.success(val))
+                compl(.success(val))
+            },
+            failure: { err, compl in
+                callback(.failure(err))
+                compl(.failure(err))
+            }
+        )
+    }
+
     /// Closure called with the result when the deferred task is run.
     func onSuccess(
         _ callback: @escaping (Success) -> Void
-    ) -> Deferred<Success, Failure> {
+    ) -> Async<Success, Failure> {
         map(
             success: { val, compl in
                 callback(val)
@@ -278,7 +323,7 @@ public extension Deferred {
     /// was run.
     func onFailure(
         _ callback: @escaping (Failure) -> Void
-    ) -> Deferred<Success, Failure> {
+    ) -> Async<Success, Failure> {
         map(
             success: { val, compl in compl(.success(val)) },
             failure: { err, compl in
@@ -295,7 +340,7 @@ public extension Deferred {
     ///     }
     func map<NewSuccess>(
         _ transform: @escaping (Success) -> NewSuccess
-    ) -> Deferred<NewSuccess, Failure> {
+    ) -> Async<NewSuccess, Failure> {
         map(
             success: { val, compl in compl(.success(transform(val))) },
             failure: { err, compl in compl(.failure(err)) }
@@ -305,7 +350,7 @@ public extension Deferred {
     /// Transforms the value synchronously, catching any error.
     func tryMap<NewSuccess>(
         _ transform: @escaping (Success) throws -> NewSuccess
-    ) -> Deferred<NewSuccess, Error> {
+    ) -> Async<NewSuccess, Error> {
         map(
             success: { val, compl in
                 do {
@@ -318,16 +363,40 @@ public extension Deferred {
         )
     }
 
-    /// Transforms the value asynchronously using a nested `Deferred`.
+    /// Transforms the value through a traditional completion-based asynchronous
+    /// function.
     ///
-    ///     func asyncOperation(value: Int) -> Deferred<String>
+    ///     func traditionalAsync(value: Int, _ completion: @escaping (CancelableResult<String, Error>) -> Void) throws { ... }
+    ///
+    ///     .asyncMap { val, completion in
+    ///        traditionalAsync(value: val, completion)
+    ///     }
+    func asyncMap<NewSuccess>(
+        on queue: DispatchQueue? = nil,
+        _ transform: @escaping (Success, @escaping NewCompletion<NewSuccess, Failure>) -> Void
+    ) -> Async<NewSuccess, Failure> {
+        map(
+            success: { val, compl in
+                if let queue = queue {
+                    queue.async { transform(val, compl) }
+                } else {
+                    transform(val, compl)
+                }
+            },
+            failure: { err, compl in compl(.failure(err)) }
+        )
+    }
+
+    /// Transforms the value asynchronously using a nested `Async`.
+    ///
+    ///     func asyncOperation(value: Int) -> Async<String>
     ///
     ///     .flatMap { val in
     ///        asyncOperation(val)
     ///     }
     func flatMap<NewSuccess>(
-        _ transform: @escaping (Success) -> Deferred<NewSuccess, Failure>
-    ) -> Deferred<NewSuccess, Failure> {
+        _ transform: @escaping (Success) -> Async<NewSuccess, Failure>
+    ) -> Async<NewSuccess, Failure> {
         map(
             success: { val, compl in transform(val).getResult(compl) },
             failure: { err, compl in compl(.failure(err)) }
@@ -335,67 +404,38 @@ public extension Deferred {
     }
 
     /// Discards the returned value.
-    func discardResult() -> Deferred<Void, Failure> {
+    func discardResult() -> Async<Void, Failure> {
         map { _ in () }
     }
 
-    /// Returns a new `Deferred`, mapping any failure value using the given
+    /// Returns a new `Async`, mapping any failure value using the given
     /// transformation.
     func mapError<NewFailure>(
         _ transform: @escaping (Failure) -> NewFailure
-    ) -> Deferred<Success, NewFailure> {
+    ) -> Async<Success, NewFailure> {
         map(
             success: { val, compl in compl(.success(val)) },
             failure: { err, compl in compl(.failure(transform(err))) }
         )
     }
 
-    /// Returns a `Deferred` with the same value, but typed with a generic
+    /// Returns an `Async` with the same value, but typed with a generic
     /// `Error`.
-    func eraseToAnyError() -> Deferred<Success, Error> {
+    func eraseToAnyError() -> Async<Success, Error> {
         mapError { $0 as Error }
     }
 
-    /// Recovers from an error with the given `result` value.
-    func replaceError(with result: Success) -> Deferred<Success, Never> {
+    /// Raises a fatal error when the task returns an error.
+    func assertNoFailure() -> Async<Success, Never> {
         map(
             success: { val, compl in compl(.success(val)) },
-            failure: { _, compl in compl(.success(result)) }
+            failure: { error, _ in
+                fatalError("Unexpected failure: \(error)")
+            }
         )
     }
 
-    /// Attempts to recover from an error.
-    ///
-    /// You can either return an alternate success value, or throw again
-    /// another (or the same) error to forward it.
-    ///
-    ///     .catch { error in
-    ///        if case Error.network = error {
-    ///           return fetch()
-    ///        }
-    ///        throw error
-    ///     }
-    func `catch`(
-        _ transform: @escaping (Failure) -> Result<Success, Failure>
-    ) -> Deferred<Success, Failure> {
-        map(
-            success: { val, compl in compl(.success(val)) },
-            failure: { err, compl in compl(transform(err)) }
-        )
-    }
-
-    /// Same as `catch`, but attempts to recover asynchronously, by returning a
-    /// new `Deferred` object.
-    func flatCatch(
-        _ transform: @escaping (Failure) -> Deferred<Success, Failure>
-    ) -> Deferred<Success, Failure> {
-        map(
-            success: { val, compl in compl(.success(val)) },
-            failure: { err, compl in transform(err).getResult(compl) }
-        )
-    }
-
-    /// Bridges the `Deferred` to async `Task`.
+    /// Bridges the `Async` to async `Task`.
     func async() async throws -> Success {
         try await withCheckedThrowingContinuation { continuation in
             getResult { result in
@@ -403,14 +443,37 @@ public extension Deferred {
             }
         }
     }
+}
 
-    /// Raises a fatal error when the task returns an error.
-    func assertNoFailure() -> Deferred<Success, Never> {
-        map(
-            success: { val, compl in compl(.success(val)) },
-            failure: { error, _ in
-                fatalError("Unexpected no failure, got: \(error.localizedDescription)")
+/// A non-blocking lock to protect critical sections.
+///
+/// Instead of blocking the calling thread, `acquire` returns an `Async` object
+/// which will be completed when the lock is freed.
+public class AsyncLock {
+    private let queue = DispatchQueue(label: "menu.mickael.AsyncLock")
+    private var isLocked: Bool = false
+    private var waitlist: [(Result<Void, Never>) -> Void] = []
+
+    public init() {}
+
+    public func acquire() -> Async<Void, Never> {
+        Async(on: queue) { [self] completion in
+            if isLocked {
+                waitlist.append(completion)
+            } else {
+                isLocked = true
+                completion(.success(()))
             }
-        )
+        }
+    }
+
+    public func release() {
+        queue.async { [self] in
+            if waitlist.isEmpty {
+                isLocked = false
+            } else {
+                waitlist.removeFirst()(.success(()))
+            }
+        }
     }
 }

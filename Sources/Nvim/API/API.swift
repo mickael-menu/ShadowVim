@@ -24,16 +24,21 @@ import Toolkit
 
 public class API {
     private let session: RPCSession
+    private let requestCallbacks: RPCRequestCallbacks
 
-    init(session: RPCSession) {
+    init(
+        session: RPCSession,
+        requestCallbacks: RPCRequestCallbacks = RPCRequestCallbacks()
+    ) {
         self.session = session
+        self.requestCallbacks = requestCallbacks
     }
 
-    public func command(_ command: String) -> APIDeferred<Value> {
+    public func command(_ command: String) -> APIAsync<Value> {
         request("nvim_command", with: .string(command))
     }
 
-    public func cmd(_ cmd: String, bang: Bool = false, args: Value...) -> APIDeferred<String> {
+    public func cmd(_ cmd: String, bang: Bool = false, args: Value...) -> APIAsync<String> {
         request("nvim_cmd", with: [
             .dict([
                 .string("cmd"): .string(cmd),
@@ -47,12 +52,20 @@ public class API {
         .checkedUnpacking { $0.stringValue }
     }
 
-    public func getCurrentBuf() -> APIDeferred<BufferHandle> {
+    public func exec(_ src: String) -> APIAsync<String> {
+        request("nvim_exec", with: [
+            .string(src),
+            .bool(true), // output
+        ])
+        .checkedUnpacking { $0.stringValue }
+    }
+
+    public func getCurrentBuf() -> APIAsync<BufferHandle> {
         request("nvim_get_current_buf")
             .checkedUnpacking { $0.bufferValue }
     }
 
-    public func bufAttach(buffer: BufferHandle, sendBuffer: Bool) -> APIDeferred<Bool> {
+    public func bufAttach(buffer: BufferHandle, sendBuffer: Bool) -> APIAsync<Bool> {
         request("nvim_buf_attach", with: [
             .buffer(buffer),
             .bool(sendBuffer),
@@ -61,7 +74,7 @@ public class API {
         .checkedUnpacking { $0.boolValue }
     }
 
-    public func bufSetName(buffer: BufferHandle = 0, name: String) -> APIDeferred<Void> {
+    public func bufSetName(buffer: BufferHandle = 0, name: String) -> APIAsync<Void> {
         request("nvim_buf_set_name", with: [
             .buffer(buffer),
             .string(name),
@@ -69,31 +82,31 @@ public class API {
         .discardResult()
     }
 
-    public func winGetWidth(_ window: WindowHandle = 0) -> APIDeferred<Int> {
+    public func winGetWidth(_ window: WindowHandle = 0) -> APIAsync<Int> {
         request("nvim_win_get_width", with: .window(window))
             .checkedUnpacking { $0.intValue }
     }
 
-    public func winGetCursor(_ window: WindowHandle = 0) -> APIDeferred<Value> {
+    public func winGetCursor(_ window: WindowHandle = 0) -> APIAsync<Value> {
         request("nvim_win_get_cursor", with: .window(window))
     }
 
-    public func input(_ keys: String) -> APIDeferred<Int> {
+    public func input(_ keys: String) -> APIAsync<Int> {
         request("nvim_input", with: .string(keys))
             .checkedUnpacking { $0.intValue }
     }
 
-    public func subscribe(to event: String) -> APIDeferred<Void> {
+    public func subscribe(to event: String) -> APIAsync<Void> {
         request("nvim_subscribe", with: .string(event))
             .discardResult()
     }
 
-    public func unsubscribe(from event: String) -> APIDeferred<Void> {
+    public func unsubscribe(from event: String) -> APIAsync<Void> {
         request("nvim_unsubscribe", with: .string(event))
             .discardResult()
     }
 
-    public func evalStatusline(_ str: String) -> APIDeferred<String> {
+    public func evalStatusline(_ str: String) -> APIAsync<String> {
         request("nvim_eval_statusline", with: .string(str), .dict([:]))
             .checkedUnpacking { $0.dictValue?[.string("str")]?.stringValue }
     }
@@ -102,7 +115,7 @@ public class API {
         for event: String,
         once: Bool = false,
         command: String
-    ) -> APIDeferred<AutocmdID> {
+    ) -> APIAsync<AutocmdID> {
         createAutocmd(for: [event], once: once, command: command)
     }
 
@@ -110,7 +123,7 @@ public class API {
         for events: [String],
         once: Bool = false,
         command: String
-    ) -> APIDeferred<AutocmdID> {
+    ) -> APIAsync<AutocmdID> {
         request("nvim_create_autocmd", with: [
             .array(events.map { .string($0) }),
             .dict([
@@ -121,19 +134,19 @@ public class API {
         .checkedUnpacking { $0.intValue }
     }
 
-    public func delAutocmd(_ id: AutocmdID) -> APIDeferred<Void> {
+    public func delAutocmd(_ id: AutocmdID) -> APIAsync<Void> {
         request("nvim_del_autocmd", with: .int(id))
             .discardResult()
     }
 
     @discardableResult
-    public func request(_ method: String, with params: Value...) -> APIDeferred<Value> {
+    public func request(_ method: String, with params: Value...) -> APIAsync<Value> {
         request(method, with: params)
     }
 
     @discardableResult
-    public func request(_ method: String, with params: [Value]) -> APIDeferred<Value> {
-        session.request(method: method, params: params)
+    public func request(_ method: String, with params: [Value]) -> APIAsync<Value> {
+        session.request(method: method, params: params, callbacks: requestCallbacks)
             .mapError { APIError(from: $0) }
     }
 }
@@ -145,6 +158,8 @@ public enum APIError: Error {
     case unexpectedResponseError(content: Value)
     // When Nvim returns an unexpected result for the request `method`.
     case unexpectedResult(Value)
+    // When Nvim sends a notification with an unexpected payload.
+    case unexpectedNotificationPayload(event: String, payload: [Value])
     // A low-level RPC failure occurred.
     case rpcFailure(RPCError)
 
@@ -176,10 +191,10 @@ public enum APIError: Error {
     }
 }
 
-public typealias APIDeferred<Success> = Deferred<Success, APIError>
+public typealias APIAsync<Success> = Async<Success, APIError>
 
-extension Deferred where Success == Value, Failure == APIError {
-    func checkedUnpacking<NewSuccess>(transform: @escaping (Success) -> NewSuccess?) -> APIDeferred<NewSuccess> {
+extension Async where Success == Value, Failure == APIError {
+    func checkedUnpacking<NewSuccess>(transform: @escaping (Success) -> NewSuccess?) -> APIAsync<NewSuccess> {
         flatMap {
             guard let res = transform($0) else {
                 return .failure(.unexpectedResult($0))

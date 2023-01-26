@@ -44,3 +44,9 @@ Note that this will not work if a command is called with `<Cmd>`.
 * We can handle persisting undo files manually (for unnamed buffers) with `wundo` and `rundo`.
 * Get the default undo file that would be used for a path with `undofile("filepath")`.
 
+## Filetype
+
+* Resolve the filetype from a buffer contents and filename using:
+    ```
+     vim.filetype.match({ buf = 1, filename = 'main.swift' })
+    ```
