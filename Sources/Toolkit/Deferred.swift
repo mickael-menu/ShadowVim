@@ -252,7 +252,7 @@ public extension Deferred where Failure == Never {
 
 public extension Deferred where Success == Void, Failure == Never {
     /// Runs the deferred task on the given `queue`.
-    func get(on completionQueue: DispatchQueue = .main) {
+    func run(on completionQueue: DispatchQueue = .main) {
         get(
             on: completionQueue,
             onResult: { _ in }
@@ -261,6 +261,33 @@ public extension Deferred where Success == Void, Failure == Never {
 }
 
 public extension Deferred {
+    /// Closure called with the result when the deferred task is run.
+    func onSuccess(
+        _ callback: @escaping (Success) -> Void
+    ) -> Deferred<Success, Failure> {
+        map(
+            success: { val, compl in
+                callback(val)
+                compl(.success(val))
+            },
+            failure: { err, compl in compl(.failure(err)) }
+        )
+    }
+
+    /// Closure called with the error that occurred when the deferred task
+    /// was run.
+    func onFailure(
+        _ callback: @escaping (Failure) -> Void
+    ) -> Deferred<Success, Failure> {
+        map(
+            success: { val, compl in compl(.success(val)) },
+            failure: { err, compl in
+                callback(err)
+                compl(.failure(err))
+            }
+        )
+    }
+
     /// Transforms the value synchronously.
     ///
     ///     .map { user in

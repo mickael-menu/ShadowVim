@@ -121,6 +121,11 @@ public class API {
         .checkedUnpacking { $0.intValue }
     }
 
+    public func delAutocmd(_ id: AutocmdID) -> APIDeferred<Void> {
+        request("nvim_del_autocmd", with: .int(id))
+            .discardResult()
+    }
+
     @discardableResult
     public func request(_ method: String, with params: Value...) -> APIDeferred<Value> {
         request(method, with: params)

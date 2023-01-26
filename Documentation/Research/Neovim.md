@@ -39,6 +39,8 @@ Note that this will not work if a command is called with `<Cmd>`.
 * vscode-neovim uses [vim-altercmd](https://github.com/kana/vim-altercmd)
 * [cmdalias.vim](https://www.vim.org/scripts/script.php?script_id=746) could also be helpful 
 
-## Investigate
+## Undo
 
-* `hidden` option to hide instead of unloading buffers.
+* We can handle persisting undo files manually (for unnamed buffers) with `wundo` and `rundo`.
+* Get the default undo file that would be used for a path with `undofile("filepath")`.
+

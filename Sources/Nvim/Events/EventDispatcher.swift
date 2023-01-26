@@ -24,17 +24,26 @@ public typealias Event = String
 /// Receives Neovim RPC events and dispatch them to observers using publishers.
 public class EventDispatcher {
     private let api: API
+    @Atomic private var mediators: [Event: EventMediator] = [:]
 
     init(api: API) {
         self.api = api
     }
 
+    /// Receives an `event` and dispatches it to the listening `EventMediator`.
     func dispatch(event: String, data: [Value]) {
-        subscriptions[event]?.receive(with: data)
+        mediators[event]?.receive(with: data)
     }
 
     public func subscribe(to event: String) -> AnyPublisher<[Value], APIError> {
-        EventPublisher(dispatcher: self, event: event)
+        let mediator = $mediators.write {
+            $0.getOrPut(
+                key: event,
+                defaultValue: EventMediator(event: event, api: api)
+            )
+        }
+
+        return EventPublisher(event: event, mediator: mediator)
             .eraseToAnyPublisher()
     }
 
@@ -46,93 +55,98 @@ public class EventDispatcher {
         args: String...
     ) async -> AnyPublisher<[Value], APIError> {
         let eventName = "autocmd-\(UUID().uuidString)"
-        var argsList = ""
-        if !args.isEmpty {
-            argsList = ", " + args.joined(separator: ", ")
-        }
 
-        api.createAutocmd(
-            for: event,
-            command: "call rpcnotify(0, '\(eventName)'\(argsList))"
+        var autocmdID: AutocmdID?
+        let mediator = EventMediator(
+            event: eventName,
+            api: api,
+
+            onSetup: { [api] in
+                var argsList = ""
+                if !args.isEmpty {
+                    argsList = ", " + args.joined(separator: ", ")
+                }
+
+                return api.createAutocmd(
+                    for: event,
+                    // FIXME: RPC channel ID
+                    command: "call rpcnotify(0, '\(eventName)'\(argsList))"
+                )
+                .map {
+                    autocmdID = $0
+                    return ()
+                }
+            },
+
+            onTeardown: { [api] in
+                guard let autocmdID = autocmdID else {
+                    return .success(())
+                }
+
+                return api.delAutocmd(autocmdID)
+            }
         )
-        .assertNoFailure()
-        .get { _ in }
 
-        return subscribe(to: eventName)
-    }
-
-    // MARK: - Subscriptions
-
-    @Atomic private var subscriptions: [Event: EventSubscription] = [:]
-
-    /// Registers a new `receiver`, creating a shared `NotificationSubscription` if needed.
-    fileprivate func register(_ receiver: any EventReceiver) -> APIDeferred<Void> {
-        let event = receiver.event
-
-        var needsSubscribe = false
-        $subscriptions.write {
-            let subscription = $0.getOrPut(
-                key: event,
-                defaultValue: EventSubscription(event: event)
-            )
-            needsSubscribe = subscription.isEmpty
-            subscription.add(receiver)
+        $mediators.write {
+            $0[eventName] = mediator
         }
 
-        return needsSubscribe
-            ? api.subscribe(to: event)
-            : .success(())
-    }
-
-    /// Removes a `receiver` previously registered.
-    fileprivate func deregister(_ receiver: EventReceiver) -> APIDeferred<Void> {
-        let event = receiver.event
-
-        var needsUnsubscribe = false
-        $subscriptions.write {
-            guard let subscription = $0[event] else {
-                assertionFailure("No subscription found")
-                return
-            }
-
-            subscription.remove(receiver)
-
-            if subscription.isEmpty {
-                needsUnsubscribe = true
-                $0.removeValue(forKey: event)
-            }
-        }
-
-        return needsUnsubscribe
-            ? api.unsubscribe(from: event)
-            : .success(())
+        return EventPublisher(event: eventName, mediator: mediator)
+            .eraseToAnyPublisher()
     }
 }
 
-/// A subscription to the given `event` shared between several receivers.
+/// Manages a set of `EventReceiver` for the given `event`.
 ///
-/// It manages a list of `EventReceiver` representing individual publisher
-/// subscriptions.
-private class EventSubscription {
+/// Automatically takes care of (un)subscribing to the event with Neovim when
+/// the number of receivers changes.
+private class EventMediator {
     let event: Event
-    private var receivers: [any EventReceiver] = []
 
-    init(event: Event) {
+    private let api: API
+    private let onSetup: () -> APIDeferred<Void>
+    private let onTeardown: () -> APIDeferred<Void>
+    @Atomic private var receivers: [any EventReceiver] = []
+
+    init(
+        event: Event,
+        api: API,
+        onSetup: @escaping () -> APIDeferred<Void> = { .success(()) },
+        onTeardown: @escaping () -> APIDeferred<Void> = { .success(()) }
+    ) {
         self.event = event
-    }
-
-    var isEmpty: Bool {
-        receivers.isEmpty
+        self.api = api
+        self.onSetup = onSetup
+        self.onTeardown = onTeardown
     }
 
     func add(_ receiver: any EventReceiver) {
         precondition(receiver.event == event)
-        receivers.append(receiver)
+
+        $receivers.write {
+            if $0.isEmpty {
+                api.subscribe(to: event)
+                    .flatMap(onSetup)
+                    .assertNoFailure()
+                    .run()
+            }
+
+            $0.append(receiver)
+        }
     }
 
     func remove(_ receiver: any EventReceiver) {
         precondition(receiver.event == event)
-        receivers.removeAll { ObjectIdentifier($0) == ObjectIdentifier(receiver) }
+        $receivers.write {
+            $0.removeAll { ObjectIdentifier($0) == ObjectIdentifier(receiver) }
+
+            if $0.isEmpty {
+                api.unsubscribe(from: event)
+                    .flatMap(onTeardown)
+                    .assertNoFailure()
+                    .run()
+            }
+        }
     }
 
     func receive(with data: [Value]) {
@@ -152,53 +166,47 @@ private protocol EventReceiver: AnyObject {
 }
 
 /// Combine publisher to observe Neovim events.
-public struct EventPublisher: Publisher {
+private struct EventPublisher: Publisher {
     public typealias Output = [Value]
     public typealias Failure = APIError
 
-    private let dispatcher: EventDispatcher
     private let event: Event
+    private let mediator: EventMediator
     private var tasks: [Task<Void, Never>] = []
 
-    init(dispatcher: EventDispatcher, event: Event) {
-        self.dispatcher = dispatcher
+    init(event: Event, mediator: EventMediator) {
         self.event = event
+        self.mediator = mediator
     }
 
     public func receive<S>(
         subscriber: S
     ) where S: Subscriber, S.Input == [Value], S.Failure == APIError {
-        let subscription = Subscription(dispatcher: dispatcher, event: event, subscriber: subscriber)
+        let subscription = Subscription(event: event, mediator: mediator, subscriber: subscriber)
         subscriber.receive(subscription: subscription)
-
-        dispatcher.register(subscription)
-            .get(onFailure: { error in
-                subscriber.receive(completion: .failure(error))
-            })
     }
 
     private class Subscription<S: Subscriber>:
         EventReceiver,
         Combine.Subscription where S.Input == [Value], S.Failure == APIError
     {
-        private let dispatcher: EventDispatcher
         let event: Event
+        private let mediator: EventMediator
         private var subscriber: S?
 
-        init(dispatcher: EventDispatcher, event: Event, subscriber: S) {
-            self.dispatcher = dispatcher
+        init(event: Event, mediator: EventMediator, subscriber: S) {
             self.event = event
+            self.mediator = mediator
             self.subscriber = subscriber
+
+            mediator.add(self)
         }
 
         func request(_ demand: Subscribers.Demand) {}
 
         func cancel() {
             subscriber = nil
-
-            dispatcher.deregister(self)
-                .assertNoFailure()
-                .get()
+            mediator.remove(self)
         }
 
         func receive(with data: [Value]) {
