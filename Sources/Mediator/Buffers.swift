@@ -101,16 +101,25 @@ final class Buffers {
                 }
                 .flatMap { _ in
                     api.exec("""
-                        " Activate the newly created buffer.
-                        buffer! \(buffer!)
+                    " Activate the newly created buffer.
+                    buffer! \(buffer!)
+                    
+                    " Detect the filetype using the buffer contents and the
+                    " provided name.
+                    lua << EOF
+                    local ft, _ = vim.filetype.match({ filename = "\(name)", buf = \(buffer!) })
+                    if ft then
+                        vim.api.nvim_buf_set_option(\(buffer!), "filetype", ft)
+                    end
+                    EOF
 
-                        " Clear the undo history, to prevent going back to an
-                        " empty buffer.
-                        let old_undolevels = &undolevels
-                        set undolevels=-1
-                        exe "normal a \\<BS>\\<Esc>"
-                        let &undolevels = old_undolevels
-                        unlet old_undolevels
+                    " Clear the undo history, to prevent going back to an
+                    " empty buffer.
+                    let old_undolevels = &undolevels
+                    set undolevels=-1
+                    exe "normal a \\<BS>\\<Esc>"
+                    let &undolevels = old_undolevels
+                    unlet old_undolevels
                     """)
                 }
         }

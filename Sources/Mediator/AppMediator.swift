@@ -96,6 +96,7 @@ public final class AppMediator {
     private func focusedUIElementDidChange(_ element: AXUIElement) {
 //        print("Focused element \(element[.role] as AXRole?)")
         guard
+            element.isValid,
             element[.role] == AXRole.textArea,
             element[.description] == "Source Editor"
         else {

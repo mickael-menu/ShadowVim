@@ -39,6 +39,17 @@ public extension AXUIElement {
             .first(where: { $0.bundleIdentifier == bundleID })
             .map { app($0) }
     }
+    
+    var isValid: Bool {
+        do {
+            _ = try get(.role) as String?
+        } catch AXError.invalidUIElement {
+            return false
+        } catch {
+            print(error) // FIXME
+        }
+        return true
+    }
 
     func attributes() throws -> [AXAttribute] {
         var names: CFArray?
@@ -102,6 +113,7 @@ public extension AXUIElement {
                 return try get(attribute)
             } catch {
                 print(error) // FIXME:
+//                Thread.callStackSymbols.forEach { print($0) }
                 return nil
             }
         }
@@ -110,6 +122,7 @@ public extension AXUIElement {
                 try set(attribute, value: value)
             } catch {
                 print(error) // FIXME:
+//                Thread.callStackSymbols.forEach { print($0) }
             }
         }
     }
