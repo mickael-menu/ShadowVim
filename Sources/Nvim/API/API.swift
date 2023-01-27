@@ -65,6 +65,19 @@ public class API {
             .checkedUnpacking { $0.bufferValue }
     }
 
+    public func createBuf(listed: Bool, scratch: Bool) -> APIAsync<BufferHandle> {
+        request("nvim_create_buf", with: [
+            .bool(listed),
+            .bool(scratch),
+        ])
+        .checkedUnpacking {
+            guard let buf = $0.bufferValue, buf > 0 else {
+                return nil
+            }
+            return buf
+        }
+    }
+
     public func bufAttach(buffer: BufferHandle, sendBuffer: Bool) -> APIAsync<Bool> {
         request("nvim_buf_attach", with: [
             .buffer(buffer),
@@ -78,6 +91,38 @@ public class API {
         request("nvim_buf_set_name", with: [
             .buffer(buffer),
             .string(name),
+        ])
+        .discardResult()
+    }
+
+    public func bufGetLines(
+        buffer: BufferHandle = 0,
+        start: LineIndex,
+        end: LineIndex,
+        strictIndexing: Bool = true
+    ) -> APIAsync<[String]> {
+        request("nvim_buf_get_lines", with: [
+            .buffer(buffer),
+            .int(start),
+            .int(end),
+            .bool(strictIndexing),
+        ])
+        .checkedUnpacking { $0.arrayValue?.compactMap(\.stringValue) }
+    }
+
+    public func bufSetLines(
+        buffer: BufferHandle = 0,
+        start: LineIndex,
+        end: LineIndex,
+        strictIndexing: Bool = true,
+        replacement: [String]
+    ) -> APIAsync<Void> {
+        request("nvim_buf_set_lines", with: [
+            .buffer(buffer),
+            .int(start),
+            .int(end),
+            .bool(strictIndexing),
+            .array(replacement.map { .string($0) }),
         ])
         .discardResult()
     }

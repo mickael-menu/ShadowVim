@@ -17,6 +17,12 @@
 
 import Foundation
 
+public extension String {
+    var lines: [Substring] {
+        split(separator: "\n", omittingEmptySubsequences: false)
+    }
+}
+
 public extension Range where Bound == String.Index {
     /// Converts a range of `String.Index` into a `CFRange` of character indices.
     func cfRange(in string: String) -> CFRange {

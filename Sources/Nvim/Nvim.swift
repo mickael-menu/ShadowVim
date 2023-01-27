@@ -71,23 +71,6 @@ public class Nvim {
                 apiLock.release()
             }
     }
-
-    public func edit(url: URL, discard: Bool = false) async throws {
-        let path = url.path.replacingOccurrences(of: "%", with: "\\%")
-        try await api.cmd("edit", bang: discard, args: .string(path))
-            .discardResult()
-            .async()
-    }
-
-    /// - Parameter handle: Handle of the buffer, or 0 for the current buffer.
-    public func buffer(_ handle: BufferHandle = 0) async throws -> Buffer {
-        var handle = handle
-        if handle == 0 {
-            handle = try await api.getCurrentBuf().async()
-        }
-
-        return Buffer(handle: handle, api: api, events: events)
-    }
 }
 
 extension Nvim: RPCSessionDelegate {

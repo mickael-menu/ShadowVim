@@ -161,7 +161,7 @@ public struct BufLinesEvent {
             return initialChanges(in: content)
         }
 
-        let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
+        let lines = content.lines
         precondition(firstLine <= lines.count)
         precondition(lastLine <= lines.count)
 

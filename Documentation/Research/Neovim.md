@@ -49,4 +49,6 @@ Note that this will not work if a command is called with `<Cmd>`.
 * Resolve the filetype from a buffer contents and filename using:
     ```
      vim.filetype.match({ buf = 1, filename = 'main.swift' })
+
+     vim.api.nvim_buf_set_option(buf, "filetype", vim.filetype.match(...))
     ```

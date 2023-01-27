@@ -16,6 +16,7 @@
 //
 
 import AX
+import Combine
 import Foundation
 import Nvim
 
@@ -28,51 +29,75 @@ enum BufferSynchronizerError: Error {}
 
 final class BufferSynchronizer {
     var element: AXUIElement
+    let buffer: BufferHandle
+    let name: String
 
     private let nvim: Nvim
-    private let name: String
-    private var buffer: Buffer?
+    private let buffers: Buffers
+    private var subscriptions: Set<AnyCancellable> = []
 
-    init(nvim: Nvim, element: AXUIElement, name: String) {
+    init(nvim: Nvim, buffer: BufferHandle, element: AXUIElement, name: String, buffers: Buffers) {
         self.nvim = nvim
+        self.buffer = buffer
         self.element = element
         self.name = name
-    }
+        self.buffers = buffers
 
-    func edit() async throws {
-        let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSTemporaryDirectory())
-        let caches = cachesDir
-            .appendingPathComponent("menu.mickael.ShadowVim")
-        try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
-        let url = caches.appendingPathComponent(name)
-
-//        var pos: CursorPosition = (0, 0)
-//        var selection: CFRange = element[.selectedTextRange] ?? CFRange(location: 0, length: 0)
-//        selection = CFRange(location: selection.location, length: 1) // Normal mode
-//        pos.row = element[.lineForIndex] ?? 0
-//        pos.col = element[.lineForIndex] ?? 0
-
-        let content: String = element[.value] ?? ""
-        try content.write(to: url, atomically: true, encoding: .utf8)
-
-        print("edit \(url.path)")
-        try await nvim.edit(url: url)
-
-        buffer = try await nvim.buffer()
-        try await buffer?.attach(
-            sendBuffer: false,
-            onLines: { event in
-                DispatchQueue.main.sync {
-                    try! self.update(event)
+        buffers.subscribeToLines(of: buffer)
+            .sink { [weak self] in
+                do {
+                    try self?.update($0)
+                } catch {
+                    print(error)
                 }
             }
-        )
-        .discardResult()
-        .async()
-
-//        element[.selectedTextRange] = selection
+            .store(in: &subscriptions)
     }
+
+    /*
+          func edit() async throws {
+             if let buffer = buffer {
+                 print("Switch to buffer \(buffer.handle)")
+                 try await nvim.api.cmd("buffer", args: .buffer(buffer.handle))
+                     .discardResult()
+                     .async()
+                 return
+             }
+
+             let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+                 ?? URL(fileURLWithPath: NSTemporaryDirectory())
+             let caches = cachesDir
+                 .appendingPathComponent("menu.mickael.ShadowVim")
+             try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
+             let url = caches.appendingPathComponent(name)
+
+     //        var pos: CursorPosition = (0, 0)
+     //        var selection: CFRange = element[.selectedTextRange] ?? CFRange(location: 0, length: 0)
+     //        selection = CFRange(location: selection.location, length: 1) // Normal mode
+     //        pos.row = element[.lineForIndex] ?? 0
+     //        pos.col = element[.lineForIndex] ?? 0
+
+             let content: String = element[.value] ?? ""
+             try content.write(to: url, atomically: true, encoding: .utf8)
+
+             print("edit \(url.path)")
+             try await nvim.edit(url: url)
+
+             buffer = try await nvim.buffer()
+             try await buffer?.attach(
+                 sendBuffer: false,
+                 onLines: { event in
+                     DispatchQueue.main.sync {
+                         try! self.update(event)
+                     }
+                 }
+             )
+             .discardResult()
+             .async()
+
+     //        element[.selectedTextRange] = selection
+         }
+          */
 
     private func update(_ event: BufLinesEvent) throws {
         print("\(event)")
@@ -90,7 +115,7 @@ final class BufferSynchronizer {
         guard let value: String = element[.value] else {
             return ("", [])
         }
-        return (value, value.split(separator: "\n", omittingEmptySubsequences: false))
+        return (value, value.lines)
     }
 
     func setCursor(position: Int, mode: Mode) {

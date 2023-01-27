@@ -435,6 +435,37 @@ public extension Async {
         )
     }
 
+    /// Attempts to recover from an error.
+    ///
+    /// You can either return an alternate success value, or throw again
+    /// another (or the same) error to forward it.
+    ///
+    ///     .catch { error in
+    ///        if case Error.network = error {
+    ///           return fetch()
+    ///        }
+    ///        throw error
+    ///     }
+    func `catch`(
+        _ transform: @escaping (Failure) -> Result<Success, Failure>
+    ) -> Async<Success, Failure> {
+        map(
+            success: { val, compl in compl(.success(val)) },
+            failure: { err, compl in compl(transform(err)) }
+        )
+    }
+
+    /// Same as `catch`, but attempts to recover asynchronously, by returning a
+    /// new `Async` object.
+    func flatCatch(
+        _ transform: @escaping (Failure) -> Async<Success, Failure>
+    ) -> Async<Success, Failure> {
+        map(
+            success: { val, compl in compl(.success(val)) },
+            failure: { err, compl in transform(err).getResult(compl) }
+        )
+    }
+
     /// Bridges the `Async` to async `Task`.
     func async() async throws -> Success {
         try await withCheckedThrowingContinuation { continuation in

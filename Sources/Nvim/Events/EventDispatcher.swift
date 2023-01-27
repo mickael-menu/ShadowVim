@@ -67,7 +67,7 @@ public class EventDispatcher {
     public func autoCmd(
         event: String...,
         args: String...
-    ) async -> AnyPublisher<[Value], APIError> {
+    ) -> AnyPublisher<[Value], APIError> {
         let eventName = "autocmd-\(UUID().uuidString)"
 
         var autocmdID: AutocmdID?
