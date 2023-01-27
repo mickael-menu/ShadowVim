@@ -110,6 +110,14 @@ public class API {
         .checkedUnpacking { $0.arrayValue?.compactMap(\.stringValue) }
     }
 
+    /// Clearing:
+    ///     bufSetLines(start: 0, end: -1, replacement: [])
+    ///
+    /// Replacing:
+    ///     bufSetLines(start: 0, end: -1, replacement: ["foo", "bar"])
+    ///
+    /// Appending:
+    ///     bufSetLines(start: -1, end: -1, replacement: ["foo", "bar"])
     public func bufSetLines(
         buffer: BufferHandle = 0,
         start: LineIndex,

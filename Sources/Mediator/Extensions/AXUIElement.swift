@@ -15,17 +15,15 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-import Combine
+import AX
 import Foundation
 
-public extension AnyPublisher {
-    static func just(_ value: Output) -> Self {
-        Just(value)
-            .setFailureType(to: Failure.self)
-            .eraseToAnyPublisher()
-    }
-
-    static func fail(_ error: Failure) -> Self {
-        Fail(error: error).eraseToAnyPublisher()
+extension AXUIElement {
+    /// Returns whether this accessible object represents an Xcode source
+    /// editor.
+    var isSourceEditor: Bool {
+        isValid
+            && self[.role] == AXRole.textArea
+            && self[.description] == "Source Editor"
     }
 }

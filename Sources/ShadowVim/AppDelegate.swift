@@ -43,11 +43,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 do {
                     _ = try AppMediator.shared(for: app)
                 } catch {
-                    print(error) // FIXME
+                    print(error) // FIXME:
                 }
             }
             .store(in: &subscriptions)
-                        
+
         NSWorkspace.shared
             .didTerminateApplicationPublisher
             .filter { apps.contains($0.bundleIdentifier ?? "") }

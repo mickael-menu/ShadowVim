@@ -214,7 +214,7 @@ struct AXNotificationPublisher: Publisher {
             self.key = key
             self.subscriber = subscriber
         }
-            
+
         func request(_ demand: Subscribers.Demand) {}
 
         func cancel() {

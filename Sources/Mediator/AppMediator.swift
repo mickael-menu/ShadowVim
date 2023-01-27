@@ -43,7 +43,7 @@ public final class AppMediator {
             return instance
         }
     }
-    
+
     public static func terminate(app: NSRunningApplication) {
         $sharedInstances.write { instances in
             guard let instance = instances.removeValue(forKey: app.processIdentifier) else {
@@ -54,7 +54,7 @@ public final class AppMediator {
     }
 
     private let app: NSRunningApplication
-    private let element: AXUIElement
+    private let appElement: AXUIElement
     private let nvimProcess: NvimProcess
     private var nvim: Nvim { nvimProcess.nvim }
     private let buffers: Buffers
@@ -66,16 +66,16 @@ public final class AppMediator {
 
     private init(app: NSRunningApplication) throws {
         self.app = app
-        element = AXUIElement.app(app)
+        appElement = AXUIElement.app(app)
         nvimProcess = try NvimProcess.start()
         buffers = Buffers(nvim: nvimProcess.nvim)
         nvim.delegate = self
 
-        if let focusedElement = element[.focusedUIElement] as AXUIElement? {
+        if let focusedElement = appElement[.focusedUIElement] as AXUIElement? {
             focusedUIElementDidChange(focusedElement)
         }
 
-        element.publisher(for: .focusedUIElementChanged)
+        appElement.publisher(for: .focusedUIElementChanged)
             .assertNoFailure()
             .sink { [weak self] element in
 //                print(element.hashValue, element[.role] as AXRole?, element[.description] as String?)
@@ -94,6 +94,12 @@ public final class AppMediator {
             }
             .store(in: &subscriptions)
 
+        //        var pos: CursorPosition = (0, 0)
+        //        var selection: CFRange = element[.selectedTextRange] ?? CFRange(location: 0, length: 0)
+        //        selection = CFRange(location: selection.location, length: 1) // Normal mode
+        //        pos.row = element[.lineForIndex] ?? 0
+        //        pos.col = element[.lineForIndex] ?? 0
+
         nvim.events.autoCmd(event: "CmdlineChanged", args: "getcmdline()")
             .assertNoFailure()
             .sink { [weak self] params in
@@ -101,24 +107,21 @@ public final class AppMediator {
             }
             .store(in: &subscriptions)
     }
-    
+
     private func terminate() {
         nvimProcess.stop()
         subscriptions.removeAll()
     }
 
     private func focusedUIElementDidChange(_ element: AXUIElement) {
-//        print("Focused element \(element[.role] as AXRole?)")
         guard
-            element.isValid,
-            element[.role] == AXRole.textArea,
-            element[.description] == "Source Editor"
+            element.isSourceEditor,
+            let name = element.document()
         else {
             currentBuffer = nil
             return
         }
 
-        let name = name(for: element)
         buffers.edit(name: name, contents: element[.value] ?? "")
             .assertNoFailure()
             .get { [self] handle in
@@ -132,28 +135,15 @@ public final class AppMediator {
             }
     }
 
-    func name(for element: AXUIElement) -> String {
-        if
-            let window = try? element.get(.window) as AXUIElement?,
-            let documentPath = try? window.get(.document) as String?,
-            let documentURL = URL(string: documentPath)
-        {
-            return documentURL
-                .resolvingSymlinksInPath()
-                .path
-                .replacingOccurrences(of: "/", with: "%")
-                .replacingOccurrences(of: ":", with: "%")
-        } else {
-            return UUID().uuidString
-        }
-    }
-
     public func handle(_ event: CGEvent) -> CGEvent? {
         precondition(app.isActive)
 
         guard
+            // Check that we're still the focused app. Useful when the Spotlight
+            // modal is opened.
+            isFocused,
             let bufferElement = currentBuffer?.element,
-            bufferElement.hashValue == (element[.focusedUIElement] as AXUIElement?)?.hashValue
+            bufferElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
             return event
         }
@@ -206,6 +196,11 @@ public final class AppMediator {
         }
 
         return event
+    }
+
+    private var isFocused: Bool {
+        let focusedAppPid = try? AXUIElement.systemWide.focusedApplication()?.pid()
+        return app.processIdentifier == focusedAppPid
     }
 
     private func onCursorEvent(params: [Value]) {

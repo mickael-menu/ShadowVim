@@ -54,54 +54,9 @@ final class BufferSynchronizer {
             .store(in: &subscriptions)
     }
 
-    /*
-          func edit() async throws {
-             if let buffer = buffer {
-                 print("Switch to buffer \(buffer.handle)")
-                 try await nvim.api.cmd("buffer", args: .buffer(buffer.handle))
-                     .discardResult()
-                     .async()
-                 return
-             }
-
-             let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
-                 ?? URL(fileURLWithPath: NSTemporaryDirectory())
-             let caches = cachesDir
-                 .appendingPathComponent("menu.mickael.ShadowVim")
-             try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
-             let url = caches.appendingPathComponent(name)
-
-     //        var pos: CursorPosition = (0, 0)
-     //        var selection: CFRange = element[.selectedTextRange] ?? CFRange(location: 0, length: 0)
-     //        selection = CFRange(location: selection.location, length: 1) // Normal mode
-     //        pos.row = element[.lineForIndex] ?? 0
-     //        pos.col = element[.lineForIndex] ?? 0
-
-             let content: String = element[.value] ?? ""
-             try content.write(to: url, atomically: true, encoding: .utf8)
-
-             print("edit \(url.path)")
-             try await nvim.edit(url: url)
-
-             buffer = try await nvim.buffer()
-             try await buffer?.attach(
-                 sendBuffer: false,
-                 onLines: { event in
-                     DispatchQueue.main.sync {
-                         try! self.update(event)
-                     }
-                 }
-             )
-             .discardResult()
-             .async()
-
-     //        element[.selectedTextRange] = selection
-         }
-          */
-
     private func update(_ event: BufLinesEvent) throws {
-        print("\(event)")
-        print("\n")
+//        print("\(event)")
+//        print("\n")
         let content = (try element.get(.value) as String?) ?? ""
         guard let (range, replacement) = event.changes(in: content) else {
             return

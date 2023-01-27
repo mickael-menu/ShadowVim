@@ -21,10 +21,7 @@ import Nvim
 import Toolkit
 
 enum BuffersError: Error {
-    case notOpened(String)
-    case alreadyOpened(name: String)
-    case openFailed(APIError)
-    case activationFailed(APIError)
+    case editFailed(APIError)
 }
 
 final class Buffers {
@@ -45,8 +42,7 @@ final class Buffers {
 
         bufLinesEventPublisher = nvim.events
             .subscribeToBufLines()
-            .assertNoFailure()
-            .eraseToAnyPublisher()
+            .ignoreFailure()
 
         setupNotifications()
     }
@@ -59,29 +55,28 @@ final class Buffers {
 
     func edit(name: String, contents: String) -> Async<BufferHandle, BuffersError> {
         activate(name: name)
-            .flatCatch { [self] error in
-                switch error {
-                case BuffersError.notOpened:
-                    return open(name: name, contents: contents)
-                default:
-                    return .failure(error)
+            .flatMap { buffer in
+                if let buffer = buffer {
+                    return .success(buffer)
+                } else {
+                    return self.open(name: name, contents: contents)
                 }
             }
     }
 
-    func activate(name: String) -> Async<BufferHandle, BuffersError> {
+    private func activate(name: String) -> Async<BufferHandle?, BuffersError> {
         Async { [self] in
             guard let buffer = buffers.values.first(where: { $0.name == name }) else {
-                return .failure(.notOpened(name))
+                return .success(nil)
             }
 
             return nvim.api.cmd("buffer", args: .int(buffer.handle))
                 .map { _ in buffer.handle }
-                .mapError { .activationFailed($0) }
+                .mapError { .editFailed($0) }
         }
     }
 
-    func open(name: String, contents: String) -> Async<BufferHandle, BuffersError> {
+    private func open(name: String, contents: String) -> Async<BufferHandle, BuffersError> {
         var buffer: BufferHandle!
         let lines = contents.lines.map { String($0) }
 
@@ -103,7 +98,7 @@ final class Buffers {
                     api.exec("""
                     " Activate the newly created buffer.
                     buffer! \(buffer!)
-                    
+
                     " Detect the filetype using the buffer contents and the
                     " provided name.
                     lua << EOF
@@ -124,7 +119,7 @@ final class Buffers {
                 }
         }
         .map { _ in buffer }
-        .mapError { BuffersError.openFailed($0) }
+        .mapError { BuffersError.editFailed($0) }
     }
 
     // MARK: - Notifications

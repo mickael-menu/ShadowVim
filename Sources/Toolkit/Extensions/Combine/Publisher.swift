@@ -15,26 +15,26 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-import AppKit
 import Combine
 import Foundation
 
-public extension NSWorkspace {
-    var didActivateApplicationPublisher: AnyPublisher<NSRunningApplication, Never> {
-        notificationCenter
-            .publisher(for: NSWorkspace.didActivateApplicationNotification)
-            .map { $0.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication }
+public extension Publisher {
+    func ignoreFailure() -> AnyPublisher<Output, Never> {
+        map { $0 as Output? }
             .replaceError(with: nil)
             .compactMap { $0 }
             .eraseToAnyPublisher()
     }
+}
 
-    var didTerminateApplicationPublisher: AnyPublisher<NSRunningApplication, Never> {
-        notificationCenter
-            .publisher(for: NSWorkspace.didTerminateApplicationNotification)
-            .map { $0.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication }
-            .replaceError(with: nil)
-            .compactMap { $0 }
+public extension AnyPublisher {
+    static func just(_ value: Output) -> Self {
+        Just(value)
+            .setFailureType(to: Failure.self)
             .eraseToAnyPublisher()
+    }
+
+    static func fail(_ error: Failure) -> Self {
+        Fail(error: error).eraseToAnyPublisher()
     }
 }

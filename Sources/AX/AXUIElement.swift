@@ -39,15 +39,13 @@ public extension AXUIElement {
             .first(where: { $0.bundleIdentifier == bundleID })
             .map { app($0) }
     }
-    
+
     var isValid: Bool {
         do {
             _ = try get(.role) as String?
         } catch AXError.invalidUIElement {
             return false
-        } catch {
-            print(error) // FIXME
-        }
+        } catch {}
         return true
     }
 
@@ -91,19 +89,10 @@ public extension AXUIElement {
 
     subscript<Value>(_ attribute: AXAttribute) -> Value? {
         get {
-            do {
-                return try get(attribute)
-            } catch {
-                print(error) // FIXME:
-                return nil
-            }
+            try? get(attribute)
         }
         set(value) {
-            do {
-                try set(attribute, value: value)
-            } catch {
-                print(error) // FIXME:
-            }
+            try? set(attribute, value: value)
         }
     }
 
@@ -314,5 +303,31 @@ public extension AXUIElement {
 
     func subrole() throws -> AXSubrole? {
         try get(.subrole)
+    }
+
+    func parent() throws -> AXUIElement? {
+        try get(.parent)
+    }
+
+    func document() -> String? {
+        guard let document = try? get(.document) as String? else {
+            return try? parent()?.document()
+        }
+        return document
+    }
+
+    func focusedApplication() throws -> AXUIElement? {
+        try get(.focusedApplication)
+    }
+}
+
+extension AXUIElement: CustomStringConvertible {
+    public var description: String {
+        let id = hashValue
+        let role = self[.role] as String? ?? "AXUnknown"
+        let pid = (try? pid()) ?? 0
+        let description = self[.description] as String? ?? ""
+
+        return "\(role)\t#\(id) (pid:\(pid), desc:\(description))"
     }
 }
