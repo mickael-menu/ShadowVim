@@ -214,16 +214,11 @@ struct AXNotificationPublisher: Publisher {
             self.key = key
             self.subscriber = subscriber
         }
-
+            
         func request(_ demand: Subscribers.Demand) {}
 
         func cancel() {
-            do {
-                try observer.deregister(self)
-            } catch {
-                subscriber?.receive(completion: .failure(error))
-            }
-
+            try? observer.deregister(self)
             subscriber = nil
         }
 

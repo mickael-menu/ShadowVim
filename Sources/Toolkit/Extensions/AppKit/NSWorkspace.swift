@@ -28,4 +28,13 @@ public extension NSWorkspace {
             .compactMap { $0 }
             .eraseToAnyPublisher()
     }
+    
+    var didTerminateApplicationPublisher: AnyPublisher<NSRunningApplication, Never> {
+        notificationCenter
+            .publisher(for: NSWorkspace.didTerminateApplicationNotification)
+            .map { $0.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication }
+            .replaceError(with: nil)
+            .compactMap { $0 }
+            .eraseToAnyPublisher()
+    }
 }

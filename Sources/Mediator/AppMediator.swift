@@ -43,6 +43,15 @@ public final class AppMediator {
             return instance
         }
     }
+    
+    public static func terminate(app: NSRunningApplication) {
+        $sharedInstances.write { instances in
+            guard let instance = instances.removeValue(forKey: app.processIdentifier) else {
+                return
+            }
+            instance.terminate()
+        }
+    }
 
     private let app: NSRunningApplication
     private let element: AXUIElement
@@ -91,6 +100,11 @@ public final class AppMediator {
                 self?.more = params.first?.stringValue ?? ""
             }
             .store(in: &subscriptions)
+    }
+    
+    private func terminate() {
+        nvimProcess.stop()
+        subscriptions.removeAll()
     }
 
     private func focusedUIElementDidChange(_ element: AXUIElement) {

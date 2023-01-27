@@ -39,15 +39,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared
             .didActivateApplicationPublisher
             .filter { apps.contains($0.bundleIdentifier ?? "") }
-            .tryMap { try AppMediator.shared(for: $0) }
-            .sink(
-                receiveCompletion: { completion in
-                    if case let .failure(error) = completion {
-                        print(error)
-                    }
-                },
-                receiveValue: { _ in }
-            )
+            .sink { app in
+                do {
+                    _ = try AppMediator.shared(for: app)
+                } catch {
+                    print(error) // FIXME
+                }
+            }
+            .store(in: &subscriptions)
+                        
+        NSWorkspace.shared
+            .didTerminateApplicationPublisher
+            .filter { apps.contains($0.bundleIdentifier ?? "") }
+            .sink { app in
+                AppMediator.terminate(app: app)
+            }
             .store(in: &subscriptions)
 
         try! eventTap.run()
