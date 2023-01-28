@@ -22,31 +22,29 @@ enum EventTapError: Error {
     case failedToCreateTap
 }
 
+protocol EventTapDelegate: AnyObject {
+    func eventTap(_ tap: EventTap, didReceive event: CGEvent) -> CGEvent?
+}
+
 /// Inspirations
 ///  - https://gist.github.com/osnr/23eb05b4e0bcd335c06361c4fabadd6f
 ///  - https://github.com/creasty/Keyboard/blob/9430e443e07bc236bc2acc1d0d33afe4692428e8/keyboard/AppDelegate.swift#L72
 ///  - https://stackoverflow.com/a/31898592/1474476
 class EventTap {
+    weak var delegate: EventTapDelegate?
     private var tap: CFMachPort!
 
-    typealias Handler = (_ type: CGEventType, _ event: CGEvent) -> CGEvent?
+    init() {}
 
-    private let handler: Handler
-
-    init(handler: @escaping Handler) {
-        self.handler = handler
-    }
-
-    @MainActor
     func run() throws {
         tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: CGEventMask(
-                1 << CGEventType.keyDown.rawValue |
-                    1 << CGEventType.leftMouseDown.rawValue |
-                    1 << CGEventType.otherMouseDown.rawValue
+                1 << CGEventType.keyDown.rawValue
+//                | 1 << CGEventType.leftMouseDown.rawValue
+//                | 1 << CGEventType.otherMouseDown.rawValue
             ),
             callback: { proxy, type, event, refcon in
                 Unmanaged<EventTap>.fromOpaque(refcon!)
@@ -70,14 +68,11 @@ class EventTap {
         case .tapDisabledByTimeout:
             CGEvent.tapEnable(tap: tap, enable: true)
             return event
-        case .leftMouseDown:
-//            print("LEFT MOUSE DOWN")
-            return event
-        case .otherMouseDown:
-//            print("OTHER MOUSE DOWN")
-            return event
         default:
-            return handler(type, event)
+            guard let delegate = delegate else {
+                return event
+            }
+            return delegate.eventTap(self, didReceive: event)
         }
     }
 }

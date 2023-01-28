@@ -17,15 +17,8 @@
 
 import Foundation
 
-public extension Dictionary {
-    /// Returns the value for the given `key` if the value is present and not `nil`. Otherwise,
-    /// puts the `defaultValue` into the dictionary under the given key and returns it.
-    mutating func getOrPut(_ key: Key, defaultValue: () throws -> Value) rethrows -> Value {
-        if let value = self[key] {
-            return value
-        }
-        let value = try defaultValue()
-        self[key] = value
-        return value
+public enum Debug {
+    public static func printCallStack() {
+        Thread.callStackSymbols.forEach { print($0) }
     }
 }

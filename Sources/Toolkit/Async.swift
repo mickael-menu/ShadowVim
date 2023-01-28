@@ -425,6 +425,17 @@ public extension Async {
         mapError { $0 as Error }
     }
 
+    /// Logs and discards any error.
+    func logFailure() -> Async<Success, Never> {
+        map(
+            success: { val, compl in compl(.success(val)) },
+            failure: { error, _ in
+                print("Unexpected failure: \(error)")
+                Debug.printCallStack()
+            }
+        )
+    }
+
     /// Raises a fatal error when the task returns an error.
     func assertNoFailure() -> Async<Success, Never> {
         map(

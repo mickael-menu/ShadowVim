@@ -102,7 +102,6 @@ public extension AXUIElement {
                 return try get(attribute)
             } catch {
                 print(error) // FIXME:
-//                Thread.callStackSymbols.forEach { print($0) }
                 return nil
             }
         }
@@ -111,7 +110,6 @@ public extension AXUIElement {
                 try set(attribute, value: value)
             } catch {
                 print(error) // FIXME:
-//                Thread.callStackSymbols.forEach { print($0) }
             }
         }
     }

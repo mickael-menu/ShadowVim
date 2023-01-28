@@ -60,10 +60,9 @@ final class AXNotificationObserver {
     /// Registers a new `receiver`, creating a shared `NotificationSubscription` if needed.
     fileprivate func register(_ receiver: any NotificationReceiver) throws {
         try $subscriptions.write {
-            let subscription = $0.getOrPut(
-                key: receiver.key,
-                defaultValue: NotificationSubscription(key: receiver.key)
-            )
+            let subscription = $0.getOrPut(receiver.key) {
+                NotificationSubscription(key: receiver.key)
+            }
             if subscription.isEmpty {
                 try observer().add(
                     notification: receiver.key.notification,

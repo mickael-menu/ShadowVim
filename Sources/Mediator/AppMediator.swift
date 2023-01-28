@@ -24,35 +24,6 @@ import Toolkit
 
 // FIXME: Dealloc on terminated process
 public final class AppMediator {
-    /// Global shared instances per `pid`.
-    @Atomic private static var sharedInstances: [pid_t: AppMediator] = [:]
-
-    /// Gets the shared instance for the given application, creating it if needed.
-    public static func shared(for app: NSRunningApplication) throws -> AppMediator {
-        if let instance = sharedInstances[app.processIdentifier] {
-            return instance
-        }
-
-        return try $sharedInstances.write {
-            // In very unlikely case the instance was created after the previous read.
-            if let instance = $0[app.processIdentifier] {
-                return instance
-            }
-            let instance = try AppMediator(app: app)
-            $0[app.processIdentifier] = instance
-            return instance
-        }
-    }
-
-    public static func terminate(app: NSRunningApplication) {
-        $sharedInstances.write { instances in
-            guard let instance = instances.removeValue(forKey: app.processIdentifier) else {
-                return
-            }
-            instance.terminate()
-        }
-    }
-
     private let app: NSRunningApplication
     private let appElement: AXUIElement
     private let nvimProcess: NvimProcess
@@ -64,7 +35,7 @@ public final class AppMediator {
 
     private var subscriptions: Set<AnyCancellable> = []
 
-    private init(app: NSRunningApplication) throws {
+    init(app: NSRunningApplication) throws {
         self.app = app
         appElement = AXUIElement.app(app)
         nvimProcess = try NvimProcess.start()
@@ -86,11 +57,11 @@ public final class AppMediator {
         nvim.events.autoCmd(event: "CursorMoved", "CursorMovedI", "ModeChanged", args: "getcursorcharpos()", "mode()")
             .assertNoFailure()
             .receive(on: DispatchQueue.main)
-            .sink { params in
-                self.onCursorEvent(params: params)
-                Task {
-                    await self.updateMode(mode: params[1].stringValue ?? "")
-                }
+            .sink { [weak self] params in
+                self?.onCursorEvent(params: params)
+//                Task {
+//                    await self?.updateMode(mode: params[1].stringValue ?? "")
+//                }
             }
             .store(in: &subscriptions)
 
@@ -108,7 +79,7 @@ public final class AppMediator {
             .store(in: &subscriptions)
     }
 
-    private func terminate() {
+    deinit {
         nvimProcess.stop()
         subscriptions.removeAll()
     }
@@ -123,12 +94,11 @@ public final class AppMediator {
         }
 
         buffers.edit(name: name, contents: element[.value] ?? "")
-            .assertNoFailure()
+            .logFailure()
             .get { [self] handle in
-                let buffer = synchronizers.getOrPut(
-                    key: name,
-                    defaultValue: BufferSynchronizer(nvim: nvim, buffer: handle, element: element, name: name, buffers: buffers)
-                )
+                let buffer = synchronizers.getOrPut(name) {
+                    BufferSynchronizer(nvim: nvim, buffer: handle, element: element, name: name, buffers: buffers)
+                }
 
                 buffer.element = element
                 currentBuffer = buffer

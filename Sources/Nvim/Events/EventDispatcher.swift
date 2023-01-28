@@ -37,10 +37,9 @@ public class EventDispatcher {
 
     public func subscribe(to event: String) -> AnyPublisher<[Value], APIError> {
         let mediator = $mediators.write {
-            $0.getOrPut(
-                key: event,
-                defaultValue: EventMediator(event: event, api: api)
-            )
+            $0.getOrPut(event) {
+                EventMediator(event: event, api: api)
+            }
         }
 
         return EventPublisher(event: event, mediator: mediator)
@@ -141,7 +140,7 @@ private class EventMediator {
             if $0.isEmpty {
                 api.subscribe(to: event)
                     .flatMap(onSetup)
-                    .assertNoFailure()
+                    .logFailure()
                     .run()
             }
 
@@ -157,7 +156,7 @@ private class EventMediator {
             if $0.isEmpty {
                 api.unsubscribe(from: event)
                     .flatMap(onTeardown)
-                    .assertNoFailure()
+                    .logFailure()
                     .run()
             }
         }

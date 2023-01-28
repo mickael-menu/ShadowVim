@@ -46,14 +46,16 @@ public class NvimProcess {
         ]
         try process.run()
 
-        let session = RPCSession(
-            input: input.fileHandleForWriting,
-            output: output.fileHandleForReading
-        )
+        let inputFile = input.fileHandleForWriting
+        let outputFile = output.fileHandleForReading
+        let session = RPCSession(input: inputFile, output: outputFile)
 
         return NvimProcess(
+            process: process,
+            session: session,
             nvim: Nvim(session: session),
-            process: process
+            input: inputFile,
+            output: outputFile
         )
     }
 
@@ -81,12 +83,19 @@ public class NvimProcess {
             : luaConfig
     }
 
-    public let nvim: Nvim
     private let process: Process
+    private let session: RPCSession
+    public let nvim: Nvim
+    private let input: FileHandle
+    private let output: FileHandle
+    private var isStopped = false
 
-    init(nvim: Nvim, process: Process) {
-        self.nvim = nvim
+    init(process: Process, session: RPCSession, nvim: Nvim, input: FileHandle, output: FileHandle) {
         self.process = process
+        self.session = session
+        self.nvim = nvim
+        self.input = input
+        self.output = output
     }
 
     deinit {
@@ -94,6 +103,11 @@ public class NvimProcess {
     }
 
     public func stop() {
-        process.terminate()
+        guard !isStopped else {
+            return
+        }
+        isStopped = true
+        session.close()
+        process.interrupt()
     }
 }

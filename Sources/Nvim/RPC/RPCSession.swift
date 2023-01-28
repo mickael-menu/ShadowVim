@@ -83,19 +83,20 @@ struct RPCRequestCallbacks {
 final class RPCSession {
     typealias RequestCompletion = (Result<Value, RPCError>) -> Void
 
-    private let send: (Data) throws -> Void
-    private let receive: () -> Data
+    private let _send: (Data) throws -> Void
+    private let _receive: () -> Data
     private var receiveTask: Task<Void, Never>?
     private let debug: Bool = false
 
     weak var delegate: RPCSessionDelegate?
+    private var isClosed: Bool = false
 
     init(
         send: @escaping (Data) throws -> Void,
         receive: @escaping () -> Data
     ) {
-        self.send = send
-        self.receive = receive
+        _send = send
+        _receive = receive
     }
 
     convenience init(
@@ -109,6 +110,14 @@ final class RPCSession {
     }
 
     deinit {
+        close()
+    }
+
+    func close() {
+        guard !isClosed else {
+            return
+        }
+        isClosed = true
         receiveTask?.cancel()
     }
 
@@ -218,6 +227,13 @@ final class RPCSession {
         return .success(())
     }
 
+    private func receive() -> Data {
+        guard !isClosed else {
+            return Data()
+        }
+        return _receive()
+    }
+
     // MARK: - Send
 
     private let sendQueue = DispatchQueue(label: "menu.mickael.RPCSession", qos: .userInitiated)
@@ -265,6 +281,13 @@ final class RPCSession {
             return
         }
         completion(result)
+    }
+
+    private func send(_ data: Data) throws {
+        guard !isClosed else {
+            return
+        }
+        return try _send(data)
     }
 
     // MARK: - Toolkit
