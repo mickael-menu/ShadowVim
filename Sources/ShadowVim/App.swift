@@ -128,6 +128,9 @@ class App {
 
 extension App: MainMediatorDelegate {
     func mainMediator(_ mediator: MainMediator, didFailWithError error: Error) {
-        presentAlert(error: error, style: .warning)
+        DispatchQueue.main.async {
+            self.presentAlert(error: error, style: .warning)
+        }
     }
 }
+

@@ -21,6 +21,7 @@ import Toolkit
 
 public protocol NvimDelegate: AnyObject {
     func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>?
+    func nvim(_ nvim: Nvim, didFailWithError error: Error)
 }
 
 public class Nvim {
@@ -74,8 +75,8 @@ public class Nvim {
 }
 
 extension Nvim: RPCSessionDelegate {
-    func session(_ session: RPCSession, didReceiveError error: RPCError) {
-        print(error.localizedDescription)
+    func session(_ session: RPCSession, didFailWithError error: RPCError) {
+        delegate?.nvim(self, didFailWithError: error)
     }
 
     func session(_ session: RPCSession, didReceiveNotification method: String, with params: [Value]) {

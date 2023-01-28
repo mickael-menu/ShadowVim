@@ -222,4 +222,8 @@ extension AppMediator: NvimDelegate {
             return nil
         }
     }
+    
+    public func nvim(_ nvim: Nvim, didFailWithError error: Error) {
+        delegate?.appMediator(self, didFailWithError: error)
+    }
 }
