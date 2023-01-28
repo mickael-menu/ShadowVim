@@ -157,25 +157,21 @@ public final class AppMediator {
             // FIXME: See `nvim.paste` "Faster than nvim_input()."
 
             let input: String = {
-                switch event.getIntegerValueField(.keyboardEventKeycode) {
-                case 0x35:
+                switch event.keyCode {
+                case .escape:
                     return "<Esc>"
-                case 0x24:
+                case .enter:
                     return "<Enter>"
-                case 0x7B:
+                case .leftArrow:
                     return "<Left>"
-                case 0x7C:
+                case .rightArrow:
                     return "<Right>"
-                case 0x7D:
+                case .downArrow:
                     return "<Down>"
-                case 0x7E:
+                case .upArrow:
                     return "<Up>"
                 default:
-                    let maxStringLength: Int = 4
-                    var actualStringLength: Int = 0
-                    var unicodeString = [UniChar](repeating: 0, count: Int(maxStringLength))
-                    event.keyboardGetUnicodeString(maxStringLength: 1, actualStringLength: &actualStringLength, unicodeString: &unicodeString)
-                    return String(utf16CodeUnits: &unicodeString, count: Int(actualStringLength))
+                    return event.character
                 }
             }()
 
