@@ -14,10 +14,6 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-//  Copyright 2022 Readium Foundation. All rights reserved.
-//  Use of this source code is governed by the BSD-style license
-//  available in the top-level LICENSE file of the project.
-//
 
 import ApplicationServices
 import Combine
@@ -64,10 +60,9 @@ final class AXNotificationObserver {
     /// Registers a new `receiver`, creating a shared `NotificationSubscription` if needed.
     fileprivate func register(_ receiver: any NotificationReceiver) throws {
         try $subscriptions.write {
-            let subscription = $0.getOrPut(
-                key: receiver.key,
-                defaultValue: NotificationSubscription(key: receiver.key)
-            )
+            let subscription = $0.getOrPut(receiver.key) {
+                NotificationSubscription(key: receiver.key)
+            }
             if subscription.isEmpty {
                 try observer().add(
                     notification: receiver.key.notification,
@@ -222,12 +217,7 @@ struct AXNotificationPublisher: Publisher {
         func request(_ demand: Subscribers.Demand) {}
 
         func cancel() {
-            do {
-                try observer.deregister(self)
-            } catch {
-                subscriber?.receive(completion: .failure(error))
-            }
-
+            try? observer.deregister(self)
             subscriber = nil
         }
 

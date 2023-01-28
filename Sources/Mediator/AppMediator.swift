@@ -14,10 +14,6 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-//  Copyright 2022 Readium Foundation. All rights reserved.
-//  Use of this source code is governed by the BSD-style license
-//  available in the top-level LICENSE file of the project.
-//
 
 import AppKit
 import AX
@@ -28,114 +24,97 @@ import Toolkit
 
 // FIXME: Dealloc on terminated process
 public final class AppMediator {
-    /// Global shared instances per `pid`.
-    @Atomic private static var sharedInstances: [pid_t: AppMediator] = [:]
-
-    /// Gets the shared instance for the given application, creating it if needed.
-    public static func shared(for app: NSRunningApplication) throws -> AppMediator {
-        if let instance = sharedInstances[app.processIdentifier] {
-            return instance
-        }
-
-        return try $sharedInstances.write {
-            // In very unlikely case the instance was created after the previous read.
-            if let instance = $0[app.processIdentifier] {
-                return instance
-            }
-            let instance = try AppMediator(app: app)
-            $0[app.processIdentifier] = instance
-            return instance
-        }
-    }
-
     private let app: NSRunningApplication
-    private let element: AXUIElement
+    private let appElement: AXUIElement
     private let nvimProcess: NvimProcess
     private var nvim: Nvim { nvimProcess.nvim }
+    private let buffers: Buffers
 
-    private var buffers: [String: BufferSynchronizer] = [:]
+    private var synchronizers: [String: BufferSynchronizer] = [:]
     private var currentBuffer: BufferSynchronizer?
 
     private var subscriptions: Set<AnyCancellable> = []
 
-    private init(app: NSRunningApplication) throws {
+    init(app: NSRunningApplication) throws {
         self.app = app
-        element = AXUIElement.app(app)
+        appElement = AXUIElement.app(app)
         nvimProcess = try NvimProcess.start()
+        buffers = Buffers(nvim: nvimProcess.nvim)
         nvim.delegate = self
 
-        if let focusedElement = element[.focusedUIElement] as AXUIElement? {
+        if let focusedElement = appElement[.focusedUIElement] as AXUIElement? {
             focusedUIElementDidChange(focusedElement)
         }
 
-        element.publisher(for: .focusedUIElementChanged)
+        appElement.publisher(for: .focusedUIElementChanged)
             .assertNoFailure()
             .sink { [weak self] element in
+//                print(element.hashValue, element[.role] as AXRole?, element[.description] as String?)
                 self?.focusedUIElementDidChange(element)
             }
             .store(in: &subscriptions)
 
-        Task {
-            await nvim.events.autoCmd(event: "CursorMoved", "CursorMovedI", "ModeChanged", args: "getcursorcharpos()", "mode()")
-                .assertNoFailure()
-                .receive(on: DispatchQueue.main)
-                .sink { params in
-                    self.onCursorEvent(params: params)
-                    Task {
-                        await self.updateMode(mode: params[1].stringValue ?? "")
-                    }
-                }
-                .store(in: &subscriptions)
+        nvim.events.autoCmd(event: "CursorMoved", "CursorMovedI", "ModeChanged", args: "getcursorcharpos()", "mode()")
+            .assertNoFailure()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] params in
+                self?.onCursorEvent(params: params)
+//                Task {
+//                    await self?.updateMode(mode: params[1].stringValue ?? "")
+//                }
+            }
+            .store(in: &subscriptions)
 
-            await nvim.events.autoCmd(event: "CmdlineChanged", args: "getcmdline()")
-                .assertNoFailure()
-                .sink { [weak self] params in
-                    self?.more = params.first?.stringValue ?? ""
-                    //            print("MODE \(params)")
-                }
-                .store(in: &subscriptions)
-        }
+        //        var pos: CursorPosition = (0, 0)
+        //        var selection: CFRange = element[.selectedTextRange] ?? CFRange(location: 0, length: 0)
+        //        selection = CFRange(location: selection.location, length: 1) // Normal mode
+        //        pos.row = element[.lineForIndex] ?? 0
+        //        pos.col = element[.lineForIndex] ?? 0
+
+        nvim.events.autoCmd(event: "CmdlineChanged", args: "getcmdline()")
+            .assertNoFailure()
+            .sink { [weak self] params in
+                self?.more = params.first?.stringValue ?? ""
+            }
+            .store(in: &subscriptions)
+    }
+
+    deinit {
+        nvimProcess.stop()
+        subscriptions.removeAll()
     }
 
     private func focusedUIElementDidChange(_ element: AXUIElement) {
-        guard (try? element.role()) == .textArea else {
+        guard
+            element.isSourceEditor,
+            let name = element.document()
+        else {
             currentBuffer = nil
             return
         }
 
-        let name = name(for: element)
-        let buffer = buffers.getOrPut(
-            key: name,
-            defaultValue: BufferSynchronizer(nvim: nvim, element: element, name: name)
-        )
+        buffers.edit(name: name, contents: element[.value] ?? "")
+            .logFailure()
+            .get { [self] handle in
+                let buffer = synchronizers.getOrPut(name) {
+                    BufferSynchronizer(nvim: nvim, buffer: handle, element: element, name: name, buffers: buffers)
+                }
 
-        buffer.element = element
-        currentBuffer = buffer
-        Task {
-            try! await buffer.edit()
-        }
-    }
-
-    func name(for element: AXUIElement) -> String {
-        if
-            let window = try? element.get(.window) as AXUIElement?,
-            let documentPath = try? window.get(.document) as String?,
-            let documentURL = URL(string: documentPath)
-        {
-            return documentURL
-                .resolvingSymlinksInPath()
-                .path
-                .replacingOccurrences(of: "/", with: "%")
-                .replacingOccurrences(of: ":", with: "%")
-        } else {
-            return UUID().uuidString
-        }
+                buffer.element = element
+                currentBuffer = buffer
+            }
     }
 
     public func handle(_ event: CGEvent) -> CGEvent? {
         precondition(app.isActive)
 
-        guard currentBuffer != nil else {
+        guard
+            // Check that we're still the focused app. Useful when the Spotlight
+            // modal is opened.
+            isFocused,
+            let bufferElement = currentBuffer?.element,
+            bufferElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
+        else {
             return event
         }
 
@@ -147,40 +126,35 @@ public final class AppMediator {
 
             // FIXME: See `nvim.paste` "Faster than nvim_input()."
 
-            Task {
-                let input: String = {
-                    switch event.getIntegerValueField(.keyboardEventKeycode) {
-                    case 0x35:
-                        return "<Esc>"
-                    case 0x24:
-                        return "<Enter>"
-                    case 0x7B:
-                        return "<Left>"
-                    case 0x7C:
-                        return "<Right>"
-                    case 0x7D:
-                        return "<Down>"
-                    case 0x7E:
-                        return "<Up>"
-                    default:
-                        let maxStringLength: Int = 4
-                        var actualStringLength: Int = 0
-                        var unicodeString = [UniChar](repeating: 0, count: Int(maxStringLength))
-                        event.keyboardGetUnicodeString(maxStringLength: 1, actualStringLength: &actualStringLength, unicodeString: &unicodeString)
-                        return String(utf16CodeUnits: &unicodeString, count: Int(actualStringLength))
-                    }
-                }()
+            let input: String = {
+                switch event.keyCode {
+                case .escape:
+                    return "<Esc>"
+                case .enter:
+                    return "<Enter>"
+                case .leftArrow:
+                    return "<Left>"
+                case .rightArrow:
+                    return "<Right>"
+                case .downArrow:
+                    return "<Down>"
+                case .upArrow:
+                    return "<Up>"
+                default:
+                    return event.character
+                }
+            }()
 
-                await nvim.api.input(input)
-                    .onError { print($0) } // FIXME: better error handling
+            nvim.api.input(input)
+                .discardResult()
+                // FIXME: better error handling
+                .get(onFailure: { print($0) })
 
-                // REQUIRES Neovim 0.9
+            // REQUIRES Neovim 0.9
 //                let sl = try await nvim.api.evalStatusline("%S").get()
 //                self.cmd = sl
-                //                    print(sl)
 
-                //                    try await self.updateText(character)
-            }
+            //                    try await self.updateText(character)
             return nil
 
         default:
@@ -188,6 +162,11 @@ public final class AppMediator {
         }
 
         return event
+    }
+
+    private var isFocused: Bool {
+        let focusedAppPid = try? AXUIElement.systemWide.focusedApplication()?.pid()
+        return app.processIdentifier == focusedAppPid
     }
 
     private func onCursorEvent(params: [Value]) {

@@ -14,10 +14,6 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-//  Copyright 2022 Readium Foundation. All rights reserved.
-//  Use of this source code is governed by the BSD-style license
-//  available in the top-level LICENSE file of the project.
-//
 
 import Foundation
 
@@ -46,7 +42,7 @@ public extension Result {
         }
     }
 
-    func dropResult() -> Result<Void, Failure> {
+    func discardResult() -> Result<Void, Failure> {
         map { _ in () }
     }
 

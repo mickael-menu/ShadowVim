@@ -16,16 +16,14 @@
 //
 
 import AX
-import Combine
-import Mediator
-import Nvim
-import SwiftUI
+import Foundation
 
-@main
-struct ShadowVimApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-
-    var body: some Scene {
-        Settings {}
+extension AXUIElement {
+    /// Returns whether this accessible object represents an Xcode source
+    /// editor.
+    var isSourceEditor: Bool {
+        isValid
+            && self[.role] == AXRole.textArea
+            && self[.description] == "Source Editor"
     }
 }

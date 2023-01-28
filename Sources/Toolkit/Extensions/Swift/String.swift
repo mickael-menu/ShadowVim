@@ -14,12 +14,14 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-//  Copyright 2022 Readium Foundation. All rights reserved.
-//  Use of this source code is governed by the BSD-style license
-//  available in the top-level LICENSE file of the project.
-//
 
 import Foundation
+
+public extension String {
+    var lines: [Substring] {
+        split(separator: "\n", omittingEmptySubsequences: false)
+    }
+}
 
 public extension Range where Bound == String.Index {
     /// Converts a range of `String.Index` into a `CFRange` of character indices.

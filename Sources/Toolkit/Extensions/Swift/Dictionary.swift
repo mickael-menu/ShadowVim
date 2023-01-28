@@ -14,21 +14,17 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-//  Copyright 2022 Readium Foundation. All rights reserved.
-//  Use of this source code is governed by the BSD-style license
-//  available in the top-level LICENSE file of the project.
-//
 
 import Foundation
 
 public extension Dictionary {
     /// Returns the value for the given `key` if the value is present and not `nil`. Otherwise,
     /// puts the `defaultValue` into the dictionary under the given key and returns it.
-    mutating func getOrPut(key: Key, defaultValue: @autoclosure () -> Value) -> Value {
+    mutating func getOrPut(_ key: Key, defaultValue: () throws -> Value) rethrows -> Value {
         if let value = self[key] {
             return value
         }
-        let value = defaultValue()
+        let value = try defaultValue()
         self[key] = value
         return value
     }

@@ -14,31 +14,17 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-//  Copyright 2022 Readium Foundation. All rights reserved.
-//  Use of this source code is governed by the BSD-style license
-//  available in the top-level LICENSE file of the project.
-//
 
 import Combine
 import Foundation
 
-extension EventDispatcher {
+public extension EventDispatcher {
     /// Subscribes a new handler for the `nvim_buf_lines_event` event of the given `buffer`.
-    func subscribeToBufLines(
-        of buffer: BufferHandle
-    ) -> AnyPublisher<BufLinesEvent, APIError> {
-        subscribe(to: "nvim_buf_lines_event")
-            .compactMap { data in
-                guard
-                    let eventBuffer = data.first?.bufferValue,
-                    eventBuffer == buffer,
-                    let event = BufLinesEvent(params: data)
-                else {
-                    return nil
-                }
-                return event
-            }
-            .eraseToAnyPublisher()
+    func subscribeToBufLines() -> AnyPublisher<BufLinesEvent, APIError> {
+        subscribe(
+            to: "nvim_buf_lines_event",
+            unpack: { BufLinesEvent(params: $0) }
+        )
     }
 }
 
@@ -175,7 +161,7 @@ public struct BufLinesEvent {
             return initialChanges(in: content)
         }
 
-        let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
+        let lines = content.lines
         precondition(firstLine <= lines.count)
         precondition(lastLine <= lines.count)
 

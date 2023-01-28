@@ -14,10 +14,6 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-//  Copyright 2022 Readium Foundation. All rights reserved.
-//  Use of this source code is governed by the BSD-style license
-//  available in the top-level LICENSE file of the project.
-//
 
 import AppKit
 import ApplicationServices
@@ -42,6 +38,15 @@ public extension AXUIElement {
         NSWorkspace.shared.runningApplications
             .first(where: { $0.bundleIdentifier == bundleID })
             .map { app($0) }
+    }
+
+    var isValid: Bool {
+        do {
+            _ = try get(.role) as String?
+        } catch AXError.invalidUIElement {
+            return false
+        } catch {}
+        return true
     }
 
     func attributes() throws -> [AXAttribute] {
@@ -83,6 +88,15 @@ public extension AXUIElement {
     }
 
     subscript<Value>(_ attribute: AXAttribute) -> Value? {
+        get {
+            try? get(attribute)
+        }
+        set(value) {
+            try? set(attribute, value: value)
+        }
+    }
+
+    subscript<Value: RawRepresentable>(_ attribute: AXAttribute) -> Value? {
         get {
             do {
                 return try get(attribute)
@@ -287,5 +301,31 @@ public extension AXUIElement {
 
     func subrole() throws -> AXSubrole? {
         try get(.subrole)
+    }
+
+    func parent() throws -> AXUIElement? {
+        try get(.parent)
+    }
+
+    func document() -> String? {
+        guard let document = try? get(.document) as String? else {
+            return try? parent()?.document()
+        }
+        return document
+    }
+
+    func focusedApplication() throws -> AXUIElement? {
+        try get(.focusedApplication)
+    }
+}
+
+extension AXUIElement: CustomStringConvertible {
+    public var description: String {
+        let id = hashValue
+        let role = self[.role] as String? ?? "AXUnknown"
+        let pid = (try? pid()) ?? 0
+        let description = self[.description] as String? ?? ""
+
+        return "\(role)\t#\(id) (pid:\(pid), desc:\(description))"
     }
 }

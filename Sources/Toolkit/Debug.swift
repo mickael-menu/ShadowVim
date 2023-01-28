@@ -15,17 +15,10 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-import AX
-import Combine
-import Mediator
-import Nvim
-import SwiftUI
+import Foundation
 
-@main
-struct ShadowVimApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-
-    var body: some Scene {
-        Settings {}
+public enum Debug {
+    public static func printCallStack() {
+        Thread.callStackSymbols.forEach { print($0) }
     }
 }

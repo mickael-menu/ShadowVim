@@ -15,17 +15,26 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-import AX
 import Combine
-import Mediator
-import Nvim
-import SwiftUI
+import Foundation
 
-@main
-struct ShadowVimApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+public extension Publisher {
+    func ignoreFailure() -> AnyPublisher<Output, Never> {
+        map { $0 as Output? }
+            .replaceError(with: nil)
+            .compactMap { $0 }
+            .eraseToAnyPublisher()
+    }
+}
 
-    var body: some Scene {
-        Settings {}
+public extension AnyPublisher {
+    static func just(_ value: Output) -> Self {
+        Just(value)
+            .setFailureType(to: Failure.self)
+            .eraseToAnyPublisher()
+    }
+
+    static func fail(_ error: Failure) -> Self {
+        Fail(error: error).eraseToAnyPublisher()
     }
 }

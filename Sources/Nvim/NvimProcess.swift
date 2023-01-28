@@ -14,10 +14,6 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-//  Copyright 2022 Readium Foundation. All rights reserved.
-//  Use of this source code is governed by the BSD-style license
-//  available in the top-level LICENSE file of the project.
-//
 
 import Foundation
 
@@ -50,17 +46,16 @@ public class NvimProcess {
         ]
         try process.run()
 
-        let session = RPCSession(
-            input: input.fileHandleForWriting,
-            output: output.fileHandleForReading
-        )
+        let inputFile = input.fileHandleForWriting
+        let outputFile = output.fileHandleForReading
+        let session = RPCSession(input: inputFile, output: outputFile)
 
         return NvimProcess(
-            nvim: Nvim(session: session),
             process: process,
-            sessionTask: Task {
-                await session.run()
-            }
+            session: session,
+            nvim: Nvim(session: session),
+            input: inputFile,
+            output: outputFile
         )
     }
 
@@ -88,15 +83,19 @@ public class NvimProcess {
             : luaConfig
     }
 
-    public let nvim: Nvim
-
     private let process: Process
-    private let sessionTask: Task<Void, Error>
+    private let session: RPCSession
+    public let nvim: Nvim
+    private let input: FileHandle
+    private let output: FileHandle
+    private var isStopped = false
 
-    init(nvim: Nvim, process: Process, sessionTask: Task<Void, Error>) {
-        self.nvim = nvim
+    init(process: Process, session: RPCSession, nvim: Nvim, input: FileHandle, output: FileHandle) {
         self.process = process
-        self.sessionTask = sessionTask
+        self.session = session
+        self.nvim = nvim
+        self.input = input
+        self.output = output
     }
 
     deinit {
@@ -104,7 +103,11 @@ public class NvimProcess {
     }
 
     public func stop() {
-        sessionTask.cancel()
-        process.terminate()
+        guard !isStopped else {
+            return
+        }
+        isStopped = true
+        session.close()
+        process.interrupt()
     }
 }
