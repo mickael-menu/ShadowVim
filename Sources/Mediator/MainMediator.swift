@@ -18,16 +18,24 @@
 import AppKit
 import Combine
 import Foundation
+import Nvim
 import Toolkit
 
+public protocol MainMediatorDelegate: AnyObject {
+    func mainMediator(_ mediator: MainMediator, didFailWithError error: Error)
+}
+
 public final class MainMediator {
+    public weak var delegate: MainMediatorDelegate?
+
     private let bundleIDs: [String]
     private var apps: [pid_t: AppMediator] = [:]
     private var subscriptions: Set<AnyCancellable> = []
     private let eventTap = EventTap()
 
-    public init(bundleIDs: [String]) {
+    public init(bundleIDs: [String], delegate: MainMediatorDelegate? = nil) {
         self.bundleIDs = bundleIDs
+        self.delegate = delegate
     }
 
     public func start() throws {
@@ -36,27 +44,33 @@ public final class MainMediator {
         eventTap.delegate = self
         try eventTap.run()
 
-        try reset()
+        reset()
     }
 
-    private func reset() throws {
+    public func reset() {
         precondition(Thread.isMainThread)
+        print("Reset ShadowVim")
 
         subscriptions = []
         apps = [:]
 
         if let app = NSWorkspace.shared.frontmostApplication {
-            _ = try mediator(of: app)
+            do {
+                _ = try mediator(of: app)
+            } catch {
+                delegate?.mainMediator(self, didFailWithError: error)
+            }
         }
 
         NSWorkspace.shared
             .didActivateApplicationPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in
+                guard let self else { return }
                 do {
-                    _ = try self?.mediator(of: $0)
+                    _ = try self.mediator(of: $0)
                 } catch {
-                    print(error) // FIXME:
+                    self.delegate?.mainMediator(self, didFailWithError: error)
                 }
             }
             .store(in: &subscriptions)
@@ -81,7 +95,7 @@ public final class MainMediator {
         }
 
         return try apps.getOrPut(app.processIdentifier) {
-            try AppMediator(app: app)
+            try AppMediator(app: app, delegate: self)
         }
     }
 
@@ -90,18 +104,16 @@ public final class MainMediator {
     }
 }
 
+extension MainMediator: AppMediatorDelegate {
+    public func appMediator(_ mediator: AppMediator, didFailWithError error: Error) {
+        delegate?.mainMediator(self, didFailWithError: error)
+    }
+}
+
 extension MainMediator: EventTapDelegate {
     func eventTap(_ tap: EventTap, didReceive event: CGEvent) -> CGEvent? {
         if isResetEvent(event) {
-            do {
-                print("Reset ShadowVim")
-                try reset()
-            } catch {
-                // FIXME:
-                print(error)
-                Debug.printCallStack()
-            }
-
+            reset()
             return nil
         }
 
@@ -115,8 +127,7 @@ extension MainMediator: EventTapDelegate {
             return mediator.handle(event)
 
         } catch {
-            // FIXME:
-            print(error)
+            delegate?.mainMediator(self, didFailWithError: error)
             return event
         }
     }

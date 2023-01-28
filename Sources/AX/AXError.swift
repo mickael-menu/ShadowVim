@@ -19,7 +19,7 @@ import ApplicationServices
 import Foundation
 
 /// Error codes returned by accessibility functions (`AXError.h`).
-public enum AXError: LocalizedError {
+public enum AXError: Error {
     /// Received an unknown error code.
     case unknown(ApplicationServices.AXError)
 
@@ -122,9 +122,5 @@ public enum AXError: LocalizedError {
         @unknown default:
             self = .unknown(code)
         }
-    }
-
-    public var errorDescription: String? {
-        String(describing: self)
     }
 }

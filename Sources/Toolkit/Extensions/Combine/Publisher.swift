@@ -25,6 +25,20 @@ public extension Publisher {
             .compactMap { $0 }
             .eraseToAnyPublisher()
     }
+
+    func sink(
+        onFailure: @escaping (Error) -> Void,
+        receiveValue: @escaping (Output) -> Void
+    ) -> AnyCancellable {
+        sink(
+            receiveCompletion: { res in
+                if case let .failure(error) = res {
+                    onFailure(error)
+                }
+            },
+            receiveValue: receiveValue
+        )
+    }
 }
 
 public extension AnyPublisher {

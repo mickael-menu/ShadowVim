@@ -15,14 +15,10 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-import AX
-import Combine
-import Mediator
-import Nvim
 import SwiftUI
 
 @main
-struct ShadowVimApp: App {
+struct ShadowVimApp: SwiftUI.App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
