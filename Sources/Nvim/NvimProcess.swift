@@ -27,7 +27,7 @@ public class NvimProcess {
         process.executableURL = executableURL
         process.arguments = [
             "nvim",
-            "--headless",
+//            "--headless",
             "--embed",
             "-n", // Ignore swap files.
             "--clean", // Don't load default config and plugins.

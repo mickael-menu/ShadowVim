@@ -191,6 +191,94 @@ public class API {
         request("nvim_del_autocmd", with: id)
             .discardResult()
     }
+    
+    /// https://neovim.io/doc/user/ui.html#ui-option
+    public struct UIOptions {
+        
+        /// Decides the color format.
+        /// https://neovim.io/doc/user/ui.html#ui-rgb
+        public let rgb: Bool
+        
+        /// Decides how UI capabilities are resolved.
+        /// https://neovim.io/doc/user/ui.html#ui-override
+        public let override: Bool
+        
+        /// Externalize the cmdline.
+        /// https://neovim.io/doc/user/ui.html#ui-ext-options
+        public let extCmdline: Bool
+        
+        /// Detailed highlight state.
+        /// https://neovim.io/doc/user/ui.html#ui-ext-options
+        public let extHlState: Bool
+               
+        /// Line-based grid events.
+        /// https://neovim.io/doc/user/ui.html#ui-ext-options
+        public let extLineGrid: Bool
+               
+        /// Externalize messages.
+        /// https://neovim.io/doc/user/ui.html#ui-ext-options
+        public let extMessages: Bool
+               
+        /// Per-window grid events.
+        /// https://neovim.io/doc/user/ui.html#ui-ext-options
+        public let extMultigrid: Bool
+               
+        /// Externalize popupmenu-completion and 'wildmenu'.
+        /// https://neovim.io/doc/user/ui.html#ui-ext-options
+        public let extPopupMenu: Bool
+               
+        /// Externalize the tabline.
+        /// https://neovim.io/doc/user/ui.html#ui-ext-options
+        public let extTabline: Bool
+               
+        /// Use external default colors.
+        /// https://neovim.io/doc/user/ui.html#ui-ext-options
+        public let extTermColors: Bool
+        
+        public init(
+            rgb: Bool = true,
+            override: Bool = false,
+            extCmdline: Bool = false,
+            extHlState: Bool = false,
+            extLineGrid: Bool = false,
+            extMessages: Bool = false,
+            extMultigrid: Bool = false,
+            extPopupMenu: Bool = false,
+            extTabline: Bool = false,
+            extTermColors: Bool = false
+        ) {
+            self.rgb = rgb
+            self.override = override
+            self.extCmdline = extCmdline
+            self.extHlState = extHlState
+            self.extLineGrid = extLineGrid
+            self.extMessages = extMessages
+            self.extMultigrid = extMultigrid
+            self.extPopupMenu = extPopupMenu
+            self.extTabline = extTabline
+            self.extTermColors = extTermColors
+        }
+    }
+    
+    /// https://neovim.io/doc/user/api.html#nvim_ui_attach()
+    public func uiAttach(width: Int, height: Int, options: UIOptions) -> APIAsync<Void> {
+        request("nvim_ui_attach", with: [
+            width, height,
+            [
+                "rgb": options.rgb,
+                "override": options.override,
+                "ext_cmdline": options.extCmdline,
+                "ext_hlstate": options.extHlState,
+                "ext_linegrid": options.extLineGrid,
+                "ext_messages": options.extMessages,
+                "ext_multigrid": options.extMultigrid,
+                "ext_popupmenu": options.extPopupMenu,
+                "ext_tabline": options.extTabline,
+                "ext_termcolors": options.extTermColors
+            ]
+        ])
+        .discardResult()
+    }
 
     @discardableResult
     public func request(_ method: String, with params: ValueConvertible...) -> APIAsync<Value> {

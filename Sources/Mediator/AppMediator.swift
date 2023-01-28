@@ -49,6 +49,23 @@ public final class AppMediator {
         buffers = Buffers(nvim: nvimProcess.nvim)
         nvim.delegate = self
 
+        nvim.api.uiAttach(
+            width: 1000,
+            height: 100,
+            options: API.UIOptions(
+                extCmdline: true,
+                extHlState: true,
+                extLineGrid: true,
+                extMessages: true,
+                extMultigrid: true,
+                extPopupMenu: true,
+                extTabline: true,
+                extTermColors: true
+            )
+        )
+        .assertNoFailure()
+        .run()
+        
         if let focusedElement = appElement[.focusedUIElement] as AXUIElement? {
             focusedUIElementDidChange(focusedElement)
         }
