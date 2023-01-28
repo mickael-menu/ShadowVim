@@ -19,7 +19,7 @@ import Foundation
 import MessagePack
 import Toolkit
 
-public enum RPCError: LocalizedError {
+public enum RPCError: Error {
     case unexpectedMessage(Value)
     case unexpectedMessagePackValue(MessagePackValue)
     case unknownRequestId(UInt64)
@@ -27,24 +27,6 @@ public enum RPCError: LocalizedError {
     case ioFailure(Error)
     case unpackFailure(Error)
     case noHandlerForRequest(method: String)
-
-    public var errorDescription: String? {
-        var description = String(reflecting: self)
-        switch self {
-        case let .unexpectedMessage(value), let .responseError(value):
-            description += ": \(value)"
-        case let .unknownRequestId(id):
-            description += ": \(id)"
-        case let .ioFailure(error), let .unpackFailure(error):
-            description += ": \(error.localizedDescription)"
-        case let .noHandlerForRequest(method: method):
-            description += ": \(method)"
-        case .unexpectedMessagePackValue:
-            break
-        }
-
-        return description
-    }
 }
 
 public typealias RPCMessageID = UInt64

@@ -22,8 +22,14 @@ import Foundation
 import Nvim
 import Toolkit
 
+public protocol AppMediatorDelegate: AnyObject {
+    func appMediator(_ mediator: AppMediator, didFailWithError error: Error)
+}
+
 // FIXME: Dealloc on terminated process
 public final class AppMediator {
+    public weak var delegate: AppMediatorDelegate?
+
     private let app: NSRunningApplication
     private let appElement: AXUIElement
     private let nvimProcess: NvimProcess
@@ -35,8 +41,9 @@ public final class AppMediator {
 
     private var subscriptions: Set<AnyCancellable> = []
 
-    init(app: NSRunningApplication) throws {
+    init(app: NSRunningApplication, delegate: AppMediatorDelegate?) throws {
         self.app = app
+        self.delegate = delegate
         appElement = AXUIElement.app(app)
         nvimProcess = try NvimProcess.start()
         buffers = Buffers(nvim: nvimProcess.nvim)
@@ -47,22 +54,30 @@ public final class AppMediator {
         }
 
         appElement.publisher(for: .focusedUIElementChanged)
-            .assertNoFailure()
-            .sink { [weak self] element in
-//                print(element.hashValue, element[.role] as AXRole?, element[.description] as String?)
-                self?.focusedUIElementDidChange(element)
-            }
+            .receive(on: DispatchQueue.main)
+            .sink(
+                onFailure: { [unowned self] error in
+                    delegate?.appMediator(self, didFailWithError: error)
+                },
+                receiveValue: { [unowned self] element in
+                    focusedUIElementDidChange(element)
+                }
+            )
             .store(in: &subscriptions)
 
         nvim.events.autoCmd(event: "CursorMoved", "CursorMovedI", "ModeChanged", args: "getcursorcharpos()", "mode()")
-            .assertNoFailure()
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] params in
-                self?.onCursorEvent(params: params)
-//                Task {
-//                    await self?.updateMode(mode: params[1].stringValue ?? "")
-//                }
-            }
+            .sink(
+                onFailure: { [unowned self] error in
+                    delegate?.appMediator(self, didFailWithError: error)
+                },
+                receiveValue: { [unowned self] params in
+                    self.onCursorEvent(params: params)
+                    //                Task {
+                    //                    await self?.updateMode(mode: params[1].stringValue ?? "")
+                    //                }
+                }
+            )
             .store(in: &subscriptions)
 
         //        var pos: CursorPosition = (0, 0)
@@ -70,13 +85,13 @@ public final class AppMediator {
         //        selection = CFRange(location: selection.location, length: 1) // Normal mode
         //        pos.row = element[.lineForIndex] ?? 0
         //        pos.col = element[.lineForIndex] ?? 0
-
-        nvim.events.autoCmd(event: "CmdlineChanged", args: "getcmdline()")
-            .assertNoFailure()
-            .sink { [weak self] params in
-                self?.more = params.first?.stringValue ?? ""
-            }
-            .store(in: &subscriptions)
+//
+//        nvim.events.autoCmd(event: "CmdlineChanged", args: "getcmdline()")
+//            .assertNoFailure()
+//            .sink { [weak self] params in
+//                self?.more = params.first?.stringValue ?? ""
+//            }
+//            .store(in: &subscriptions)
     }
 
     deinit {
@@ -147,14 +162,10 @@ public final class AppMediator {
 
             nvim.api.input(input)
                 .discardResult()
-                // FIXME: better error handling
-                .get(onFailure: { print($0) })
+                .get(onFailure: { [self] in
+                    delegate?.appMediator(self, didFailWithError: $0)
+                })
 
-            // REQUIRES Neovim 0.9
-//                let sl = try await nvim.api.evalStatusline("%S").get()
-//                self.cmd = sl
-
-            //                    try await self.updateText(character)
             return nil
 
         default:
@@ -195,29 +206,6 @@ public final class AppMediator {
 
         let mode = params[1].stringValue.flatMap(Mode.init(rawValue:)) ?? .normal
         buffer.setCursor(position: count, mode: mode)
-    }
-
-    private var cmd: String = "" {
-        didSet { Task { await updateCmdline() } }
-    }
-
-    private var more: String = "" {
-        didSet { Task { await updateCmdline() } }
-    }
-
-    @Published private(set) var cmdline: String = ""
-
-    @Published private(set) var mode: String = ""
-
-    @MainActor
-    private func updateCmdline() {
-        cmdline = cmd + more
-    }
-
-    @MainActor
-    private func updateMode(mode: String) {
-        self.mode = mode
-        more = ""
     }
 }
 

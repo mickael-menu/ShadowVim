@@ -19,11 +19,7 @@ import Cocoa
 import Mediator
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    let mediator = MainMediator(bundleIDs: [
-        "com.apple.dt.Xcode",
-//        "com.apple.TextEdit",
-//        "com.google.android.studio",
-    ])
+    let app = App()
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Prevent showing the menu bar and dock icon.
@@ -32,8 +28,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 //        let cmdline = CmdlineController(frame: NSRect(x: 0, y: 0, width: 480, height: 44))
 //        cmdline.show()
 
-        try! mediator.start()
-
-        NSRunningApplication.current.hide()
+        app.onLaunch()
     }
 }
