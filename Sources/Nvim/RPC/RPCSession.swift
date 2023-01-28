@@ -228,7 +228,7 @@ final class RPCSession {
     /// every request is sent in order.
     func request(
         method: String,
-        params: [Value],
+        params: [ValueConvertible],
         callbacks: RPCRequestCallbacks
     ) -> Async<Value, RPCError> {
         callbacks.prepare().setFailureType(to: RPCError.self)
@@ -241,7 +241,7 @@ final class RPCSession {
                     RPCType.request.value, // message type
                     .uint(id), // request ID
                     .string(method), // method name
-                    .array(params.map(\.messagePackValue)), // method arguments.
+                    .array(params.map(\.nvimValue.messagePackValue)), // method arguments.
                 ])
                 let data = MessagePack.pack(request)
 

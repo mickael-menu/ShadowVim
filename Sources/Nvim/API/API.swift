@@ -35,27 +35,27 @@ public class API {
     }
 
     public func command(_ command: String) -> APIAsync<Value> {
-        request("nvim_command", with: .string(command))
+        request("nvim_command", with: command)
     }
 
     public func cmd(_ cmd: String, bang: Bool = false, args: Value...) -> APIAsync<String> {
         request("nvim_cmd", with: [
-            .dict([
-                .string("cmd"): .string(cmd),
-                .string("bang"): .bool(bang),
-                .string("args"): .array(args),
-            ]),
-            .dict([
-                .string("output"): .bool(true),
-            ]),
+            [
+                "cmd": cmd.nvimValue,
+                "bang": bang.nvimValue,
+                "args": args.nvimValue,
+            ],
+            [
+                "output": true,
+            ],
         ])
         .checkedUnpacking { $0.stringValue }
     }
 
     public func exec(_ src: String) -> APIAsync<String> {
         request("nvim_exec", with: [
-            .string(src),
-            .bool(true), // output
+            src,
+            true, // output
         ])
         .checkedUnpacking { $0.stringValue }
     }
@@ -67,8 +67,8 @@ public class API {
 
     public func createBuf(listed: Bool, scratch: Bool) -> APIAsync<BufferHandle> {
         request("nvim_create_buf", with: [
-            .bool(listed),
-            .bool(scratch),
+            listed,
+            scratch,
         ])
         .checkedUnpacking {
             guard let buf = $0.bufferValue, buf > 0 else {
@@ -80,17 +80,17 @@ public class API {
 
     public func bufAttach(buffer: BufferHandle, sendBuffer: Bool) -> APIAsync<Bool> {
         request("nvim_buf_attach", with: [
-            .buffer(buffer),
-            .bool(sendBuffer),
-            .dict([:]), // options
+            Value.buffer(buffer),
+            sendBuffer,
+            [:] as [String: Value] // options
         ])
         .checkedUnpacking { $0.boolValue }
     }
 
     public func bufSetName(buffer: BufferHandle = 0, name: String) -> APIAsync<Void> {
         request("nvim_buf_set_name", with: [
-            .buffer(buffer),
-            .string(name),
+            Value.buffer(buffer),
+            name,
         ])
         .discardResult()
     }
@@ -102,10 +102,10 @@ public class API {
         strictIndexing: Bool = true
     ) -> APIAsync<[String]> {
         request("nvim_buf_get_lines", with: [
-            .buffer(buffer),
-            .int(start),
-            .int(end),
-            .bool(strictIndexing),
+            Value.buffer(buffer),
+            start,
+            end,
+            strictIndexing,
         ])
         .checkedUnpacking { $0.arrayValue?.compactMap(\.stringValue) }
     }
@@ -126,41 +126,41 @@ public class API {
         replacement: [String]
     ) -> APIAsync<Void> {
         request("nvim_buf_set_lines", with: [
-            .buffer(buffer),
-            .int(start),
-            .int(end),
-            .bool(strictIndexing),
-            .array(replacement.map { .string($0) }),
+            Value.buffer(buffer),
+            start,
+            end,
+            strictIndexing,
+            replacement,
         ])
         .discardResult()
     }
 
     public func winGetWidth(_ window: WindowHandle = 0) -> APIAsync<Int> {
-        request("nvim_win_get_width", with: .window(window))
+        request("nvim_win_get_width", with: Value.window(window))
             .checkedUnpacking { $0.intValue }
     }
 
     public func winGetCursor(_ window: WindowHandle = 0) -> APIAsync<Value> {
-        request("nvim_win_get_cursor", with: .window(window))
+        request("nvim_win_get_cursor", with: Value.window(window))
     }
 
     public func input(_ keys: String) -> APIAsync<Int> {
-        request("nvim_input", with: .string(keys))
+        request("nvim_input", with: keys)
             .checkedUnpacking { $0.intValue }
     }
 
     public func subscribe(to event: String) -> APIAsync<Void> {
-        request("nvim_subscribe", with: .string(event))
+        request("nvim_subscribe", with: event)
             .discardResult()
     }
 
     public func unsubscribe(from event: String) -> APIAsync<Void> {
-        request("nvim_unsubscribe", with: .string(event))
+        request("nvim_unsubscribe", with: event)
             .discardResult()
     }
 
     public func evalStatusline(_ str: String) -> APIAsync<String> {
-        request("nvim_eval_statusline", with: .string(str), .dict([:]))
+        request("nvim_eval_statusline", with: str, [:] as [String: Value])
             .checkedUnpacking { $0.dictValue?[.string("str")]?.stringValue }
     }
 
@@ -178,27 +178,27 @@ public class API {
         command: String
     ) -> APIAsync<AutocmdID> {
         request("nvim_create_autocmd", with: [
-            .array(events.map { .string($0) }),
-            .dict([
-                .string("once"): .bool(once),
-                .string("command"): .string(command),
-            ]),
+            events,
+            [
+                "once": once.nvimValue,
+                "command": command.nvimValue,
+            ],
         ])
         .checkedUnpacking { $0.intValue }
     }
 
     public func delAutocmd(_ id: AutocmdID) -> APIAsync<Void> {
-        request("nvim_del_autocmd", with: .int(id))
+        request("nvim_del_autocmd", with: id)
             .discardResult()
     }
 
     @discardableResult
-    public func request(_ method: String, with params: Value...) -> APIAsync<Value> {
+    public func request(_ method: String, with params: ValueConvertible...) -> APIAsync<Value> {
         request(method, with: params)
     }
 
     @discardableResult
-    public func request(_ method: String, with params: [Value]) -> APIAsync<Value> {
+    public func request(_ method: String, with params: [ValueConvertible]) -> APIAsync<Value> {
         session.request(method: method, params: params, callbacks: requestCallbacks)
             .mapError { APIError(from: $0) }
     }

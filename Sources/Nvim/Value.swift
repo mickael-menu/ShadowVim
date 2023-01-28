@@ -166,3 +166,72 @@ public extension Value {
         }
     }
 }
+
+public protocol ValueConvertible {
+    var nvimValue: Value { get }
+}
+
+extension Value: ValueConvertible {
+    public var nvimValue: Value {
+        self
+    }
+}
+
+extension Optional: ValueConvertible where Wrapped: ValueConvertible {
+    public var nvimValue: Value {
+        switch self {
+        case .none:
+            return .nil
+        case .some(let value):
+            return value.nvimValue
+        }
+    }
+}
+
+extension Bool: ValueConvertible {
+    public var nvimValue: Value {
+        .bool(self)
+    }
+}
+
+extension Int: ValueConvertible {
+    public var nvimValue: Value {
+        .int(self)
+    }
+}
+
+extension Double: ValueConvertible {
+    public var nvimValue: Value {
+        .double(self)
+    }
+}
+
+extension String: ValueConvertible {
+    public var nvimValue: Value {
+        .string(self)
+    }
+}
+
+extension Substring: ValueConvertible {
+    public var nvimValue: Value {
+        .string(String(self))
+    }
+}
+
+extension Array: ValueConvertible where Element: ValueConvertible {
+    public var nvimValue: Value {
+        .array(map(\.nvimValue))
+    }
+}
+
+// FIXME: Find a proper workaround? Can't use Value as it conflicts in Dictionary.
+public typealias _Value = Value
+
+extension Dictionary: ValueConvertible where Key: ValueConvertible, Value: ValueConvertible {
+    public var nvimValue: _Value {
+        let res = reduce(into: [:]) { res, item in
+            res[item.key.nvimValue] = item.value.nvimValue
+        }
+        return .dict(res)
+    }
+}
