@@ -23,15 +23,57 @@ import MessagePack
 import Toolkit
 
 public class API {
-    private let session: RPCSession
-    private let requestCallbacks: RPCRequestCallbacks
+    /// The lock is used to protect calls to Nvim's API.
+    ///
+    /// Using the shared `Nvim.api` property, each call is in its own
+    /// transaction. If you need to perform a sequence of `API` calls in a
+    /// single atomic transaction, use `Api.transaction()`.
+    private enum TransactionLevel {
+        case root(lock: AsyncLock)
+        case child
+    }
 
-    init(
+    private let session: RPCSession
+    private let transactionLevel: TransactionLevel
+
+    convenience init(session: RPCSession) {
+        self.init(
+            session: session,
+            transactionLevel: .root(lock: AsyncLock())
+        )
+    }
+
+    private init(
         session: RPCSession,
-        requestCallbacks: RPCRequestCallbacks = RPCRequestCallbacks()
+        transactionLevel: TransactionLevel
     ) {
         self.session = session
-        self.requestCallbacks = requestCallbacks
+        self.transactionLevel = transactionLevel
+    }
+
+    /// Performs a sequence of `API` calls in a single atomic transaction.
+    ///
+    /// You must return an `Async` object completed when the transaction is
+    /// done.
+    public func transaction<Value>(
+        _ block: @escaping (API) -> APIAsync<Value>
+    ) -> Async<Value, APIError> {
+        switch transactionLevel {
+        case let .root(lock: lock):
+            return lock.acquire()
+                .setFailureType(to: APIError.self)
+                .flatMap { [self] in
+                    block(API(session: session, transactionLevel: .child))
+                }
+                .mapError { $0 }
+                .onCompletion { _ in
+                    lock.release()
+                }
+
+        case .child:
+            // Already in a transaction
+            return block(self)
+        }
     }
 
     public func command(_ command: String) -> APIAsync<Value> {
@@ -286,7 +328,19 @@ public class API {
 
     @discardableResult
     public func request(_ method: String, with params: [ValueConvertible]) -> APIAsync<Value> {
-        session.request(method: method, params: params, callbacks: requestCallbacks)
+        let requestCallbacks: RPCRequestCallbacks = {
+            switch transactionLevel {
+            case let .root(lock: lock):
+                return RPCRequestCallbacks(
+                    prepare: { lock.acquire() },
+                    onSent: { lock.release() }
+                )
+            case .child:
+                return RPCRequestCallbacks()
+            }
+        }()
+
+        return session.request(method: method, params: params, callbacks: requestCallbacks)
             .mapError { APIError(from: $0) }
     }
 }

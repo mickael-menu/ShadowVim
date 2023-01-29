@@ -31,7 +31,6 @@ public protocol NvimDelegate: AnyObject {
 }
 
 public class Nvim {
-    
     /// Starts a new Nvim process.
     public static func start(
         executableURL: URL = URL(fileURLWithPath: "/usr/bin/env"),
@@ -103,33 +102,17 @@ public class Nvim {
     private let session: RPCSession
     private var isStopped = false
 
-    /// The API lock is used to protect calls to `api`.
-    ///
-    /// Using the shared `api` property, each call is in its own transaction.
-    /// If you need to perform a sequence of `API` calls in a single atomic
-    /// transaction, use `transaction()`.
-    private let apiLock: AsyncLock
-
     private init(process: Process, session: RPCSession, delegate: NvimDelegate? = nil) {
-        let apiLock = AsyncLock()
-        let api = API(
-            session: session,
-            requestCallbacks: RPCRequestCallbacks(
-                prepare: { apiLock.acquire() },
-                onSent: { apiLock.release() }
-            )
-        )
-
+        let api = API(session: session)
         self.api = api
         self.process = process
         self.session = session
-        self.events = EventDispatcher(api: api)
+        events = EventDispatcher(api: api)
         self.delegate = delegate
-        self.apiLock = apiLock
 
         session.start(delegate: self)
     }
-        
+
     deinit {
         stop()
     }
@@ -142,28 +125,6 @@ public class Nvim {
         isStopped = true
         session.close()
         process.interrupt()
-    }
-
-    /// Performs a sequence of `API` calls in a single atomic transaction.
-    ///
-    /// You must return an `Async` object completed when the transaction is
-    /// done.
-    public func transaction<Value>(
-        _ block: @escaping (API) -> APIAsync<Value>
-    ) -> Async<Value, NvimError> {
-        guard !isStopped else {
-            return .failure(.processStopped)
-        }
-        
-        return apiLock.acquire()
-            .setFailureType(to: APIError.self)
-            .flatMap { [self] in
-                block(API(session: session))
-            }
-            .mapError { NvimError.apiFailure($0) }
-            .onCompletion { [self] _ in
-                apiLock.release()
-            }
     }
 }
 

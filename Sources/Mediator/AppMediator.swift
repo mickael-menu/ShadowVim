@@ -43,7 +43,7 @@ public final class AppMediator {
         self.delegate = delegate
         appElement = AXUIElement.app(app)
         nvim = try Nvim.start()
-        buffers = Buffers(nvim: nvim)
+        buffers = Buffers(events: nvim.events)
         nvim.delegate = self
 
 //        nvim.api.uiAttach(
@@ -138,7 +138,7 @@ public final class AppMediator {
             return
         }
 
-        buffers.edit(name: name, contents: element[.value] ?? "")
+        buffers.edit(name: name, contents: element[.value] ?? "", with: nvim.api)
             .logFailure()
             .get { [self] handle in
                 let buffer = bufferMediators.getOrPut(name) {
@@ -156,15 +156,16 @@ public final class AppMediator {
         guard
             // Check that we're still the focused app. Useful when the Spotlight
             // modal is opened.
-            isFocused,
-            let focusedBufferElement = focusedBufferMediator?.element,
-            focusedBufferElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
+            isAppFocused,
+            let focusedBufferMediator = focusedBufferMediator,
+            focusedBufferMediator.element.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
             return event
         }
 
         switch event.type {
         case .keyDown:
+            // Passthrough for ⌘-based keyboard shortcuts.
             guard !event.flags.contains(.maskCommand) else {
                 break
             }
@@ -190,11 +191,14 @@ public final class AppMediator {
                 }
             }()
 
-            nvim.api.input(input)
-                .discardResult()
-                .get(onFailure: { [self] in
-                    delegate?.appMediator(self, didFailWithError: $0)
-                })
+            nvim.api.transaction { [self] api in
+                buffers.edit(buffer: focusedBufferMediator.buffer, with: api)
+                    .flatMap { api.input(input) }
+            }
+            .discardResult()
+            .get(onFailure: { [self] in
+                delegate?.appMediator(self, didFailWithError: $0)
+            })
 
             return nil
 
@@ -205,7 +209,7 @@ public final class AppMediator {
         return event
     }
 
-    private var isFocused: Bool {
+    private var isAppFocused: Bool {
         let focusedAppPid = try? AXUIElement.systemWide.focusedApplication()?.pid()
         return app.processIdentifier == focusedAppPid
     }

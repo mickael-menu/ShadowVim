@@ -20,10 +20,6 @@ import Foundation
 import Nvim
 import Toolkit
 
-enum BuffersError: Error {
-    case editFailed(NvimError)
-}
-
 final class Buffers {
     private struct Buffer {
         let handle: BufferHandle
@@ -31,20 +27,17 @@ final class Buffers {
         var lines: [String]
     }
 
-    private let nvim: Nvim
-    private var editedBuffer: BufferHandle = 0
+    public private(set) var editedBuffer: BufferHandle = 0
     @Atomic private var buffers: [BufferHandle: Buffer] = [:]
     private var subscriptions: Set<AnyCancellable> = []
     private let bufLinesEventPublisher: AnyPublisher<BufLinesEvent, Never>
 
-    init(nvim: Nvim) {
-        self.nvim = nvim
-
-        bufLinesEventPublisher = nvim.events
+    init(events: EventDispatcher) {
+        bufLinesEventPublisher = events
             .subscribeToBufLines()
             .ignoreFailure()
 
-        setupNotifications()
+        setupNotifications(using: events)
     }
 
     func subscribeToLines(of buffer: BufferHandle) -> AnyPublisher<BufLinesEvent, Never> {
@@ -53,34 +46,44 @@ final class Buffers {
             .eraseToAnyPublisher()
     }
 
-    func edit(name: String, contents: String) -> Async<BufferHandle, BuffersError> {
-        activate(name: name)
-            .flatMap { buffer in
-                if let buffer = buffer {
-                    return .success(buffer)
-                } else {
-                    return self.open(name: name, contents: contents)
+    func edit(name: String, contents: String, with api: API) -> APIAsync<BufferHandle> {
+        api.transaction { [self] api in
+            activate(name: name, with: api)
+                .flatMap { buffer in
+                    if let buffer = buffer {
+                        return .success(buffer)
+                    } else {
+                        return self.open(name: name, contents: contents, with: api)
+                    }
                 }
-            }
+        }
     }
 
-    private func activate(name: String) -> Async<BufferHandle?, BuffersError> {
+    func edit(buffer: BufferHandle, with api: API) -> APIAsync<Void> {
+        guard editedBuffer != buffer else {
+            return .success(())
+        }
+
+        return api.cmd("buffer", args: .int(buffer))
+            .discardResult()
+    }
+
+    private func activate(name: String, with api: API) -> APIAsync<BufferHandle?> {
         Async { [self] in
             guard let buffer = buffers.values.first(where: { $0.name == name }) else {
                 return .success(nil)
             }
 
-            return nvim.api.cmd("buffer", args: .int(buffer.handle))
+            return edit(buffer: buffer.handle, with: api)
                 .map { _ in buffer.handle }
-                .mapError { .editFailed(.apiFailure($0)) }
         }
     }
 
-    private func open(name: String, contents: String) -> Async<BufferHandle, BuffersError> {
+    private func open(name: String, contents: String, with api: API) -> APIAsync<BufferHandle> {
         var buffer: BufferHandle!
         let lines = contents.lines.map { String($0) }
 
-        return nvim.transaction { api in
+        return api.transaction { api in
             api.createBuf(listed: false, scratch: true)
                 .flatMap { handle in
                     buffer = handle
@@ -119,17 +122,16 @@ final class Buffers {
                 }
         }
         .map { _ in buffer }
-        .mapError { BuffersError.editFailed($0) }
     }
 
     // MARK: - Notifications
 
-    private func setupNotifications() {
+    private func setupNotifications(using events: EventDispatcher) {
         bufLinesEventPublisher
             .sink { [weak self] in self?.onBufLines(event: $0) }
             .store(in: &subscriptions)
 
-        nvim.events.autoCmd(event: "BufEnter", args: "expand('<abuf>')")
+        events.autoCmd(event: "BufEnter", args: "expand('<abuf>')")
             .assertNoFailure()
             .sink { [weak self] data in
                 self?.editedBuffer = Int(data.first?.stringValue ?? "0") ?? 0
