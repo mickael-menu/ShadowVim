@@ -16,6 +16,7 @@
 //
 
 import AppKit
+import Combine
 import Foundation
 import Toolkit
 
@@ -101,6 +102,7 @@ public class Nvim {
     private let process: Process
     private let session: RPCSession
     private var isStopped = false
+    private var subscriptions: Set<AnyCancellable> = []
 
     private init(process: Process, session: RPCSession, delegate: NvimDelegate? = nil) {
         let api = API(session: session)
@@ -109,6 +111,13 @@ public class Nvim {
         self.session = session
         events = EventDispatcher(api: api)
         self.delegate = delegate
+        
+        NotificationCenter.default
+            .publisher(for: Process.didTerminateNotification, object: process)
+            .sink { [weak self] _ in
+                self?.didTerminate()
+            }
+            .store(in: &subscriptions)
 
         session.start(delegate: self)
     }
@@ -122,9 +131,16 @@ public class Nvim {
         guard !isStopped else {
             return
         }
+        process.interrupt()
+        didTerminate()
+    }
+    
+    private func didTerminate() {
+        guard !isStopped else {
+            return
+        }
         isStopped = true
         session.close()
-        process.interrupt()
     }
 }
 
