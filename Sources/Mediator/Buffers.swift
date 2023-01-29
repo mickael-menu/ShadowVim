@@ -34,7 +34,7 @@ final class Buffers {
 
     init(events: EventDispatcher) {
         bufLinesEventPublisher = events
-            .subscribeToBufLines()
+            .bufLinesPublisher()
             .ignoreFailure()
 
         setupNotifications(using: events)
@@ -131,7 +131,7 @@ final class Buffers {
             .sink { [weak self] in self?.onBufLines(event: $0) }
             .store(in: &subscriptions)
 
-        events.autoCmd(event: "BufEnter", args: "expand('<abuf>')")
+        events.autoCmdPublisher(for: "BufEnter", args: "expand('<abuf>')")
             .assertNoFailure()
             .sink { [weak self] data in
                 self?.editedBuffer = Int(data.first?.stringValue ?? "0") ?? 0

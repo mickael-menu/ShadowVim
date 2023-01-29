@@ -26,7 +26,9 @@ public typealias TabpageHandle = Int
 public typealias AutocmdID = Int
 
 public typealias LineIndex = Int
-public typealias CursorPosition = (row: Int, col: Int)
+
+/// Cursor position as 0-indexed offsets.
+public typealias CursorPosition = (line: Int, column: Int)
 
 /// See https://neovim.io/doc/user/api.html section "Basic types"
 public enum Value: Hashable {

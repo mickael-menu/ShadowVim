@@ -26,7 +26,6 @@ public protocol AppMediatorDelegate: AnyObject {
     func appMediator(_ mediator: AppMediator, didFailWithError error: Error)
 }
 
-// FIXME: Dealloc on terminated process
 public final class AppMediator {
     public weak var delegate: AppMediatorDelegate?
 
@@ -45,6 +44,9 @@ public final class AppMediator {
         nvim = try Nvim.start()
         buffers = Buffers(events: nvim.events)
         nvim.delegate = self
+
+        setupFocusSync()
+        setupCursorSync()
 
 //        nvim.api.uiAttach(
 //            width: 1000,
@@ -78,50 +80,11 @@ public final class AppMediator {
 //                }
 //            }
 //            .store(in: &subscriptions)
-
-        if let focusedElement = appElement[.focusedUIElement] as AXUIElement? {
-            focusedUIElementDidChange(focusedElement)
-        }
-
-        appElement.publisher(for: .focusedUIElementChanged)
-            .receive(on: DispatchQueue.main)
-            .sink(
-                onFailure: { [unowned self] error in
-                    delegate?.appMediator(self, didFailWithError: error)
-                },
-                receiveValue: { [unowned self] element in
-                    focusedUIElementDidChange(element)
-                }
-            )
-            .store(in: &subscriptions)
-
-        nvim.events.autoCmd(event: "CursorMoved", "CursorMovedI", "ModeChanged", args: "getcursorcharpos()", "mode()")
-            .receive(on: DispatchQueue.main)
-            .sink(
-                onFailure: { [unowned self] error in
-                    delegate?.appMediator(self, didFailWithError: error)
-                },
-                receiveValue: { [unowned self] params in
-                    self.onCursorEvent(params: params)
-                    //                Task {
-                    //                    await self?.updateMode(mode: params[1].stringValue ?? "")
-                    //                }
-                }
-            )
-            .store(in: &subscriptions)
-
         //        var pos: CursorPosition = (0, 0)
         //        var selection: CFRange = element[.selectedTextRange] ?? CFRange(location: 0, length: 0)
         //        selection = CFRange(location: selection.location, length: 1) // Normal mode
         //        pos.row = element[.lineForIndex] ?? 0
         //        pos.col = element[.lineForIndex] ?? 0
-//
-//        nvim.events.autoCmd(event: "CmdlineChanged", args: "getcmdline()")
-//            .assertNoFailure()
-//            .sink { [weak self] params in
-//                self?.more = params.first?.stringValue ?? ""
-//            }
-//            .store(in: &subscriptions)
     }
 
     deinit {
@@ -129,26 +92,7 @@ public final class AppMediator {
         subscriptions.removeAll()
     }
 
-    private func focusedUIElementDidChange(_ element: AXUIElement) {
-        guard
-            element.isSourceEditor,
-            let name = element.document()
-        else {
-            focusedBufferMediator = nil
-            return
-        }
-
-        buffers.edit(name: name, contents: element[.value] ?? "", with: nvim.api)
-            .logFailure()
-            .get { [self] handle in
-                let buffer = bufferMediators.getOrPut(name) {
-                    BufferMediator(nvim: nvim, buffer: handle, element: element, name: name, buffers: buffers)
-                }
-
-                buffer.element = element
-                focusedBufferMediator = buffer
-            }
-    }
+    // MARK: - Input handling
 
     public func handle(_ event: CGEvent) -> CGEvent? {
         precondition(app.isActive)
@@ -172,28 +116,9 @@ public final class AppMediator {
 
             // FIXME: See `nvim.paste` "Faster than nvim_input()."
 
-            let input: String = {
-                switch event.keyCode {
-                case .escape:
-                    return "<Esc>"
-                case .enter:
-                    return "<Enter>"
-                case .leftArrow:
-                    return "<Left>"
-                case .rightArrow:
-                    return "<Right>"
-                case .downArrow:
-                    return "<Down>"
-                case .upArrow:
-                    return "<Up>"
-                default:
-                    return event.character
-                }
-            }()
-
             nvim.api.transaction { [self] api in
                 buffers.edit(buffer: focusedBufferMediator.buffer, with: api)
-                    .flatMap { api.input(input) }
+                    .flatMap { api.input(event.nvimKey) }
             }
             .discardResult()
             .get(onFailure: { [self] in
@@ -214,31 +139,98 @@ public final class AppMediator {
         return app.processIdentifier == focusedAppPid
     }
 
-    private func onCursorEvent(params: [Value]) {
+    // MARK: - Focus synchronization
+
+    private func setupFocusSync() {
+        if let focusedElement = appElement[.focusedUIElement] as AXUIElement? {
+            focusedUIElementDidChange(focusedElement)
+        }
+
+        appElement.publisher(for: .focusedUIElementChanged)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                onFailure: { [unowned self] error in
+                    delegate?.appMediator(self, didFailWithError: error)
+                },
+                receiveValue: { [unowned self] element in
+                    focusedUIElementDidChange(element)
+                }
+            )
+            .store(in: &subscriptions)
+    }
+
+    private func focusedUIElementDidChange(_ element: AXUIElement) {
         guard
-            let buffer = focusedBufferMediator,
-            params.count == 2,
-            let cursorParams = params[0].arrayValue,
-            cursorParams.count == 5,
-            var lnum = cursorParams[1].intValue,
-            var col = cursorParams[2].intValue
+            element.isSourceEditor,
+            let name = element.document()
         else {
+            focusedBufferMediator = nil
             return
         }
-        lnum -= 1
-        col -= 1
+
+        buffers.edit(name: name, contents: element[.value] ?? "", with: nvim.api)
+            .logFailure()
+            .get { [self] handle in
+                let buffer = bufferMediators.getOrPut(name) {
+                    BufferMediator(nvim: nvim, buffer: handle, element: element, name: name, buffers: buffers)
+                }
+
+                buffer.element = element
+                focusedBufferMediator = buffer
+            }
+    }
+
+    // MARK: - Cursor synchronization
+
+    private func setupCursorSync() {
+        nvim.events.autoCmdPublisher(
+            for: "ModeChanged", "CursorMoved", "CursorMovedI",
+            args: "mode()", "getcursorcharpos()",
+            unpack: { params -> (mode: Mode, cursor: CursorPosition)? in
+                guard
+                    params.count == 2,
+                    let mode = params[0].stringValue,
+                    let cursorParams = params[1].arrayValue,
+                    cursorParams.count == 5,
+                    let line = cursorParams[1].intValue,
+                    let col = cursorParams[2].intValue
+                else {
+                    return nil
+                }
+
+                return (
+                    mode: Mode(rawValue: mode) ?? .normal,
+                    cursor: (line: line - 1, column: col - 1)
+                )
+            }
+        )
+        .receive(on: DispatchQueue.main)
+        .sink(
+            onFailure: { [unowned self] error in
+                delegate?.appMediator(self, didFailWithError: error)
+            },
+            receiveValue: { [unowned self] mode, cursor in
+                self.didCursorChange(cursor: cursor, mode: mode)
+            }
+        )
+        .store(in: &subscriptions)
+    }
+
+    private func didCursorChange(cursor: CursorPosition, mode: Mode) {
+        guard let buffer = focusedBufferMediator else {
+            return
+        }
 
         let (_, lines) = buffer.lines()
         var count = 0
         for (i, line) in lines.enumerated() {
-            if i == lnum {
-                count += col
+            if i == cursor.line {
+                count += cursor.column
                 break
             }
             count += line.count + 1
         }
 
-        let mode = params[1].stringValue.flatMap(Mode.init(rawValue:)) ?? .normal
         buffer.setCursor(position: count, mode: mode)
     }
 }

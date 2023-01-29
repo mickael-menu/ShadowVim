@@ -111,7 +111,7 @@ public class Nvim {
         self.session = session
         events = EventDispatcher(api: api)
         self.delegate = delegate
-        
+
         NotificationCenter.default
             .publisher(for: Process.didTerminateNotification, object: process)
             .sink { [weak self] _ in
@@ -134,7 +134,7 @@ public class Nvim {
         process.interrupt()
         didTerminate()
     }
-    
+
     private func didTerminate() {
         guard !isStopped else {
             return

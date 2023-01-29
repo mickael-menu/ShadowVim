@@ -20,9 +20,9 @@ import Foundation
 
 public extension EventDispatcher {
     /// Subscribes a new handler for the `nvim_buf_lines_event` event of the given `buffer`.
-    func subscribeToBufLines() -> AnyPublisher<BufLinesEvent, APIError> {
-        subscribe(
-            to: "nvim_buf_lines_event",
+    func bufLinesPublisher() -> AnyPublisher<BufLinesEvent, APIError> {
+        publisher(
+            for: "nvim_buf_lines_event",
             unpack: { BufLinesEvent(params: $0) }
         )
     }
