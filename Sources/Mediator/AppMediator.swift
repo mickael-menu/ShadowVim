@@ -49,23 +49,39 @@ public final class AppMediator {
         buffers = Buffers(nvim: nvimProcess.nvim)
         nvim.delegate = self
 
-        nvim.api.uiAttach(
-            width: 1000,
-            height: 100,
-            options: API.UIOptions(
-                extCmdline: true,
-                extHlState: true,
-                extLineGrid: true,
-                extMessages: true,
-                extMultigrid: true,
-                extPopupMenu: true,
-                extTabline: true,
-                extTermColors: true
-            )
-        )
-        .assertNoFailure()
-        .run()
-        
+//        nvim.api.uiAttach(
+//            width: 1000,
+//            height: 100,
+//            options: API.UIOptions(
+//                extCmdline: true,
+//                extHlState: true,
+//                extLineGrid: true,
+//                extMessages: true,
+//                extMultigrid: true,
+//                extPopupMenu: true,
+//                extTabline: true,
+//                extTermColors: true
+//            )
+//        )
+//        .assertNoFailure()
+//        .run()
+//
+//        nvim.events.subscribe(to: "redraw")
+//            .assertNoFailure()
+//            .sink { params in
+//                for v in params {
+//                    guard
+//                        let a = v.arrayValue,
+//                        let k = a.first?.stringValue,
+//                        k == "grid_cursor_goto"
+//                    else {
+//                        continue
+//                    }
+//                    print("grid_cursor_goto", a[1])
+//                }
+//            }
+//            .store(in: &subscriptions)
+
         if let focusedElement = appElement[.focusedUIElement] as AXUIElement? {
             focusedUIElementDidChange(focusedElement)
         }
@@ -239,7 +255,7 @@ extension AppMediator: NvimDelegate {
             return nil
         }
     }
-    
+
     public func nvim(_ nvim: Nvim, didFailWithError error: Error) {
         delegate?.appMediator(self, didFailWithError: error)
     }

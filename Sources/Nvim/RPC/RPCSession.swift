@@ -115,20 +115,20 @@ final class RPCSession {
             while data.count > 0, !Task.isCancelled {
                 do {
                     let (message, remainder) = try MessagePack.unpack(data)
-                    
+
                     Value.from(message)
                         .flatMap { receive(message: $0) }
                         .onError { delegate?.session(self, didFailWithError: $0) }
-                    
+
                     data = remainder
-                    
+
                 } catch MessagePackError.insufficientData {
                     data += receive()
-                    
+
                 } catch {
                     delegate?.session(self, didFailWithError: .unpackFailure(error))
                 }
-                
+
                 if data.isEmpty {
                     data = receive()
                 }

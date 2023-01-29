@@ -182,7 +182,7 @@ extension Optional: ValueConvertible where Wrapped: ValueConvertible {
         switch self {
         case .none:
             return .nil
-        case .some(let value):
+        case let .some(value):
             return value.nvimValue
         }
     }
