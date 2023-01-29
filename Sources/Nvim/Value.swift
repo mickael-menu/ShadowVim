@@ -18,6 +18,7 @@
 import Foundation
 import MessagePack
 
+public typealias BufferName = String
 public typealias BufferHandle = Int
 public typealias WindowHandle = Int
 public typealias TabpageHandle = Int

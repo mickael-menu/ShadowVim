@@ -32,21 +32,18 @@ public final class AppMediator {
 
     private let app: NSRunningApplication
     private let appElement: AXUIElement
-    private let nvimProcess: NvimProcess
-    private var nvim: Nvim { nvimProcess.nvim }
+    private let nvim: Nvim
     private let buffers: Buffers
-
-    private var synchronizers: [String: BufferSynchronizer] = [:]
-    private var currentBuffer: BufferSynchronizer?
-
+    private var bufferMediators: [BufferName: BufferMediator] = [:]
+    private var focusedBufferMediator: BufferMediator?
     private var subscriptions: Set<AnyCancellable> = []
 
     init(app: NSRunningApplication, delegate: AppMediatorDelegate?) throws {
         self.app = app
         self.delegate = delegate
         appElement = AXUIElement.app(app)
-        nvimProcess = try NvimProcess.start()
-        buffers = Buffers(nvim: nvimProcess.nvim)
+        nvim = try Nvim.start()
+        buffers = Buffers(nvim: nvim)
         nvim.delegate = self
 
 //        nvim.api.uiAttach(
@@ -128,7 +125,7 @@ public final class AppMediator {
     }
 
     deinit {
-        nvimProcess.stop()
+        nvim.stop()
         subscriptions.removeAll()
     }
 
@@ -137,19 +134,19 @@ public final class AppMediator {
             element.isSourceEditor,
             let name = element.document()
         else {
-            currentBuffer = nil
+            focusedBufferMediator = nil
             return
         }
 
         buffers.edit(name: name, contents: element[.value] ?? "")
             .logFailure()
             .get { [self] handle in
-                let buffer = synchronizers.getOrPut(name) {
-                    BufferSynchronizer(nvim: nvim, buffer: handle, element: element, name: name, buffers: buffers)
+                let buffer = bufferMediators.getOrPut(name) {
+                    BufferMediator(nvim: nvim, buffer: handle, element: element, name: name, buffers: buffers)
                 }
 
                 buffer.element = element
-                currentBuffer = buffer
+                focusedBufferMediator = buffer
             }
     }
 
@@ -160,8 +157,8 @@ public final class AppMediator {
             // Check that we're still the focused app. Useful when the Spotlight
             // modal is opened.
             isFocused,
-            let bufferElement = currentBuffer?.element,
-            bufferElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
+            let focusedBufferElement = focusedBufferMediator?.element,
+            focusedBufferElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
             return event
         }
@@ -215,7 +212,7 @@ public final class AppMediator {
 
     private func onCursorEvent(params: [Value]) {
         guard
-            let buffer = currentBuffer,
+            let buffer = focusedBufferMediator,
             params.count == 2,
             let cursorParams = params[0].arrayValue,
             cursorParams.count == 5,
@@ -256,7 +253,7 @@ extension AppMediator: NvimDelegate {
         }
     }
 
-    public func nvim(_ nvim: Nvim, didFailWithError error: Error) {
+    public func nvim(_ nvim: Nvim, didFailWithError error: NvimError) {
         delegate?.appMediator(self, didFailWithError: error)
     }
 }

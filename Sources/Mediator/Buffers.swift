@@ -21,7 +21,7 @@ import Nvim
 import Toolkit
 
 enum BuffersError: Error {
-    case editFailed(APIError)
+    case editFailed(NvimError)
 }
 
 final class Buffers {
@@ -72,7 +72,7 @@ final class Buffers {
 
             return nvim.api.cmd("buffer", args: .int(buffer.handle))
                 .map { _ in buffer.handle }
-                .mapError { .editFailed($0) }
+                .mapError { .editFailed(.apiFailure($0)) }
         }
     }
 

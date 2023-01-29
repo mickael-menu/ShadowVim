@@ -25,9 +25,7 @@ enum Mode: String {
     case insert = "i"
 }
 
-enum BufferSynchronizerError: Error {}
-
-final class BufferSynchronizer {
+final class BufferMediator {
     var element: AXUIElement
     let buffer: BufferHandle
     let name: String
