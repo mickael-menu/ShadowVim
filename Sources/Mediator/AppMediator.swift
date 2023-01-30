@@ -264,10 +264,21 @@ extension AppMediator: NvimDelegate {
     public func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>? {
         switch method {
         case "SVRefresh":
-//            Task {
-//                let content = await getContent()
-//                try! element.set(.value, value: content)
-//            }
+            guard let mediator = focusedBufferMediator else {
+                return .success(.bool(false))
+            }
+            print("Refresh")
+            nvim.api.transaction { api in
+                self.buffers.edit(buffer: mediator.buffer, with: api)
+                    .flatMap {
+                        api.bufGetLines(buffer: mediator.buffer, start: 0, end: -1)
+                    }
+                    .map { lines in
+                        try? mediator.element.set(.value, value: lines.joined(separator: "\n"))
+                    }
+            }
+            .assertNoFailure()
+            .run()
             return .success(.bool(true))
         default:
             return nil
