@@ -15,25 +15,26 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-import Cocoa
-import Mediator
-import Toolkit
+import Foundation
 
-class AppDelegate: NSObject, NSApplicationDelegate {
-    let app = App()
-
-    func applicationDidFinishLaunching(_ aNotification: Notification) {
-        // Prevent showing the menu bar and dock icon.
-//        NSApp.setActivationPolicy(.accessory)
-
-//        let cmdline = CmdlineController(frame: NSRect(x: 0, y: 0, width: 480, height: 44))
-//        cmdline.show()
-
-        Process.launchAndWait("defaults", "write", "-app", "xcode", "KeyBindingsMode", "-string", "Default")
-        app.onLaunch()
+public extension Process {
+    @discardableResult
+    static func launchAndWait(_ args: String...) -> Int {
+        launchAndWait(args: args)
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        Process.launchAndWait("defaults", "write", "-app", "xcode", "KeyBindingsMode", "-string", "Vi")
+    static func launch(_ args: String...) -> Async<Int, Never> {
+        Async { completion in
+            completion(.success(launchAndWait(args: args)))
+        }
+    }
+
+    private static func launchAndWait(args: [String]) -> Int {
+        let task = Process()
+        task.launchPath = "/usr/bin/env"
+        task.arguments = args
+        task.launch()
+        task.waitUntilExit()
+        return Int(task.terminationStatus)
     }
 }
