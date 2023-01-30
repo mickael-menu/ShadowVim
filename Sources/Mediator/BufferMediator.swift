@@ -19,6 +19,7 @@ import AX
 import Combine
 import Foundation
 import Nvim
+import Toolkit
 
 enum Mode: String {
     case normal = "n"
@@ -34,6 +35,12 @@ final class BufferMediator {
     private let buffers: Buffers
     private var subscriptions: Set<AnyCancellable> = []
 
+    /// When we synchronize from Nvim to `AXUIElement`, a lot of accessibility
+    /// events (`selectedTextRangeChanged`, `valueChanged`, etc.) will be fired
+    /// in a row. To prevent synchronizing these changes back to Nvim, we ignore
+    /// the events with this lock debounced with a given delay.
+    private var editLock = TimeSwitch(timer: 0.5)
+
     init(nvim: Nvim, buffer: BufferHandle, element: AXUIElement, name: String, buffers: Buffers) {
         self.nvim = nvim
         self.buffer = buffer
@@ -42,6 +49,7 @@ final class BufferMediator {
         self.buffers = buffers
 
         buffers.subscribeToLines(of: buffer)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] in
                 do {
                     try self?.update($0)
@@ -60,18 +68,47 @@ final class BufferMediator {
             return
         }
 
-        element[.selectedTextRange] = range.cfRange(in: content)
-        element[.selectedText] = replacement
+        try element.set(.selectedTextRange, value: range.cfRange(in: content))
+        try element.set(.selectedText, value: replacement)
+        editLock.activate()
     }
 
-    func lines() -> (String, [Substring]) {
+    private func lines() -> (String, [Substring]) {
         guard let value: String = element[.value] else {
             return ("", [])
         }
         return (value, value.lines)
     }
 
-    func setCursor(position: Int, mode: Mode) {
+    private(set) var cursorPosition: CursorPosition = (0, 0)
+    private(set) var mode: Mode = .normal
+
+    func setCursor(position: CursorPosition) {
+        precondition(Thread.isMainThread)
+        if !editLock.isOn, cursorPosition != position {
+            nvim.api.winSetCursor(position: position)
+                .assertNoFailure()
+                .run()
+        }
+    }
+
+    func setCursor(position: CursorPosition, mode: Mode) {
+        precondition(Thread.isMainThread)
+        editLock.activate()
+
+        cursorPosition = position
+        self.mode = mode
+
+        let (_, lines) = lines()
+        var offset = 0
+        for (i, line) in lines.enumerated() {
+            if i == position.line {
+                offset += position.column
+                break
+            }
+            offset += line.count + 1
+        }
+
         let length: Int = {
             switch mode {
             case .normal:
@@ -80,7 +117,8 @@ final class BufferMediator {
                 return 0
             }
         }()
-        let range = CFRange(location: position, length: length)
+
+        let range = CFRange(location: offset, length: length)
         try? element.set(.selectedTextRange, value: range)
     }
 }

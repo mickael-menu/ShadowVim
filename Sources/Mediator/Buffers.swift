@@ -66,6 +66,7 @@ final class Buffers {
 
         return api.cmd("buffer", args: .int(buffer))
             .discardResult()
+            .onSuccess { self.editedBuffer = buffer }
     }
 
     private func activate(name: String, with api: API) -> APIAsync<BufferHandle?> {

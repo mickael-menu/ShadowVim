@@ -34,8 +34,13 @@ public final class AppMediator {
     private let nvim: Nvim
     private let buffers: Buffers
     private var bufferMediators: [BufferName: BufferMediator] = [:]
-    private var focusedBufferMediator: BufferMediator?
     private var subscriptions: Set<AnyCancellable> = []
+
+    private var focusedBufferMediator: BufferMediator? {
+        didSet {
+            syncCursor(with: focusedBufferMediator)
+        }
+    }
 
     init(app: NSRunningApplication, delegate: AppMediatorDelegate?) throws {
         self.app = app
@@ -65,26 +70,21 @@ public final class AppMediator {
 //        .assertNoFailure()
 //        .run()
 //
-//        nvim.events.subscribe(to: "redraw")
+//        nvim.events.publisher(for: "redraw")
 //            .assertNoFailure()
 //            .sink { params in
 //                for v in params {
 //                    guard
 //                        let a = v.arrayValue,
 //                        let k = a.first?.stringValue,
-//                        k == "grid_cursor_goto"
+//                        k.hasPrefix("msg_")
 //                    else {
 //                        continue
 //                    }
-//                    print("grid_cursor_goto", a[1])
+//                    print(a)
 //                }
 //            }
 //            .store(in: &subscriptions)
-        //        var pos: CursorPosition = (0, 0)
-        //        var selection: CFRange = element[.selectedTextRange] ?? CFRange(location: 0, length: 0)
-        //        selection = CFRange(location: selection.location, length: 1) // Normal mode
-        //        pos.row = element[.lineForIndex] ?? 0
-        //        pos.col = element[.lineForIndex] ?? 0
     }
 
     deinit {
@@ -169,15 +169,25 @@ public final class AppMediator {
         }
 
         buffers.edit(name: name, contents: element[.value] ?? "", with: nvim.api)
-            .logFailure()
-            .get { [self] handle in
+            .map { [self] handle in
                 let buffer = bufferMediators.getOrPut(name) {
                     BufferMediator(nvim: nvim, buffer: handle, element: element, name: name, buffers: buffers)
                 }
-
                 buffer.element = element
                 focusedBufferMediator = buffer
+
+                return buffer
             }
+            .tryMap { [self] buffer in
+                guard let cursor = try cursor(of: buffer.element) else {
+                    return
+                }
+                buffer.setCursor(position: cursor)
+            }
+            .discardResult()
+            .get(onFailure: { [self] error in
+                delegate?.appMediator(self, didFailWithError: error)
+            })
     }
 
     // MARK: - Cursor synchronization
@@ -209,29 +219,44 @@ public final class AppMediator {
             onFailure: { [unowned self] error in
                 delegate?.appMediator(self, didFailWithError: error)
             },
-            receiveValue: { [unowned self] mode, cursor in
-                self.didCursorChange(cursor: cursor, mode: mode)
+            receiveValue: { [unowned self] mode, position in
+                focusedBufferMediator?.setCursor(position: position, mode: mode)
             }
         )
         .store(in: &subscriptions)
     }
 
-    private func didCursorChange(cursor: CursorPosition, mode: Mode) {
-        guard let buffer = focusedBufferMediator else {
+    private var syncCursorSubscription: AnyCancellable?
+
+    private func syncCursor(with buffer: BufferMediator?) {
+        guard let buffer = buffer else {
+            syncCursorSubscription = nil
             return
         }
 
-        let (_, lines) = buffer.lines()
-        var count = 0
-        for (i, line) in lines.enumerated() {
-            if i == cursor.line {
-                count += cursor.column
-                break
+        syncCursorSubscription = buffer.element.publisher(for: .selectedTextChanged)
+            .tryCompactMap { [unowned self] in
+                try cursor(of: $0)
             }
-            count += line.count + 1
-        }
+            .sink(
+                onFailure: { [unowned self] error in
+                    delegate?.appMediator(self, didFailWithError: error)
+                },
+                receiveValue: { cursor in
+                    buffer.setCursor(position: cursor)
+                }
+            )
+    }
 
-        buffer.setCursor(position: count, mode: mode)
+    private func cursor(of element: AXUIElement) throws -> CursorPosition? {
+        guard
+            let selection: CFRange = try element.get(.selectedTextRange),
+            let line: Int = try element.get(.lineForIndex, with: selection.location),
+            let lineRange: CFRange = try element.get(.rangeForLine, with: line)
+        else {
+            return nil
+        }
+        return CursorPosition(line: line, column: selection.location - lineRange.location)
     }
 }
 
