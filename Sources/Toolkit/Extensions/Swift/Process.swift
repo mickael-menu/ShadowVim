@@ -18,23 +18,32 @@
 import Foundation
 
 public extension Process {
+    typealias Result = (status: Int, output: String?)
+
     @discardableResult
-    static func launchAndWait(_ args: String...) -> Int {
+    static func launchAndWait(_ args: String...) -> Result {
         launchAndWait(args: args)
     }
 
-    static func launch(_ args: String...) -> Async<Int, Never> {
+    static func launch(_ args: String...) -> Async<Result, Never> {
         Async { completion in
             completion(.success(launchAndWait(args: args)))
         }
     }
 
-    private static func launchAndWait(args: [String]) -> Int {
+    private static func launchAndWait(args: [String]) -> Result {
         let task = Process()
         task.launchPath = "/usr/bin/env"
         task.arguments = args
+        let pipe = Pipe()
+        task.standardOutput = pipe
         task.launch()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         task.waitUntilExit()
-        return Int(task.terminationStatus)
+
+        return (
+            status: Int(task.terminationStatus),
+            output: String(data: data, encoding: .utf8)
+        )
     }
 }

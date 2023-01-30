@@ -17,7 +17,6 @@
 
 import Cocoa
 import Mediator
-import Toolkit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     let app = App()
@@ -29,11 +28,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 //        let cmdline = CmdlineController(frame: NSRect(x: 0, y: 0, width: 480, height: 44))
 //        cmdline.show()
 
-        Process.launchAndWait("defaults", "write", "-app", "xcode", "KeyBindingsMode", "-string", "Default")
-        app.onLaunch()
+        app.didLaunch()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        Process.launchAndWait("defaults", "write", "-app", "xcode", "KeyBindingsMode", "-string", "Vi")
+        app.willTerminate()
     }
 }

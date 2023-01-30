@@ -26,6 +26,7 @@ public enum KeyCode: Int64 {
     case rightArrow = 0x7C
     case downArrow = 0x7D
     case upArrow = 0x7E
+    case period = 0x2F
 }
 
 public extension CGEvent {

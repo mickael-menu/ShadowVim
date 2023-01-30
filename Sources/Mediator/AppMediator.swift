@@ -23,14 +23,51 @@ import Nvim
 import Toolkit
 
 public protocol AppMediatorDelegate: AnyObject {
+    /// Called when the `AppMediator` is being started.
+    func appMediatorWillStart(_ mediator: AppMediator)
+
+    /// Called when the `AppMediator` was stopped.
+    func appMediatorDidStop(_ mediator: AppMediator)
+
+    /// Called when an error occurred while mediating the app.
     func appMediator(_ mediator: AppMediator, didFailWithError error: Error)
+
+    /// Returns whether an Nvim buffer should be associated with this
+    /// accessibility `element`.
+    func appMediator(_ mediator: AppMediator, shouldPlugInElement element: AXUIElement) -> Bool
+
+    /// Returns the Nvim buffer name for the given accessibility `element`.
+    func appMediator(_ mediator: AppMediator, nameForElement element: AXUIElement) -> String?
+
+    /// Filters `event` before it is processed by this `AppMediator`.
+    ///
+    /// Return `nil` if you handled the event in the delegate.
+    func appMediator(_ mediator: AppMediator, willHandleEvent event: CGEvent) -> CGEvent?
+}
+
+public extension AppMediatorDelegate {
+    func appMediatorWillStart(_ mediator: AppMediator) {}
+    func appMediatorDidStop(_ mediator: AppMediator) {}
+
+    func appMediator(_ mediator: AppMediator, shouldPlugInElement element: AXUIElement) -> Bool {
+        true
+    }
+
+    func appMediator(_ mediator: AppMediator, nameForElement element: AXUIElement) -> String? {
+        element.document()
+    }
+
+    func appMediator(_ mediator: AppMediator, willHandleEvent event: CGEvent) -> CGEvent? {
+        event
+    }
 }
 
 public final class AppMediator {
     public weak var delegate: AppMediatorDelegate?
 
-    private let app: NSRunningApplication
-    private let appElement: AXUIElement
+    public let app: NSRunningApplication
+    public let appElement: AXUIElement
+    private var isStarted = false
     private let nvim: Nvim
     private let buffers: Buffers
     private var bufferMediators: [BufferName: BufferMediator] = [:]
@@ -88,8 +125,25 @@ public final class AppMediator {
     }
 
     deinit {
+        stop()
+    }
+
+    public func start() {
+        guard !isStarted else {
+            return
+        }
+        delegate?.appMediatorWillStart(self)
+        isStarted = true
+    }
+
+    public func stop() {
+        guard isStarted else {
+            return
+        }
+        isStarted = false
         nvim.stop()
         subscriptions.removeAll()
+        delegate?.appMediatorDidStop(self)
     }
 
     // MARK: - Input handling
@@ -105,6 +159,10 @@ public final class AppMediator {
             focusedBufferMediator.element.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
             return event
+        }
+
+        guard let event = willHandleEvent(event) else {
+            return nil
         }
 
         switch event.type {
@@ -161,8 +219,10 @@ public final class AppMediator {
 
     private func focusedUIElementDidChange(_ element: AXUIElement) {
         guard
-            element.isSourceEditor,
-            let name = element.document()
+            element.isValid,
+            (try? element.get(.role)) == AXRole.textArea,
+            shouldPlugInElement(element),
+            let name = nameForElement(element)
         else {
             focusedBufferMediator = nil
             return
@@ -257,6 +317,29 @@ public final class AppMediator {
             return nil
         }
         return CursorPosition(line: line, column: selection.location - lineRange.location)
+    }
+
+    // MARK: - Delegate
+
+    private func shouldPlugInElement(_ element: AXUIElement) -> Bool {
+        guard let delegate = delegate else {
+            return true
+        }
+        return delegate.appMediator(self, shouldPlugInElement: element)
+    }
+
+    private func nameForElement(_ element: AXUIElement) -> String? {
+        guard let delegate = delegate else {
+            return element.document()
+        }
+        return delegate.appMediator(self, nameForElement: element)
+    }
+
+    private func willHandleEvent(_ event: CGEvent) -> CGEvent? {
+        guard let delegate = delegate else {
+            return event
+        }
+        return delegate.appMediator(self, willHandleEvent: event)
     }
 }
 
