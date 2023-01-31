@@ -18,18 +18,6 @@
 import Foundation
 import MessagePack
 
-public typealias BufferName = String
-public typealias BufferHandle = Int
-public typealias WindowHandle = Int
-public typealias TabpageHandle = Int
-
-public typealias AutocmdID = Int
-
-public typealias LineIndex = Int
-
-/// Cursor position as 0-indexed offsets.
-public typealias CursorPosition = (line: Int, column: Int)
-
 /// See https://neovim.io/doc/user/api.html section "Basic types"
 public enum Value: Hashable {
     case `nil`

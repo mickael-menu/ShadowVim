@@ -71,13 +71,8 @@ public final class AppMediator {
     private let nvim: Nvim
     private let buffers: Buffers
     private var bufferMediators: [BufferName: BufferMediator] = [:]
+    private var focusedBufferMediator: BufferMediator?
     private var subscriptions: Set<AnyCancellable> = []
-
-    private var focusedBufferMediator: BufferMediator? {
-        didSet {
-            syncCursor(with: focusedBufferMediator)
-        }
-    }
 
     init(app: NSRunningApplication, delegate: AppMediatorDelegate?) throws {
         self.app = app
@@ -88,7 +83,6 @@ public final class AppMediator {
         nvim.delegate = self
 
         setupFocusSync()
-        setupCursorSync()
 
 //        nvim.api.uiAttach(
 //            width: 1000,
@@ -228,39 +222,52 @@ public final class AppMediator {
             return
         }
 
+        editBuffer(for: element, name: name)
+            .forwardErrorToDelegate(of: self)
+            .get { [self] bufferMediator in
+                focusedBufferMediator = bufferMediator
+                bufferMediator.didFocus()
+            }
+    }
+
+    private func editBuffer(for element: AXUIElement, name: BufferName) -> Async<BufferMediator, APIError> {
         buffers.edit(name: name, contents: element[.value] ?? "", with: nvim.api)
             .map { [self] handle in
                 let buffer = bufferMediators.getOrPut(name) {
-                    BufferMediator(nvim: nvim, buffer: handle, element: element, name: name, buffers: buffers)
+                    BufferMediator(
+                        nvim: nvim,
+                        buffer: handle,
+                        element: element,
+                        name: name,
+                        nvimLinesPublisher: buffers.linesPublisher(for: handle),
+                        nvimCursorPublisher: nvimCursorPublisher
+                            .compactMap { buf, cur in
+                                guard buf == handle else {
+                                    return nil
+                                }
+                                return cur
+                            }
+                            .eraseToAnyPublisher(),
+                        delegate: self
+                    )
                 }
                 buffer.element = element
-                focusedBufferMediator = buffer
-
                 return buffer
             }
-            .tryMap { [self] buffer in
-                guard let cursor = try cursor(of: buffer.element) else {
-                    return
-                }
-                buffer.setCursor(position: cursor)
-            }
-            .discardResult()
-            .get(onFailure: { [self] error in
-                delegate?.appMediator(self, didFailWithError: error)
-            })
     }
 
-    // MARK: - Cursor synchronization
-
-    private func setupCursorSync() {
+    /// This publisher is used to observe the Neovim cursor position and mode
+    /// changes.
+    lazy var nvimCursorPublisher: AnyPublisher<(BufferHandle, Cursor), APIError> =
         nvim.events.autoCmdPublisher(
             for: "ModeChanged", "CursorMoved", "CursorMovedI",
-            args: "mode()", "getcursorcharpos()",
-            unpack: { params -> (mode: Mode, cursor: CursorPosition)? in
+            args: "bufnr()", "mode()", "getcursorcharpos()",
+            unpack: { params -> (BufferHandle, Cursor)? in
                 guard
-                    params.count == 2,
-                    let mode = params[0].stringValue,
-                    let cursorParams = params[1].arrayValue,
+                    params.count == 3,
+                    let buffer: BufferHandle = params[0].intValue,
+                    let mode = params[1].stringValue,
+                    let cursorParams = params[2].arrayValue,
                     cursorParams.count == 5,
                     let line = cursorParams[1].intValue,
                     let col = cursorParams[2].intValue
@@ -268,56 +275,13 @@ public final class AppMediator {
                     return nil
                 }
 
-                return (
-                    mode: Mode(rawValue: mode) ?? .normal,
-                    cursor: (line: line - 1, column: col - 1)
+                let cursor = Cursor(
+                    position: (line: line - 1, column: col - 1),
+                    mode: Mode(rawValue: mode) ?? .normal
                 )
+                return (buffer, cursor)
             }
         )
-        .receive(on: DispatchQueue.main)
-        .sink(
-            onFailure: { [unowned self] error in
-                delegate?.appMediator(self, didFailWithError: error)
-            },
-            receiveValue: { [unowned self] mode, position in
-                focusedBufferMediator?.setCursor(position: position, mode: mode)
-            }
-        )
-        .store(in: &subscriptions)
-    }
-
-    private var syncCursorSubscription: AnyCancellable?
-
-    private func syncCursor(with buffer: BufferMediator?) {
-        guard let buffer = buffer else {
-            syncCursorSubscription = nil
-            return
-        }
-
-        syncCursorSubscription = buffer.element.publisher(for: .selectedTextChanged)
-            .tryCompactMap { [unowned self] in
-                try cursor(of: $0)
-            }
-            .sink(
-                onFailure: { [unowned self] error in
-                    delegate?.appMediator(self, didFailWithError: error)
-                },
-                receiveValue: { cursor in
-                    buffer.setCursor(position: cursor)
-                }
-            )
-    }
-
-    private func cursor(of element: AXUIElement) throws -> CursorPosition? {
-        guard
-            let selection: CFRange = try element.get(.selectedTextRange),
-            let line: Int = try element.get(.lineForIndex, with: selection.location),
-            let lineRange: CFRange = try element.get(.rangeForLine, with: line)
-        else {
-            return nil
-        }
-        return CursorPosition(line: line, column: selection.location - lineRange.location)
-    }
 
     // MARK: - Delegate
 
@@ -340,6 +304,12 @@ public final class AppMediator {
             return event
         }
         return delegate.appMediator(self, willHandleEvent: event)
+    }
+}
+
+extension AppMediator: BufferMediatorDelegate {
+    func bufferMediator(_ mediator: BufferMediator, didFailWithError error: Error) {
+        delegate?.appMediator(self, didFailWithError: error)
     }
 }
 
@@ -370,5 +340,16 @@ extension AppMediator: NvimDelegate {
 
     public func nvim(_ nvim: Nvim, didFailWithError error: NvimError) {
         delegate?.appMediator(self, didFailWithError: error)
+    }
+}
+
+private extension Async {
+    func forwardErrorToDelegate(of appMediator: AppMediator) -> Async<Success, Never> {
+        map(
+            success: { val, compl in compl(.success(val)) },
+            failure: { error, _ in
+                appMediator.delegate?.appMediator(appMediator, didFailWithError: error)
+            }
+        )
     }
 }

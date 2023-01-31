@@ -211,7 +211,7 @@ final class RPCSession {
             else {
                 return .failure(.unexpectedMessage(message))
             }
-            log("@\(method)\n")
+            log("@\(method) \(params)\n")
             delegate?.session(self, didReceiveNotification: method, with: params)
         }
 

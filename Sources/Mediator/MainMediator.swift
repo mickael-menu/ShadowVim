@@ -66,7 +66,6 @@ public final class MainMediator {
 
     public func reset() {
         precondition(Thread.isMainThread)
-        print("Reset ShadowVim")
 
         stop()
 

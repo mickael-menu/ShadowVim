@@ -30,17 +30,15 @@ final class Buffers {
     public private(set) var editedBuffer: BufferHandle = 0
     @Atomic private var buffers: [BufferHandle: Buffer] = [:]
     private var subscriptions: Set<AnyCancellable> = []
-    private let bufLinesEventPublisher: AnyPublisher<BufLinesEvent, Never>
+    private let bufLinesEventPublisher: AnyPublisher<BufLinesEvent, APIError>
 
     init(events: EventDispatcher) {
-        bufLinesEventPublisher = events
-            .bufLinesPublisher()
-            .ignoreFailure()
+        bufLinesEventPublisher = events.bufLinesPublisher()
 
         setupNotifications(using: events)
     }
 
-    func subscribeToLines(of buffer: BufferHandle) -> AnyPublisher<BufLinesEvent, Never> {
+    func linesPublisher(for buffer: BufferHandle) -> AnyPublisher<BufLinesEvent, APIError> {
         bufLinesEventPublisher
             .filter { $0.buf == buffer }
             .eraseToAnyPublisher()
@@ -129,6 +127,7 @@ final class Buffers {
 
     private func setupNotifications(using events: EventDispatcher) {
         bufLinesEventPublisher
+            .ignoreFailure()
             .sink { [weak self] in self?.onBufLines(event: $0) }
             .store(in: &subscriptions)
 

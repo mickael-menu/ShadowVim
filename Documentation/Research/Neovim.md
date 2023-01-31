@@ -52,3 +52,10 @@ Note that this will not work if a command is called with `<Cmd>`.
 
      vim.api.nvim_buf_set_option(buf, "filetype", vim.filetype.match(...))
     ```
+
+## Get the visual selection range
+
+```
+getpos('.') " Cursor position
+getpos('v') " End of visual selection position
+```
