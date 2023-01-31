@@ -198,7 +198,14 @@ public class API {
     }
 
     public func input(_ keys: String) -> APIAsync<Int> {
-        request("nvim_input", with: keys)
+        var keys = keys
+        // Note: keycodes like <CR> are translated, so "<" is special.
+        // To input a literal "<", send <LT>.
+        if keys == "<" {
+            keys = "<LT>"
+        }
+
+        return request("nvim_input", with: keys)
             .checkedUnpacking { $0.intValue }
     }
 
