@@ -44,7 +44,7 @@ final class BufferMediator {
     /// events (`selectedTextRangeChanged`, `valueChanged`, etc.) will be fired
     /// in a row. To prevent synchronizing these changes back to Nvim, we ignor
     /// the events with this lock debounced with a given delay.
-    private var editLock = TimeSwitch(timer: 0.5)
+    private var nvimLock = TimeSwitch(timer: 0.5)
 
     init(
         nvim: Nvim,
@@ -94,18 +94,11 @@ final class BufferMediator {
 
             try element.set(.selectedTextRange, value: range.cfRange(in: content))
             try element.set(.selectedText, value: replacement)
-            editLock.activate()
+            nvimLock.activate()
 
         } catch {
             delegate?.bufferMediator(self, didFailWithError: error)
         }
-    }
-
-    private func lines() -> (String, [Substring]) {
-        guard let value: String = element[.value] else {
-            return ("", [])
-        }
-        return (value, value.lines)
     }
 
     // MARK: - Cursor synchronization
@@ -145,38 +138,38 @@ final class BufferMediator {
 
     private func syncCursorNvim2AX(_ cursor: Cursor) {
         precondition(Thread.isMainThread)
-        editLock.activate()
+        nvimLock.activate()
 
         self.cursor = cursor
 
-        let (_, lines) = lines()
-        var offset = 0
-        for (i, line) in lines.enumerated() {
-            if i == cursor.position.line {
-                offset += cursor.position.column
-                break
+        do {
+            guard let lineRange: CFRange = try element.get(.rangeForLine, with: cursor.position.line) else {
+                return
             }
-            offset += line.count + 1
+
+            let range = CFRange(
+                location: lineRange.location + cursor.position.column,
+                length: {
+                    switch cursor.mode {
+                    case .insert, .replace:
+                        return 0
+                    default:
+                        return 1
+                    }
+                }()
+            )
+
+            try element.set(.selectedTextRange, value: range)
+        } catch {
+            delegate?.bufferMediator(self, didFailWithError: error)
         }
-
-        let length: Int = {
-            switch cursor.mode {
-            case .insert, .replace:
-                return 0
-            default:
-                return 1
-            }
-        }()
-
-        let range = CFRange(location: offset, length: length)
-        try? element.set(.selectedTextRange, value: range)
     }
 
     private func syncCursorAX2Nvim() {
         precondition(Thread.isMainThread)
         do {
             guard
-                !editLock.isOn,
+                !nvimLock.isOn,
                 let curPos = try cursorPosition(of: element),
                 cursor.position != curPos
             else {

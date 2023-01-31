@@ -39,6 +39,9 @@ public protocol AppMediatorDelegate: AnyObject {
     /// Returns the Nvim buffer name for the given accessibility `element`.
     func appMediator(_ mediator: AppMediator, nameForElement element: AXUIElement) -> String?
 
+    /// Indicates whether the given `event` should be ignored by the mediator.
+    func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: CGEvent) -> Bool
+
     /// Filters `event` before it is processed by this `AppMediator`.
     ///
     /// Return `nil` if you handled the event in the delegate.
@@ -55,6 +58,10 @@ public extension AppMediatorDelegate {
 
     func appMediator(_ mediator: AppMediator, nameForElement element: AXUIElement) -> String? {
         element.document()
+    }
+
+    func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: CGEvent) -> Bool {
+        false
     }
 
     func appMediator(_ mediator: AppMediator, willHandleEvent event: CGEvent) -> CGEvent? {
@@ -146,6 +153,7 @@ public final class AppMediator {
         precondition(app.isActive)
 
         guard
+            !shouldIgnoreEvent(event),
             // Check that we're still the focused app. Useful when the Spotlight
             // modal is opened.
             isAppFocused,
@@ -297,6 +305,13 @@ public final class AppMediator {
             return element.document()
         }
         return delegate.appMediator(self, nameForElement: element)
+    }
+
+    private func shouldIgnoreEvent(_ event: CGEvent) -> Bool {
+        guard let delegate = delegate else {
+            return false
+        }
+        return delegate.appMediator(self, shouldIgnoreEvent: event)
     }
 
     private func willHandleEvent(_ event: CGEvent) -> CGEvent? {

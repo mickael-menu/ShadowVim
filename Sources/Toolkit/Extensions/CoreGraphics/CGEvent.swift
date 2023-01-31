@@ -18,6 +18,41 @@
 import CoreGraphics
 import Foundation
 
+public struct KeyModifiers: OptionSet {
+    public static let none = KeyModifiers([])
+    public static let control = KeyModifiers(rawValue: 1 << 0)
+    public static let option = KeyModifiers(rawValue: 1 << 1)
+    public static let command = KeyModifiers(rawValue: 1 << 2)
+    public static let shift = KeyModifiers(rawValue: 1 << 3)
+    public static let capsLock = KeyModifiers(rawValue: 1 << 4)
+
+    public let rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    public init(flags: CGEventFlags) {
+        self = .none
+
+        if flags.contains(.maskControl) {
+            insert(.control)
+        }
+        if flags.contains(.maskAlternate) {
+            insert(.option)
+        }
+        if flags.contains(.maskCommand) {
+            insert(.command)
+        }
+        if flags.contains(.maskShift) {
+            insert(.shift)
+        }
+        if flags.contains(.maskAlphaShift) {
+            insert(.capsLock)
+        }
+    }
+}
+
 public enum KeyCode: Int64 {
     case escape = 0x35
     case backspace = 0x33
@@ -35,6 +70,11 @@ public extension CGEvent {
         KeyCode(rawValue: getIntegerValueField(.keyboardEventKeycode))
     }
 
+    /// Returns the keyboard modifiers for this event.
+    var modifiers: KeyModifiers {
+        KeyModifiers(flags: flags)
+    }
+
     /// Returns the unicode character for this keyboard event.
     var character: String {
         let maxStringLength = 4
@@ -42,5 +82,11 @@ public extension CGEvent {
         var unicodeString = [UniChar](repeating: 0, count: Int(maxStringLength))
         keyboardGetUnicodeString(maxStringLength: 1, actualStringLength: &actualStringLength, unicodeString: &unicodeString)
         return String(utf16CodeUnits: &unicodeString, count: Int(actualStringLength))
+    }
+}
+
+public extension CGEventFlags {
+    static var none: CGEventFlags {
+        CGEventFlags()
     }
 }

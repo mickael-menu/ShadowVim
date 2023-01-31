@@ -17,6 +17,7 @@
 
 import AX
 import Cocoa
+import Combine
 import CoreGraphics
 import Foundation
 import Toolkit
@@ -24,6 +25,7 @@ import Toolkit
 /// Xcode-specific overrides for `AppMediator`.
 public class XcodeAppMediatorDelegate: AppMediatorDelegate {
     public weak var delegate: AppMediatorDelegate?
+    private var subscriptions: Set<AnyCancellable> = []
 
     public init(delegate: AppMediatorDelegate) {
         self.delegate = delegate
@@ -38,9 +40,13 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
 
         // Disable Xcode's Vim bindings to avoid conflicts with ShadowVim.
         Process.launchAndWait("defaults", "write", "-app", "xcode", "KeyBindingsMode", "-string", "Default")
+
+        observeCompletionPopUp(in: mediator.appElement)
     }
 
     public func appMediatorDidStop(_ mediator: AppMediator) {
+        subscriptions = []
+
         // Restore original Xcode's key bindings mode.
         if let mode = originalKeyBindingsMode {
             Process.launchAndWait("defaults", "write", "-app", "xcode", "KeyBindingsMode", "-string", mode)
@@ -68,6 +74,10 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
         (try? element.get(.description)) == "Source Editor"
     }
 
+    public func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: CGEvent) -> Bool {
+        shouldIgnoreEventForCompletionPopUp(event)
+    }
+
     public func appMediator(_ mediator: AppMediator, willHandleEvent event: CGEvent) -> CGEvent? {
         // We override the default Xcode "Stop" keyboard shortcut to quit
         // manually the app. This way `AppDelegate.applicationWillTerminate()`
@@ -78,5 +88,51 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
         }
 
         return event
+    }
+
+    // MARK: - Completion pop-up passthrough keys
+
+    /// When Xcode's completion pop-up is visible, we want to let it handle
+    /// the following keys instead of forwarding them to Nvim.
+    private let completionPopUpPassthrougKeys: [String] = [
+        "<Enter>",
+        "<Up>",
+        "<Down>",
+        "\u{0E}", // ⌃N
+        "\u{10}", // ⌃P
+    ]
+
+    private func shouldIgnoreEventForCompletionPopUp(_ event: CGEvent) -> Bool {
+        guard
+            isCompletionPopUpVisible,
+            event.type == .keyDown
+        else {
+            return false
+        }
+
+        let key = event.nvimKey
+        return completionPopUpPassthrougKeys.contains { $0 == key }
+    }
+
+    @Published private var isCompletionPopUpVisible = false
+
+    private func observeCompletionPopUp(in element: AXUIElement) {
+        func isCompletionPopUp(_ element: AXUIElement) -> Bool {
+            element.children().contains { child in
+                (try? child.identifier()) == "_XC_COMPLETION_TABLE_"
+            }
+        }
+
+        element.publisher(for: .created)
+            .filter(isCompletionPopUp)
+            .ignoreFailure()
+            .map { _ in true }
+            .assign(to: &$isCompletionPopUpVisible)
+
+        element.publisher(for: .uiElementDestroyed)
+            .filter(isCompletionPopUp)
+            .ignoreFailure()
+            .map { _ in false }
+            .assign(to: &$isCompletionPopUpVisible)
     }
 }
