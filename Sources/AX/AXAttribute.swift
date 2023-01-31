@@ -32,6 +32,7 @@ public struct AXAttribute: Hashable, RawRepresentable {
     public static let title = AXAttribute(rawValue: kAXTitleAttribute)
     public static let description = AXAttribute(rawValue: kAXDescriptionAttribute)
     public static let help = AXAttribute(rawValue: kAXHelpAttribute)
+    public static let identifier = AXAttribute(rawValue: kAXIdentifierAttribute)
 
     // Hierarchy or relationship attributes
     public static let parent = AXAttribute(rawValue: kAXParentAttribute)

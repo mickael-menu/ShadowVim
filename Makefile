@@ -1,8 +1,8 @@
 help:
 	@echo "Usage: make <target>\n\n\
-	  p[roject]\t\tGenerate the Xcode project with xcodegen\n\
+	  p[roject]\t\t\tGenerate the Xcode project with xcodegen\n\
 	  l[int-]f[ormat]\tVerify the project is properly formatted\n\
-	  f[ormat]\t\tReformat files with SwiftFormat\n\
+	  f[ormat]\t\t\tReformat files with SwiftFormat\n\
 	"
 
 

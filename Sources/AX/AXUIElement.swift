@@ -308,13 +308,21 @@ public extension AXUIElement {
         try get(.subrole)
     }
 
-    func parent() throws -> AXUIElement? {
-        try get(.parent)
+    func identifier() throws -> String? {
+        try get(.identifier)
+    }
+
+    func parent() -> AXUIElement? {
+        try? get(.parent)
+    }
+
+    func children() -> [AXUIElement] {
+        (try? get(.children)) ?? []
     }
 
     func document() -> String? {
         guard let document = try? get(.document) as String? else {
-            return try? parent()?.document()
+            return parent()?.document()
         }
         return document
     }
