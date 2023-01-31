@@ -101,7 +101,7 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
         "\u{0E}", // ⌃N
         "\u{10}", // ⌃P
     ]
-    
+
     private func shouldIgnoreEventForCompletionPopUp(_ event: CGEvent) -> Bool {
         guard
             isCompletionPopUpVisible,
@@ -109,7 +109,7 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
         else {
             return false
         }
-        
+
         let key = event.nvimKey
         return completionPopUpPassthrougKeys.contains { $0 == key }
     }
