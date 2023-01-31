@@ -35,7 +35,7 @@ public class EventDispatcher {
         mediators[event]?.receive(with: data)
     }
 
-    public func subscribe(to event: String) -> AnyPublisher<[Value], APIError> {
+    public func publisher(for event: String) -> AnyPublisher<[Value], APIError> {
         let mediator = $mediators.write {
             $0.getOrPut(event) {
                 EventMediator(event: event, api: api)
@@ -46,11 +46,11 @@ public class EventDispatcher {
             .eraseToAnyPublisher()
     }
 
-    public func subscribe<UnpackedValue>(
-        to event: String,
+    public func publisher<UnpackedValue>(
+        for event: String,
         unpack: @escaping ([Value]) -> UnpackedValue?
     ) -> AnyPublisher<UnpackedValue, APIError> {
-        subscribe(to: event)
+        publisher(for: event)
             .flatMap { data -> AnyPublisher<UnpackedValue, APIError> in
                 guard let payload = unpack(data) else {
                     return .fail(.unexpectedNotificationPayload(event: event, payload: data))
@@ -63,9 +63,32 @@ public class EventDispatcher {
     //    try await nvim.command("autocmd CursorMoved * call rpcnotify(0, 'moved')")
     //    try await nvim.command("autocmd ModeChanged * call rpcnotify(0, 'mode', mode())")
     //    try await nvim.command("autocmd CmdlineChanged * call rpcnotify(0, 'cmdline', getcmdline())")
-    public func autoCmd(
-        event: String...,
+    public func autoCmdPublisher(
+        for events: String...,
         args: String...
+    ) -> AnyPublisher<[Value], APIError> {
+        autoCmdPublisher(for: events, args: args)
+    }
+
+    public func autoCmdPublisher<UnpackedValue>(
+        for events: String...,
+        args: String...,
+        unpack: @escaping ([Value]) -> UnpackedValue?
+    ) -> AnyPublisher<UnpackedValue, APIError> {
+        autoCmdPublisher(for: events, args: args)
+            .flatMap { data -> AnyPublisher<UnpackedValue, APIError> in
+                guard let payload = unpack(data) else {
+                    let event = events.joined(separator: ", ")
+                    return .fail(.unexpectedNotificationPayload(event: event, payload: data))
+                }
+                return .just(payload)
+            }
+            .eraseToAnyPublisher()
+    }
+
+    private func autoCmdPublisher(
+        for events: [String],
+        args: [String]
     ) -> AnyPublisher<[Value], APIError> {
         let eventName = "autocmd-\(UUID().uuidString)"
 
@@ -81,7 +104,7 @@ public class EventDispatcher {
                 }
 
                 return api.createAutocmd(
-                    for: event,
+                    for: events,
                     // FIXME: RPC channel ID
                     command: "call rpcnotify(0, '\(eventName)'\(argsList))"
                 )

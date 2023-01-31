@@ -115,6 +115,7 @@ public extension AXUIElement {
     }
 
     func get<Value>(_ attribute: AXAttribute) throws -> Value? {
+        precondition(Thread.isMainThread)
         var value: AnyObject?
         let code = AXUIElementCopyAttributeValue(self, attribute.rawValue as CFString, &value)
         if let error = AXError(code: code) {
@@ -133,6 +134,7 @@ public extension AXUIElement {
     }
 
     func get<V1, V2>(_ attribute1: AXAttribute, _ attribute2: AXAttribute) throws -> (V1?, V2?) {
+        precondition(Thread.isMainThread)
         let values = try get([attribute1, attribute2])
         guard values.count == 2 else {
             throw AXError.unexpectedValueCount(values)
@@ -141,6 +143,7 @@ public extension AXUIElement {
     }
 
     func get<V1, V2, V3>(_ attribute1: AXAttribute, _ attribute2: AXAttribute, _ attribute3: AXAttribute) throws -> (V1?, V2?, V3?) {
+        precondition(Thread.isMainThread)
         let values = try get([attribute1, attribute2, attribute3])
         guard values.count == 3 else {
             throw AXError.unexpectedValueCount(values)
@@ -164,6 +167,7 @@ public extension AXUIElement {
     }
 
     func get(_ attributes: [AXAttribute]) throws -> [Any] {
+        precondition(Thread.isMainThread)
         let attributes = attributes.map(\.rawValue) as CFArray
         var values: CFArray?
         let code = AXUIElementCopyMultipleAttributeValues(self, attributes, AXCopyMultipleAttributeOptions(), &values)
@@ -222,6 +226,7 @@ public extension AXUIElement {
     }
 
     func isSettable(_ attribute: AXAttribute) throws -> Bool {
+        precondition(Thread.isMainThread)
         var settable: DarwinBoolean = false
         let code = AXUIElementIsAttributeSettable(self, attribute.rawValue as CFString, &settable)
         if let error = AXError(code: code) {
@@ -231,7 +236,7 @@ public extension AXUIElement {
     }
 
     func set<Value>(_ attribute: AXAttribute, value: Value) throws {
-//        precondition(Thread.isMainThread)
+        precondition(Thread.isMainThread)
 
         guard let value = pack(value) else {
             throw AXError.packFailure(value)

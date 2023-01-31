@@ -46,7 +46,7 @@ protocol RPCSessionDelegate: AnyObject {
 
     func session(_ session: RPCSession, didReceiveNotification method: String, with params: [Value])
 
-    func session(_ session: RPCSession, didReceiveError error: RPCError)
+    func session(_ session: RPCSession, didFailWithError error: RPCError)
 }
 
 struct RPCRequestCallbacks {
@@ -114,15 +114,24 @@ final class RPCSession {
             var data = receive()
             while data.count > 0, !Task.isCancelled {
                 do {
-                    for message in try MessagePack.unpackAll(data) {
-                        Value.from(message)
-                            .flatMap { receive(message: $0) }
-                            .onError { delegate?.session(self, didReceiveError: $0) }
-                    }
+                    let (message, remainder) = try MessagePack.unpack(data)
+
+                    Value.from(message)
+                        .flatMap { receive(message: $0) }
+                        .onError { delegate?.session(self, didFailWithError: $0) }
+
+                    data = remainder
+
+                } catch MessagePackError.insufficientData {
+                    data += receive()
+
                 } catch {
-                    delegate?.session(self, didReceiveError: .unpackFailure(error))
+                    delegate?.session(self, didFailWithError: .unpackFailure(error))
                 }
-                data = receive()
+
+                if data.isEmpty {
+                    data = receive()
+                }
             }
         }
     }
@@ -192,7 +201,7 @@ final class RPCSession {
             }()
 
             endRequest(id: id, with: result)
-            log("<\(id) \(body[2]) | \(body[3])\n")
+            log("\(id)< \(body[2]) | \(body[3])\n")
 
         case .notification:
             guard
@@ -202,7 +211,7 @@ final class RPCSession {
             else {
                 return .failure(.unexpectedMessage(message))
             }
-            log("@\(method): \(params)\n")
+            log("@\(method) \(params)\n")
             delegate?.session(self, didReceiveNotification: method, with: params)
         }
 
@@ -228,7 +237,7 @@ final class RPCSession {
     /// every request is sent in order.
     func request(
         method: String,
-        params: [Value],
+        params: [ValueConvertible],
         callbacks: RPCRequestCallbacks
     ) -> Async<Value, RPCError> {
         callbacks.prepare().setFailureType(to: RPCError.self)
@@ -241,11 +250,11 @@ final class RPCSession {
                     RPCType.request.value, // message type
                     .uint(id), // request ID
                     .string(method), // method name
-                    .array(params.map(\.messagePackValue)), // method arguments.
+                    .array(params.map(\.nvimValue.messagePackValue)), // method arguments.
                 ])
                 let data = MessagePack.pack(request)
 
-                log(">\(method)(\(params))\n")
+                log("\(id)> \(method)(\(params))\n")
                 do {
                     try send(data)
                 } catch {
@@ -259,7 +268,7 @@ final class RPCSession {
 
     func endRequest(id: RPCMessageID, with result: Result<Value, RPCError>) {
         guard let completion = requests.removeValue(forKey: id) else {
-            delegate?.session(self, didReceiveError: .unknownRequestId(id))
+            delegate?.session(self, didFailWithError: .unknownRequestId(id))
             return
         }
         completion(result)

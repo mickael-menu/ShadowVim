@@ -25,13 +25,19 @@ public protocol MainMediatorDelegate: AnyObject {
     func mainMediator(_ mediator: MainMediator, didFailWithError error: Error)
 }
 
+private typealias BundleID = String
+
 public final class MainMediator {
     public weak var delegate: MainMediatorDelegate?
 
-    private let bundleIDs: [String]
+    private let bundleIDs: [BundleID]
     private var apps: [pid_t: AppMediator] = [:]
     private var subscriptions: Set<AnyCancellable> = []
     private let eventTap = EventTap()
+
+    private lazy var appDelegates: [BundleID: AppMediatorDelegate] = [
+        "com.apple.dt.Xcode": XcodeAppMediatorDelegate(delegate: self),
+    ]
 
     public init(bundleIDs: [String], delegate: MainMediatorDelegate? = nil) {
         self.bundleIDs = bundleIDs
@@ -47,12 +53,21 @@ public final class MainMediator {
         reset()
     }
 
-    public func reset() {
+    public func stop() {
         precondition(Thread.isMainThread)
-        print("Reset ShadowVim")
+
+        for (_, app) in apps {
+            app.stop()
+        }
 
         subscriptions = []
         apps = [:]
+    }
+
+    public func reset() {
+        precondition(Thread.isMainThread)
+
+        stop()
 
         if let app = NSWorkspace.shared.frontmostApplication {
             do {
@@ -94,13 +109,19 @@ public final class MainMediator {
             return nil
         }
 
-        return try apps.getOrPut(app.processIdentifier) {
-            try AppMediator(app: app, delegate: self)
+        let mediator = try apps.getOrPut(app.processIdentifier) {
+            try AppMediator(
+                app: app,
+                delegate: appDelegates[id] ?? self
+            )
         }
+        mediator.start()
+        return mediator
     }
 
     private func terminate(app: NSRunningApplication) {
-        apps.removeValue(forKey: app.processIdentifier)
+        let mediator = apps.removeValue(forKey: app.processIdentifier)
+        mediator?.stop()
     }
 }
 

@@ -30,13 +30,17 @@ class App {
         mediator.delegate = self
     }
 
-    func onLaunch() {
+    func didLaunch() {
         do {
             try mediator.start()
             hide()
         } catch {
             presentAlert(error: error, style: .critical)
         }
+    }
+
+    func willTerminate() {
+        mediator.stop()
     }
 
     enum AlertStyle {
@@ -128,6 +132,8 @@ class App {
 
 extension App: MainMediatorDelegate {
     func mainMediator(_ mediator: MainMediator, didFailWithError error: Error) {
-        presentAlert(error: error, style: .warning)
+        DispatchQueue.main.async {
+            self.presentAlert(error: error, style: .warning)
+        }
     }
 }

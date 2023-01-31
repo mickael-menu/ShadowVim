@@ -15,15 +15,27 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-import AX
+import CoreGraphics
 import Foundation
 
-extension AXUIElement {
-    /// Returns whether this accessible object represents an Xcode source
-    /// editor.
-    var isSourceEditor: Bool {
-        isValid
-            && self[.role] == AXRole.textArea
-            && self[.description] == "Source Editor"
+extension CGEvent {
+    /// Returns the Nvim-compatible key code for this keyboard event.
+    var nvimKey: String {
+        switch keyCode {
+        case .escape:
+            return "<Esc>"
+        case .enter:
+            return "<Enter>"
+        case .leftArrow:
+            return "<Left>"
+        case .rightArrow:
+            return "<Right>"
+        case .downArrow:
+            return "<Down>"
+        case .upArrow:
+            return "<Up>"
+        default:
+            return character
+        }
     }
 }

@@ -10,6 +10,12 @@ Adjust the `textwidth` ruler to the one set in Xcode?
 defaults write com.apple.dt.Xcode DVTTextPageGuideLocation -int 120
 ```
 
+We can also use this to switch on/off Xcode's default Vim bindings:
+```
+defaults write -app xcode KeyBindingsMode -string Default
+defaults write -app xcode KeyBindingsMode -string Vi
+```
+
 https://github.com/robb/dotfiles/blob/main/xcode/settings.install
 
 ## Color scheme

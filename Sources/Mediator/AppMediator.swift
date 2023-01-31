@@ -23,32 +23,177 @@ import Nvim
 import Toolkit
 
 public protocol AppMediatorDelegate: AnyObject {
+    /// Called when the `AppMediator` is being started.
+    func appMediatorWillStart(_ mediator: AppMediator)
+
+    /// Called when the `AppMediator` was stopped.
+    func appMediatorDidStop(_ mediator: AppMediator)
+
+    /// Called when an error occurred while mediating the app.
     func appMediator(_ mediator: AppMediator, didFailWithError error: Error)
+
+    /// Returns whether an Nvim buffer should be associated with this
+    /// accessibility `element`.
+    func appMediator(_ mediator: AppMediator, shouldPlugInElement element: AXUIElement) -> Bool
+
+    /// Returns the Nvim buffer name for the given accessibility `element`.
+    func appMediator(_ mediator: AppMediator, nameForElement element: AXUIElement) -> String?
+
+    /// Filters `event` before it is processed by this `AppMediator`.
+    ///
+    /// Return `nil` if you handled the event in the delegate.
+    func appMediator(_ mediator: AppMediator, willHandleEvent event: CGEvent) -> CGEvent?
 }
 
-// FIXME: Dealloc on terminated process
+public extension AppMediatorDelegate {
+    func appMediatorWillStart(_ mediator: AppMediator) {}
+    func appMediatorDidStop(_ mediator: AppMediator) {}
+
+    func appMediator(_ mediator: AppMediator, shouldPlugInElement element: AXUIElement) -> Bool {
+        true
+    }
+
+    func appMediator(_ mediator: AppMediator, nameForElement element: AXUIElement) -> String? {
+        element.document()
+    }
+
+    func appMediator(_ mediator: AppMediator, willHandleEvent event: CGEvent) -> CGEvent? {
+        event
+    }
+}
+
 public final class AppMediator {
     public weak var delegate: AppMediatorDelegate?
 
-    private let app: NSRunningApplication
-    private let appElement: AXUIElement
-    private let nvimProcess: NvimProcess
-    private var nvim: Nvim { nvimProcess.nvim }
+    public let app: NSRunningApplication
+    public let appElement: AXUIElement
+    private var isStarted = false
+    private let nvim: Nvim
     private let buffers: Buffers
-
-    private var synchronizers: [String: BufferSynchronizer] = [:]
-    private var currentBuffer: BufferSynchronizer?
-
+    private var bufferMediators: [BufferName: BufferMediator] = [:]
+    private var focusedBufferMediator: BufferMediator?
     private var subscriptions: Set<AnyCancellable> = []
 
     init(app: NSRunningApplication, delegate: AppMediatorDelegate?) throws {
         self.app = app
         self.delegate = delegate
         appElement = AXUIElement.app(app)
-        nvimProcess = try NvimProcess.start()
-        buffers = Buffers(nvim: nvimProcess.nvim)
+        nvim = try Nvim.start()
+        buffers = Buffers(events: nvim.events)
         nvim.delegate = self
 
+        setupFocusSync()
+
+//        nvim.api.uiAttach(
+//            width: 1000,
+//            height: 100,
+//            options: API.UIOptions(
+//                extCmdline: true,
+//                extHlState: true,
+//                extLineGrid: true,
+//                extMessages: true,
+//                extMultigrid: true,
+//                extPopupMenu: true,
+//                extTabline: true,
+//                extTermColors: true
+//            )
+//        )
+//        .assertNoFailure()
+//        .run()
+//
+//        nvim.events.publisher(for: "redraw")
+//            .assertNoFailure()
+//            .sink { params in
+//                for v in params {
+//                    guard
+//                        let a = v.arrayValue,
+//                        let k = a.first?.stringValue,
+//                        k.hasPrefix("msg_")
+//                    else {
+//                        continue
+//                    }
+//                    print(a)
+//                }
+//            }
+//            .store(in: &subscriptions)
+    }
+
+    deinit {
+        stop()
+    }
+
+    public func start() {
+        guard !isStarted else {
+            return
+        }
+        delegate?.appMediatorWillStart(self)
+        isStarted = true
+    }
+
+    public func stop() {
+        guard isStarted else {
+            return
+        }
+        isStarted = false
+        nvim.stop()
+        subscriptions.removeAll()
+        delegate?.appMediatorDidStop(self)
+    }
+
+    // MARK: - Input handling
+
+    public func handle(_ event: CGEvent) -> CGEvent? {
+        precondition(app.isActive)
+
+        guard
+            // Check that we're still the focused app. Useful when the Spotlight
+            // modal is opened.
+            isAppFocused,
+            let focusedBufferMediator = focusedBufferMediator,
+            focusedBufferMediator.element.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
+        else {
+            return event
+        }
+
+        guard let event = willHandleEvent(event) else {
+            return nil
+        }
+
+        switch event.type {
+        case .keyDown:
+            // Passthrough for ⌘-based keyboard shortcuts.
+            guard !event.flags.contains(.maskCommand) else {
+                break
+            }
+
+            // FIXME: See `nvim.paste` "Faster than nvim_input()."
+
+            nvim.api.transaction { [self] api in
+                buffers.edit(buffer: focusedBufferMediator.buffer, with: api)
+                    .flatMap { api.input(event.nvimKey) }
+            }
+            .discardResult()
+            .get(onFailure: { [self] in
+                delegate?.appMediator(self, didFailWithError: $0)
+            })
+
+            return nil
+
+        default:
+            break
+        }
+
+        return event
+    }
+
+    private var isAppFocused: Bool {
+        let focusedAppPid = try? AXUIElement.systemWide.focusedApplication()?.pid()
+        return app.processIdentifier == focusedAppPid
+    }
+
+    // MARK: - Focus synchronization
+
+    private func setupFocusSync() {
         if let focusedElement = appElement[.focusedUIElement] as AXUIElement? {
             focusedUIElementDidChange(focusedElement)
         }
@@ -64,148 +209,107 @@ public final class AppMediator {
                 }
             )
             .store(in: &subscriptions)
-
-        nvim.events.autoCmd(event: "CursorMoved", "CursorMovedI", "ModeChanged", args: "getcursorcharpos()", "mode()")
-            .receive(on: DispatchQueue.main)
-            .sink(
-                onFailure: { [unowned self] error in
-                    delegate?.appMediator(self, didFailWithError: error)
-                },
-                receiveValue: { [unowned self] params in
-                    self.onCursorEvent(params: params)
-                    //                Task {
-                    //                    await self?.updateMode(mode: params[1].stringValue ?? "")
-                    //                }
-                }
-            )
-            .store(in: &subscriptions)
-
-        //        var pos: CursorPosition = (0, 0)
-        //        var selection: CFRange = element[.selectedTextRange] ?? CFRange(location: 0, length: 0)
-        //        selection = CFRange(location: selection.location, length: 1) // Normal mode
-        //        pos.row = element[.lineForIndex] ?? 0
-        //        pos.col = element[.lineForIndex] ?? 0
-//
-//        nvim.events.autoCmd(event: "CmdlineChanged", args: "getcmdline()")
-//            .assertNoFailure()
-//            .sink { [weak self] params in
-//                self?.more = params.first?.stringValue ?? ""
-//            }
-//            .store(in: &subscriptions)
-    }
-
-    deinit {
-        nvimProcess.stop()
-        subscriptions.removeAll()
     }
 
     private func focusedUIElementDidChange(_ element: AXUIElement) {
         guard
-            element.isSourceEditor,
-            let name = element.document()
+            element.isValid,
+            (try? element.get(.role)) == AXRole.textArea,
+            shouldPlugInElement(element),
+            let name = nameForElement(element)
         else {
-            currentBuffer = nil
+            focusedBufferMediator = nil
             return
         }
 
-        buffers.edit(name: name, contents: element[.value] ?? "")
-            .logFailure()
-            .get { [self] handle in
-                let buffer = synchronizers.getOrPut(name) {
-                    BufferSynchronizer(nvim: nvim, buffer: handle, element: element, name: name, buffers: buffers)
-                }
-
-                buffer.element = element
-                currentBuffer = buffer
+        editBuffer(for: element, name: name)
+            .forwardErrorToDelegate(of: self)
+            .get { [self] bufferMediator in
+                focusedBufferMediator = bufferMediator
+                bufferMediator.didFocus()
             }
     }
 
-    public func handle(_ event: CGEvent) -> CGEvent? {
-        precondition(app.isActive)
+    private func editBuffer(for element: AXUIElement, name: BufferName) -> Async<BufferMediator, APIError> {
+        buffers.edit(name: name, contents: element[.value] ?? "", with: nvim.api)
+            .map { [self] handle in
+                let buffer = bufferMediators.getOrPut(name) {
+                    BufferMediator(
+                        nvim: nvim,
+                        buffer: handle,
+                        element: element,
+                        name: name,
+                        nvimLinesPublisher: buffers.linesPublisher(for: handle),
+                        nvimCursorPublisher: nvimCursorPublisher
+                            .compactMap { buf, cur in
+                                guard buf == handle else {
+                                    return nil
+                                }
+                                return cur
+                            }
+                            .eraseToAnyPublisher(),
+                        delegate: self
+                    )
+                }
+                buffer.element = element
+                return buffer
+            }
+    }
 
-        guard
-            // Check that we're still the focused app. Useful when the Spotlight
-            // modal is opened.
-            isFocused,
-            let bufferElement = currentBuffer?.element,
-            bufferElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
-        else {
+    /// This publisher is used to observe the Neovim cursor position and mode
+    /// changes.
+    lazy var nvimCursorPublisher: AnyPublisher<(BufferHandle, Cursor), APIError> =
+        nvim.events.autoCmdPublisher(
+            for: "ModeChanged", "CursorMoved", "CursorMovedI",
+            args: "bufnr()", "mode()", "getcursorcharpos()",
+            unpack: { params -> (BufferHandle, Cursor)? in
+                guard
+                    params.count == 3,
+                    let buffer: BufferHandle = params[0].intValue,
+                    let mode = params[1].stringValue,
+                    let cursorParams = params[2].arrayValue,
+                    cursorParams.count == 5,
+                    let line = cursorParams[1].intValue,
+                    let col = cursorParams[2].intValue
+                else {
+                    return nil
+                }
+
+                let cursor = Cursor(
+                    position: (line: line - 1, column: col - 1),
+                    mode: Mode(rawValue: mode) ?? .normal
+                )
+                return (buffer, cursor)
+            }
+        )
+
+    // MARK: - Delegate
+
+    private func shouldPlugInElement(_ element: AXUIElement) -> Bool {
+        guard let delegate = delegate else {
+            return true
+        }
+        return delegate.appMediator(self, shouldPlugInElement: element)
+    }
+
+    private func nameForElement(_ element: AXUIElement) -> String? {
+        guard let delegate = delegate else {
+            return element.document()
+        }
+        return delegate.appMediator(self, nameForElement: element)
+    }
+
+    private func willHandleEvent(_ event: CGEvent) -> CGEvent? {
+        guard let delegate = delegate else {
             return event
         }
-
-        switch event.type {
-        case .keyDown:
-            guard !event.flags.contains(.maskCommand) else {
-                break
-            }
-
-            // FIXME: See `nvim.paste` "Faster than nvim_input()."
-
-            let input: String = {
-                switch event.keyCode {
-                case .escape:
-                    return "<Esc>"
-                case .enter:
-                    return "<Enter>"
-                case .leftArrow:
-                    return "<Left>"
-                case .rightArrow:
-                    return "<Right>"
-                case .downArrow:
-                    return "<Down>"
-                case .upArrow:
-                    return "<Up>"
-                default:
-                    return event.character
-                }
-            }()
-
-            nvim.api.input(input)
-                .discardResult()
-                .get(onFailure: { [self] in
-                    delegate?.appMediator(self, didFailWithError: $0)
-                })
-
-            return nil
-
-        default:
-            break
-        }
-
-        return event
+        return delegate.appMediator(self, willHandleEvent: event)
     }
+}
 
-    private var isFocused: Bool {
-        let focusedAppPid = try? AXUIElement.systemWide.focusedApplication()?.pid()
-        return app.processIdentifier == focusedAppPid
-    }
-
-    private func onCursorEvent(params: [Value]) {
-        guard
-            let buffer = currentBuffer,
-            params.count == 2,
-            let cursorParams = params[0].arrayValue,
-            cursorParams.count == 5,
-            var lnum = cursorParams[1].intValue,
-            var col = cursorParams[2].intValue
-        else {
-            return
-        }
-        lnum -= 1
-        col -= 1
-
-        let (_, lines) = buffer.lines()
-        var count = 0
-        for (i, line) in lines.enumerated() {
-            if i == lnum {
-                count += col
-                break
-            }
-            count += line.count + 1
-        }
-
-        let mode = params[1].stringValue.flatMap(Mode.init(rawValue:)) ?? .normal
-        buffer.setCursor(position: count, mode: mode)
+extension AppMediator: BufferMediatorDelegate {
+    func bufferMediator(_ mediator: BufferMediator, didFailWithError error: Error) {
+        delegate?.appMediator(self, didFailWithError: error)
     }
 }
 
@@ -213,13 +317,39 @@ extension AppMediator: NvimDelegate {
     public func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>? {
         switch method {
         case "SVRefresh":
-//            Task {
-//                let content = await getContent()
-//                try! element.set(.value, value: content)
-//            }
+            guard let mediator = focusedBufferMediator else {
+                return .success(.bool(false))
+            }
+            print("Refresh")
+            nvim.api.transaction { api in
+                self.buffers.edit(buffer: mediator.buffer, with: api)
+                    .flatMap {
+                        api.bufGetLines(buffer: mediator.buffer, start: 0, end: -1)
+                    }
+                    .map { lines in
+                        try? mediator.element.set(.value, value: lines.joined(separator: "\n"))
+                    }
+            }
+            .assertNoFailure()
+            .run()
             return .success(.bool(true))
         default:
             return nil
         }
+    }
+
+    public func nvim(_ nvim: Nvim, didFailWithError error: NvimError) {
+        delegate?.appMediator(self, didFailWithError: error)
+    }
+}
+
+private extension Async {
+    func forwardErrorToDelegate(of appMediator: AppMediator) -> Async<Success, Never> {
+        map(
+            success: { val, compl in compl(.success(val)) },
+            failure: { error, _ in
+                appMediator.delegate?.appMediator(appMediator, didFailWithError: error)
+            }
+        )
     }
 }

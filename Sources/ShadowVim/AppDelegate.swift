@@ -28,6 +28,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 //        let cmdline = CmdlineController(frame: NSRect(x: 0, y: 0, width: 480, height: 44))
 //        cmdline.show()
 
-        app.onLaunch()
+        app.didLaunch()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        app.willTerminate()
     }
 }
