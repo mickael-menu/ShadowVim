@@ -12,9 +12,13 @@ let package = Package(
         .library(name: "AX", targets: ["AX"]),
         .library(name: "Mediator", targets: ["Mediator"]),
         .library(name: "Nvim", targets: ["Nvim"]),
+        .library(name: "Toolkit", targets: ["Toolkit"]),
+
+        .library(name: "NSLoggerAdapter", targets: ["NSLoggerAdapter"]),
     ],
     dependencies: [
         .package(url: "https://github.com/a2/MessagePack.swift.git", from: "4.0.0"),
+        .package(url: "https://github.com/fpillet/NSLogger.git", branch: "master"),
     ],
     targets: [
         .target(
@@ -46,6 +50,11 @@ let package = Package(
         ),
         .target(
             name: "Toolkit"
+        ),
+        .target(
+            name: "NSLoggerAdapter",
+            dependencies: ["Toolkit", .product(name: "NSLogger", package: "NSLogger")],
+            path: "Sources/Adapters/NSLogger"
         ),
     ]
 )

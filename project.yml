@@ -27,3 +27,5 @@ targets:
         product: Mediator
       - package: ShadowVim
         product: Nvim
+      - package: ShadowVim
+        product: NSLoggerAdapter
