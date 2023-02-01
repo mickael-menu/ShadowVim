@@ -41,10 +41,10 @@ final class BufferMediator {
     private var subscriptions: Set<AnyCancellable> = []
 
     /// When we synchronize from Nvim to `AXUIElement`, a lot of accessibility
-    /// events (`selectedTextRangeChanged`, `valueChanged`, etc.) will be fired
-    /// in a row. To prevent synchronizing these changes back to Nvim, we ignor
-    /// the events with this lock debounced with a given delay.
-    private var nvimLock = TimeSwitch(timer: 0.5)
+    /// events (`selectedTextChanged`, `valueChanged`, etc.) will be fired in a
+    /// row. To prevent synchronizing these changes back to Nvim, we ignore the
+    /// events with this lock debounced with a given delay.
+    private var nvimLock = TimeSwitch(timer: 0.3)
 
     init(
         nvim: Nvim,

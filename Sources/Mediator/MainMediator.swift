@@ -108,18 +108,22 @@ public final class MainMediator {
         else {
             return nil
         }
-
-        let mediator = try apps.getOrPut(app.processIdentifier) {
-            try AppMediator(
-                app: app,
-                delegate: appDelegates[id] ?? self
-            )
+        
+        if let mediator = apps[app.processIdentifier] {
+            return mediator
         }
+        
+        let mediator = try AppMediator(
+            app: app,
+            delegate: appDelegates[id] ?? self
+        )
         mediator.start()
+        apps[app.processIdentifier] = mediator
         return mediator
     }
 
     private func terminate(app: NSRunningApplication) {
+        precondition(Thread.isMainThread)
         let mediator = apps.removeValue(forKey: app.processIdentifier)
         mediator?.stop()
     }

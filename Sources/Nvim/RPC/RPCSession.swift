@@ -71,7 +71,7 @@ final class RPCSession {
     private let debug: Bool = false
 
     weak var delegate: RPCSessionDelegate?
-    private var isClosed: Bool = false
+    @Atomic private var isClosed: Bool = false
 
     init(
         send: @escaping (Data) throws -> Void,
@@ -99,8 +99,10 @@ final class RPCSession {
         guard !isClosed else {
             return
         }
-        isClosed = true
         receiveTask?.cancel()
+        $isClosed.write {
+            $0 = true
+        }
     }
 
     // MARK: - Receive
@@ -267,11 +269,13 @@ final class RPCSession {
     }
 
     func endRequest(id: RPCMessageID, with result: Result<Value, RPCError>) {
-        guard let completion = requests.removeValue(forKey: id) else {
-            delegate?.session(self, didFailWithError: .unknownRequestId(id))
-            return
+        sendQueue.async { [self] in
+            guard let completion = requests.removeValue(forKey: id) else {
+                delegate?.session(self, didFailWithError: .unknownRequestId(id))
+                return
+            }
+            completion(result)
         }
-        completion(result)
     }
 
     private func send(_ data: Data) throws {
