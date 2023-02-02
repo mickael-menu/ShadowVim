@@ -31,6 +31,7 @@ public final class MainMediator {
     public weak var delegate: MainMediatorDelegate?
 
     private let bundleIDs: [BundleID]
+    private let logger: Logger
     private var apps: [pid_t: AppMediator] = [:]
     private var subscriptions: Set<AnyCancellable> = []
     private let eventTap = EventTap()
@@ -39,8 +40,9 @@ public final class MainMediator {
         "com.apple.dt.Xcode": XcodeAppMediatorDelegate(delegate: self),
     ]
 
-    public init(bundleIDs: [String], delegate: MainMediatorDelegate? = nil) {
+    public init(bundleIDs: [String], logger: Logger, delegate: MainMediatorDelegate? = nil) {
         self.bundleIDs = bundleIDs
+        self.logger = logger
         self.delegate = delegate
     }
 
@@ -66,6 +68,7 @@ public final class MainMediator {
 
     public func reset() {
         precondition(Thread.isMainThread)
+        logger.i("Reset ShadowVim")
 
         stop()
 
@@ -112,7 +115,8 @@ public final class MainMediator {
         let mediator = try apps.getOrPut(app.processIdentifier) {
             try AppMediator(
                 app: app,
-                delegate: appDelegates[id] ?? self
+                delegate: appDelegates[id] ?? self,
+                logger: logger
             )
         }
         mediator.start()

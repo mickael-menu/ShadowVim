@@ -17,6 +17,7 @@
 
 import Foundation
 import MessagePack
+import Toolkit
 
 /// See https://neovim.io/doc/user/api.html section "Basic types"
 public enum Value: Hashable {
@@ -56,6 +57,36 @@ extension Value: CustomStringConvertible {
             return "window(\(handle))"
         case let .tabpage(handle):
             return "tabpage(\(handle))"
+        }
+    }
+}
+
+extension Value: LogValueConvertible {
+    public var logValue: LogValue {
+        switch self {
+        case .nil:
+            return .nil
+        case let .bool(bool):
+            return .bool(bool)
+        case let .int(int):
+            return .int(int)
+        case let .double(double):
+            return .double(double)
+        case let .string(string):
+            return .string(string)
+        case let .array(array):
+            return .array(array.map(\.logValue))
+        case let .dict(dict):
+            return .dict(dict.reduce(into: [:]) { res, i in
+                let key = LogKey(rawValue: i.key.stringValue ?? String(describing: i.key))
+                res[key] = i.value.logValue
+            })
+        case let .buffer(handle):
+            return .string("buf#\(handle)")
+        case let .window(handle):
+            return .string("win#\(handle)")
+        case let .tabpage(handle):
+            return .string("tab#\(handle)")
         }
     }
 }

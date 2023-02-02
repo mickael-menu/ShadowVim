@@ -27,30 +27,32 @@ public struct NSLoggerLogger: Toolkit.Logger {
     }
 
     public func log(_ entry: LogEntry) {
-        var payload = entry.payload
-        let domain = payload.removeNSDomain()
+        DispatchQueue.main.async {
+            var payload = entry.payload
+            let domain = payload.removeNSDomain()
 
-        var output = ""
+            var output = ""
 
-        if case let .string(message) = payload.removeValue(forKey: .message) {
-            output += message
-        }
-
-        if !payload.isEmpty {
-            let payloadOutput = LogValue.dict(payload).format()
-            if !output.isEmpty {
-                output += "\n"
+            if case let .string(message) = payload.removeValue(forKey: .message) {
+                output += message
             }
-            output += payloadOutput
-        }
 
-        logger.log(domain, entry.level.nsLevel, output, entry.file, entry.line, entry.function)
+            if !payload.isEmpty {
+                let payloadOutput = LogValue.dict(payload).format()
+                if !output.isEmpty {
+                    output += "\n"
+                }
+                output += payloadOutput
+            }
+
+            logger.log(domain, entry.level.nsLevel, output, entry.file, entry.line, entry.function)
+        }
     }
 }
 
 private extension LogPayload {
     mutating func removeNSDomain() -> NSLogger.Logger.Domain {
-        guard case let .string(tag) = removeValue(forKey: "tag") else {
+        guard case let .string(tag) = removeValue(forKey: .tag) else {
             return .app
         }
         return .custom(tag)
