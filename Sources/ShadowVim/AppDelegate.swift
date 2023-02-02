@@ -17,9 +17,14 @@
 
 import Cocoa
 import Mediator
+import NSLoggerAdapter
+import Toolkit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    let app = App()
+    let app = App(
+        //        logger: NullLogger()
+        logger: NSLoggerLogger()
+    )
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Prevent showing the menu bar and dock icon.

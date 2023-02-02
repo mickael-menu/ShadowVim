@@ -74,6 +74,7 @@ public final class AppMediator {
 
     public let app: NSRunningApplication
     public let appElement: AXUIElement
+    private let logger: Logger
     private var isStarted = false
     private let nvim: Nvim
     private let buffers: Buffers
@@ -81,11 +82,12 @@ public final class AppMediator {
     private var focusedBufferMediator: BufferMediator?
     private var subscriptions: Set<AnyCancellable> = []
 
-    init(app: NSRunningApplication, delegate: AppMediatorDelegate?) throws {
+    init(app: NSRunningApplication, delegate: AppMediatorDelegate?, logger: Logger) throws {
         self.app = app
         self.delegate = delegate
+        self.logger = logger
         appElement = AXUIElement.app(app)
-        nvim = try Nvim.start()
+        nvim = try Nvim.start(logger: logger)
         buffers = Buffers(events: nvim.events)
         nvim.delegate = self
 
@@ -330,12 +332,16 @@ extension AppMediator: BufferMediatorDelegate {
 
 extension AppMediator: NvimDelegate {
     public func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>? {
+        logger.i("Received RPC request from Nvim", [
+            "method": "SVRefresh",
+            "data": String(describing: data),
+        ])
+
         switch method {
         case "SVRefresh":
             guard let mediator = focusedBufferMediator else {
                 return .success(.bool(false))
             }
-            print("Refresh")
             nvim.api.transaction { api in
                 self.buffers.edit(buffer: mediator.buffer, with: api)
                     .flatMap {
