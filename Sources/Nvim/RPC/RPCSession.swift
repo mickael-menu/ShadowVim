@@ -65,27 +65,31 @@ struct RPCRequestCallbacks {
 final class RPCSession {
     typealias RequestCompletion = (Result<Value, RPCError>) -> Void
 
+    private let logger: Logger
     private let _send: (Data) throws -> Void
     private let _receive: () -> Data
     private var receiveTask: Task<Void, Never>?
-    private let debug: Bool = false
 
     weak var delegate: RPCSessionDelegate?
     @Atomic private var isClosed: Bool = false
 
     init(
+        logger: Logger,
         send: @escaping (Data) throws -> Void,
         receive: @escaping () -> Data
     ) {
+        self.logger = logger.tagged("rpc")
         _send = send
         _receive = receive
     }
 
     convenience init(
+        logger: Logger,
         input: FileHandle,
         output: FileHandle
     ) {
         self.init(
+            logger: logger,
             send: { try input.write(contentsOf: $0) },
             receive: { output.availableData }
         )
@@ -174,7 +178,7 @@ final class RPCSession {
             else {
                 return .failure(.unexpectedMessage(message))
             }
-            log(">\(id) \(method)(\(params))\n")
+            logger.i(">\(id) \(method)(\(params))\n")
 
             guard
                 let delegate = delegate,
@@ -203,7 +207,7 @@ final class RPCSession {
             }()
 
             endRequest(id: id, with: result)
-            log("\(id)< \(body[2]) | \(body[3])\n")
+            logger.i("\(id)< \(body[2]) | \(body[3])\n")
 
         case .notification:
             guard
@@ -213,7 +217,7 @@ final class RPCSession {
             else {
                 return .failure(.unexpectedMessage(message))
             }
-            log("@\(method) \(params)\n")
+            logger.i("@\(method)", ["params": params])
             delegate?.session(self, didReceiveNotification: method, with: params)
         }
 
@@ -256,7 +260,7 @@ final class RPCSession {
                 ])
                 let data = MessagePack.pack(request)
 
-                log("\(id)> \(method)(\(params))\n")
+                logger.i("\(id)> \(method)(\(params))\n")
                 do {
                     try send(data)
                 } catch {
@@ -283,13 +287,5 @@ final class RPCSession {
             return
         }
         return try _send(data)
-    }
-
-    // MARK: - Toolkit
-
-    private func log(_ message: String) {
-        if debug {
-            print(message)
-        }
     }
 }

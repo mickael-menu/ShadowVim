@@ -48,13 +48,13 @@ final class AXNotificationObserver {
     private init(pid: pid_t) {
         self.pid = pid
     }
-  
+
     deinit {
         if let obs = _observer {
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(obs), .defaultMode)
         }
     }
-  
+
     /// Returns a new publisher for a notification emitted by the given source `element`.
     func publisher(for notification: AXNotification, element: AXUIElement) -> AXNotificationPublisher {
         AXNotificationPublisher(observer: self, key: NotificationKey(notification: notification, source: element))
@@ -106,7 +106,7 @@ final class AXNotificationObserver {
             return obs
         }
 
-        let callback: AXObserverCallback = { _, element, note, refcon in
+        let callback: AXObserverCallback = { _, element, _, refcon in
             precondition(refcon != nil)
             Unmanaged<NotificationSubscription>
                 .fromOpaque(refcon!).takeUnretainedValue()

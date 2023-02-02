@@ -18,15 +18,23 @@
 import AppKit
 import Foundation
 import Mediator
+import Toolkit
 
 class App {
-    private let mediator = MainMediator(bundleIDs: [
-        "com.apple.dt.Xcode",
-//        "com.apple.TextEdit",
-//        "com.google.android.studio",
-    ])
+    private let logger: Logger
+    private let mediator: MainMediator
 
-    init() {
+    init(logger: Logger) {
+        self.logger = logger
+
+        mediator = MainMediator(
+            bundleIDs: [
+                "com.apple.dt.Xcode",
+//                "com.apple.TextEdit",
+//                "com.google.android.studio",
+            ],
+            logger: logger
+        )
         mediator.delegate = self
     }
 
@@ -52,6 +60,13 @@ class App {
     private var presentedError: String?
 
     func presentAlert(error: Error, style: AlertStyle) {
+        switch style {
+        case .warning:
+            logger.w(error)
+        case .critical:
+            logger.e(error)
+        }
+
         // Prevent showing multiple alerts for the same error.
         let description = String(reflecting: error)
         guard presentedError != description else {

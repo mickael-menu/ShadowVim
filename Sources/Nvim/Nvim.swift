@@ -34,9 +34,11 @@ public protocol NvimDelegate: AnyObject {
 public class Nvim {
     /// Starts a new Nvim process.
     public static func start(
+        logger: Logger,
         executableURL: URL = URL(fileURLWithPath: "/usr/bin/env"),
         delegate: NvimDelegate? = nil
     ) throws -> Nvim {
+        let logger = logger.tagged("nvim")
         let input = Pipe()
         let output = Pipe()
         let process = Process()
@@ -65,9 +67,11 @@ public class Nvim {
         return Nvim(
             process: process,
             session: RPCSession(
+                logger: logger,
                 input: input.fileHandleForWriting,
                 output: output.fileHandleForReading
             ),
+            logger: logger,
             delegate: delegate
         )
     }
@@ -101,13 +105,15 @@ public class Nvim {
     public weak var delegate: NvimDelegate?
     private let process: Process
     private let session: RPCSession
+    private let logger: Logger
     private var isStopped = false
     private var subscriptions: Set<AnyCancellable> = []
 
-    private init(process: Process, session: RPCSession, delegate: NvimDelegate? = nil) {
+    private init(process: Process, session: RPCSession, logger: Logger, delegate: NvimDelegate? = nil) {
         let api = API(session: session)
         self.api = api
         self.process = process
+        self.logger = logger
         self.session = session
         events = EventDispatcher(api: api)
         self.delegate = delegate

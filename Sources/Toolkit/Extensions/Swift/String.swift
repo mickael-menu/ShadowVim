@@ -21,6 +21,11 @@ public extension String {
     var lines: [Substring] {
         split(separator: "\n", omittingEmptySubsequences: false)
     }
+
+    func indent(with indent: String) -> String {
+        indent + split(separator: "\n", omittingEmptySubsequences: false)
+            .joined(separator: "\n" + indent)
+    }
 }
 
 public extension Range where Bound == String.Index {
