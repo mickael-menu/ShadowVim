@@ -17,7 +17,24 @@
 
 import Foundation
 
+/// Indicates whether the app is running without release optimizations.
+private let debug: Bool = {
+    var isDebug = false
+    func set(debug: Bool) -> Bool {
+        isDebug = debug
+        return isDebug
+    }
+    // assert:
+    // "Condition is only evaluated in playgrounds and -Onone builds."
+    // so isDebug is never changed to true in Release builds
+    assert(set(debug: true))
+    return isDebug
+}()
+
 public enum Debug {
+    
+    public static var isDebugging: Bool { debug }
+
     public static func printCallStack() {
         Thread.callStackSymbols.forEach { print($0) }
     }

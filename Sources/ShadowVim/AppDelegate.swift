@@ -22,8 +22,7 @@ import Toolkit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     let app = App(
-        //        logger: NullLogger()
-        logger: NSLoggerLogger()
+        logger: Debug.isDebugging ? NSLoggerLogger() : nil
     )
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {

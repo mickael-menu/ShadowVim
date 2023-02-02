@@ -21,10 +21,10 @@ import Mediator
 import Toolkit
 
 class App {
-    private let logger: Logger
+    private let logger: Logger?
     private let mediator: MainMediator
 
-    init(logger: Logger) {
+    init(logger: Logger?) {
         self.logger = logger
 
         mediator = MainMediator(
@@ -62,9 +62,9 @@ class App {
     func presentAlert(error: Error, style: AlertStyle) {
         switch style {
         case .warning:
-            logger.w(error)
+            logger?.w(error)
         case .critical:
-            logger.e(error)
+            logger?.e(error)
         }
 
         // Prevent showing multiple alerts for the same error.

@@ -65,7 +65,7 @@ struct RPCRequestCallbacks {
 final class RPCSession {
     typealias RequestCompletion = (Result<Value, RPCError>) -> Void
 
-    private let logger: Logger
+    private let logger: Logger?
     private let _send: (Data) throws -> Void
     private let _receive: () -> Data
     private var receiveTask: Task<Void, Never>?
@@ -74,17 +74,17 @@ final class RPCSession {
     @Atomic private var isClosed: Bool = false
 
     init(
-        logger: Logger,
+        logger: Logger?,
         send: @escaping (Data) throws -> Void,
         receive: @escaping () -> Data
     ) {
-        self.logger = logger.tagged("rpc")
+        self.logger = logger?.tagged("rpc")
         _send = send
         _receive = receive
     }
 
     convenience init(
-        logger: Logger,
+        logger: Logger?,
         input: FileHandle,
         output: FileHandle
     ) {
@@ -178,7 +178,7 @@ final class RPCSession {
             else {
                 return .failure(.unexpectedMessage(message))
             }
-            logger.i(">\(id) \(method)(\(params))\n")
+            logger?.i(">\(id) \(method)(\(params))\n")
 
             guard
                 let delegate = delegate,
@@ -207,7 +207,7 @@ final class RPCSession {
             }()
 
             endRequest(id: id, with: result)
-            logger.i("\(id)< \(body[2]) | \(body[3])\n")
+            logger?.i("\(id)< \(body[2]) | \(body[3])\n")
 
         case .notification:
             guard
@@ -217,7 +217,7 @@ final class RPCSession {
             else {
                 return .failure(.unexpectedMessage(message))
             }
-            logger.i("@\(method)", ["params": params])
+            logger?.i("@\(method)", ["params": params])
             delegate?.session(self, didReceiveNotification: method, with: params)
         }
 
@@ -260,7 +260,7 @@ final class RPCSession {
                 ])
                 let data = MessagePack.pack(request)
 
-                logger.i("\(id)> \(method)(\(params))\n")
+                logger?.i("\(id)> \(method)(\(params))\n")
                 do {
                     try send(data)
                 } catch {

@@ -80,11 +80,6 @@ public extension Logger {
     }
 }
 
-public struct NullLogger: Logger {
-    public init() {}
-    public func log(_ entry: LogEntry) {}
-}
-
 public struct LogEntry {
     /// Severity level.
     public let level: LogLevel
