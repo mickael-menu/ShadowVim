@@ -130,8 +130,8 @@ public enum LogLevel: Int, Comparable {
 
 /// A `LogKey` identifies a structured metadata in a `LogPayload`.
 public struct LogKey: RawRepresentable, Hashable, ExpressibleByStringLiteral {
-    /// Free tag for grouping entries together.
-    public static let tag: LogKey = "tag"
+    /// Reverse domain name used to group entries together.
+    public static let domain: LogKey = "domain"
 
     /// A human-readable string message.
     public static let message: LogKey = "message"
@@ -157,6 +157,10 @@ public protocol LogPayloadConvertible: LogValueConvertible {
 }
 
 public extension LogPayloadConvertible {
+    var logValue: LogValue {
+        .dict(logPayload().mapValues(\.logValue))
+    }
+    
     func merging(_ other: LogPayloadConvertible) -> LogPayloadConvertible {
         logPayload().merging(other.logPayload()) { _, o in o }
     }
@@ -165,12 +169,6 @@ public extension LogPayloadConvertible {
 extension String: LogPayloadConvertible {
     public func logPayload() -> [LogKey: any LogValueConvertible] {
         [.message: self]
-    }
-}
-
-public extension LogPayloadConvertible {
-    func logValue() -> LogValue {
-        .dict(logPayload().mapValues(\.logValue))
     }
 }
 

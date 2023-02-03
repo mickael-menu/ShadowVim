@@ -17,30 +17,31 @@
 
 import Foundation
 
-/// A decorator presetting the `tag` of every log entry.
+/// A decorator presetting the `domain` of every log entry.
 ///
-/// If the entry already has a `tag`, it is appended to the logger tag.
-public struct TaggedLogger: Logger {
+/// If the entry already has a `domain`, it becomes a subdomain of the logger
+/// domain.
+public struct DomainLogger: Logger {
     private let logger: Logger
-    private let tag: String
+    private let domain: String
 
     public init(
         logger: Logger,
-        tag: String
+        domain: String
     ) {
         self.logger = logger
-        self.tag = tag
+        self.domain = domain
     }
 
     public func log(_ entry: LogEntry) {
         var copy = entry
         copy.payload = {
             var payload = entry.payload().logPayload()
-            var tag = tag
-            if case let .string(entryTag) = payload[.tag]?.logValue {
-                tag += ".\(entryTag)"
+            var domain = domain
+            if case let .string(entryDomain) = payload[.domain]?.logValue {
+                domain += ".\(entryDomain)"
             }
-            payload[.tag] = tag
+            payload[.domain] = domain
             return payload
         }
         logger.log(copy)
@@ -48,7 +49,7 @@ public struct TaggedLogger: Logger {
 }
 
 public extension Logger {
-    func tagged(_ tag: String) -> Logger {
-        TaggedLogger(logger: self, tag: tag)
+    func domain(_ domain: String) -> Logger {
+        DomainLogger(logger: self, domain: domain)
     }
 }

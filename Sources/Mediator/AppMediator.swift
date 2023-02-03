@@ -87,8 +87,8 @@ public final class AppMediator {
         self.delegate = delegate
         self.logger = logger
         appElement = AXUIElement.app(app)
-        nvim = try Nvim.start(logger: logger?.tagged("nvim"))
-        buffers = Buffers(events: nvim.events)
+        nvim = try Nvim.start(logger: logger?.domain("nvim"))
+        buffers = Buffers(events: nvim.events, logger: logger?.domain("buffers"))
         nvim.delegate = self
 
         setupFocusSync()

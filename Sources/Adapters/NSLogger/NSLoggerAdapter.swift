@@ -52,10 +52,10 @@ public struct NSLoggerLogger: Toolkit.Logger {
 
 private extension LogPayload {
     mutating func removeNSDomain() -> NSLogger.Logger.Domain {
-        guard case let .string(tag) = removeValue(forKey: .tag) else {
+        guard case let .string(domain) = removeValue(forKey: .domain) else {
             return .custom("app")
         }
-        return .custom(tag)
+        return .custom(domain)
     }
 }
 

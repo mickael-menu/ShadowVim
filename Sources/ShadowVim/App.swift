@@ -27,7 +27,7 @@ class App {
 
     init(logger: Logger?) {
         self.logger = logger
-        AX.setLogger(logger?.tagged("ax"))
+        AX.setLogger(logger?.domain("ax"))
 
         mediator = MainMediator(
             bundleIDs: [

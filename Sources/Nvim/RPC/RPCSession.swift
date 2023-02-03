@@ -212,12 +212,12 @@ final class RPCSession {
             }()
 
             switch result {
-            case .success(let value):
+            case let .success(value):
                 logger?.t([.message: "Receive response", .messageId: id, .result: value])
-            case .failure(let error):
+            case let .failure(error):
                 logger?.t([.message: "Receive response", .messageId: id, .error: String(reflecting: error)])
             }
-            
+
             endRequest(id: id, with: result)
 
         case .notification:

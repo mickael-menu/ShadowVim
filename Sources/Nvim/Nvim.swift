@@ -66,7 +66,7 @@ public class Nvim {
         return Nvim(
             process: process,
             session: RPCSession(
-                logger: logger?.tagged("rpc"),
+                logger: logger?.domain("rpc"),
                 input: input.fileHandleForWriting,
                 output: output.fileHandleForReading
             ),
@@ -109,7 +109,7 @@ public class Nvim {
     private var subscriptions: Set<AnyCancellable> = []
 
     private init(process: Process, session: RPCSession, logger: Logger?, delegate: NvimDelegate? = nil) {
-        let api = API(session: session, logger: logger?.tagged("api"))
+        let api = API(session: session, logger: logger?.domain("api"))
         self.api = api
         self.process = process
         self.logger = logger
