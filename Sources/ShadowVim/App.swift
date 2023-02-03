@@ -16,6 +16,7 @@
 //
 
 import AppKit
+import AX
 import Foundation
 import Mediator
 import Toolkit
@@ -26,6 +27,7 @@ class App {
 
     init(logger: Logger?) {
         self.logger = logger
+        AX.setLogger(logger?.tagged("ax"))
 
         mediator = MainMediator(
             bundleIDs: [
