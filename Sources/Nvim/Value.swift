@@ -61,9 +61,10 @@ extension Value: CustomStringConvertible {
     }
 }
 
+/// Makes `Value` directly loggable with a `Logger`.
 extension Value: LogValueConvertible {
     public var logValue: LogValue {
-        switch self {
+        switch nvimValue {
         case .nil:
             return .nil
         case let .bool(bool):

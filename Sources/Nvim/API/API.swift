@@ -30,24 +30,44 @@ public class API {
     /// single atomic transaction, use `Api.transaction()`.
     private enum TransactionLevel {
         case root(lock: AsyncLock)
-        case child
+        case child(level: Int)
+
+        func makeChild() -> TransactionLevel {
+            switch self {
+            case .root:
+                return .child(level: 0)
+            case let .child(level):
+                return .child(level: level + 1)
+            }
+        }
     }
 
     private let session: RPCSession
+    private let logger: Logger?
     private let transactionLevel: TransactionLevel
 
-    convenience init(session: RPCSession) {
+    convenience init(session: RPCSession, logger: Logger?) {
         self.init(
             session: session,
+            logger: logger,
             transactionLevel: .root(lock: AsyncLock())
         )
     }
 
     private init(
         session: RPCSession,
+        logger: Logger?,
         transactionLevel: TransactionLevel
     ) {
         self.session = session
+        self.logger = logger?.with(.transaction, to: {
+            switch transactionLevel {
+            case .root:
+                return "root"
+            case let .child(level):
+                return "child(\(level))"
+            }
+        }())
         self.transactionLevel = transactionLevel
     }
 
@@ -63,7 +83,7 @@ public class API {
             return lock.acquire()
                 .setFailureType(to: APIError.self)
                 .flatMap { [self] in
-                    block(API(session: session, transactionLevel: .child))
+                    block(API(session: session, logger: logger, transactionLevel: transactionLevel.makeChild()))
                 }
                 .mapError { $0 }
                 .onCompletion { _ in
@@ -346,6 +366,8 @@ public class API {
 
     @discardableResult
     public func request(_ method: String, with params: [ValueConvertible]) -> APIAsync<Value> {
+        logger?.t([.message: "Call Nvim API", .method: method, .params: params.map(\.nvimValue)])
+
         let requestCallbacks: RPCRequestCallbacks = {
             switch transactionLevel {
             case let .root(lock: lock):
@@ -414,4 +436,10 @@ extension Async where Success == Value, Failure == APIError {
             return .success(res)
         }
     }
+}
+
+private extension LogKey {
+    static var method: LogKey { "method" }
+    static var params: LogKey { "params" }
+    static var transaction: LogKey { "@transaction" }
 }

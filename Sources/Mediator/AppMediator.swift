@@ -87,7 +87,7 @@ public final class AppMediator {
         self.delegate = delegate
         self.logger = logger
         appElement = AXUIElement.app(app)
-        nvim = try Nvim.start(logger: logger)
+        nvim = try Nvim.start(logger: logger?.tagged("nvim"))
         buffers = Buffers(events: nvim.events)
         nvim.delegate = self
 
@@ -332,11 +332,6 @@ extension AppMediator: BufferMediatorDelegate {
 
 extension AppMediator: NvimDelegate {
     public func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>? {
-        logger?.i("Received RPC request from Nvim", [
-            "method": "SVRefresh",
-            "data": String(describing: data),
-        ])
-
         switch method {
         case "SVRefresh":
             guard let mediator = focusedBufferMediator else {

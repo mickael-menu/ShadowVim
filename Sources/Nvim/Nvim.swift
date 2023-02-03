@@ -38,7 +38,6 @@ public class Nvim {
         executableURL: URL = URL(fileURLWithPath: "/usr/bin/env"),
         delegate: NvimDelegate? = nil
     ) throws -> Nvim {
-        let logger = logger?.tagged("nvim")
         let input = Pipe()
         let output = Pipe()
         let process = Process()
@@ -67,7 +66,7 @@ public class Nvim {
         return Nvim(
             process: process,
             session: RPCSession(
-                logger: logger,
+                logger: logger?.tagged("rpc"),
                 input: input.fileHandleForWriting,
                 output: output.fileHandleForReading
             ),
@@ -110,7 +109,7 @@ public class Nvim {
     private var subscriptions: Set<AnyCancellable> = []
 
     private init(process: Process, session: RPCSession, logger: Logger?, delegate: NvimDelegate? = nil) {
-        let api = API(session: session)
+        let api = API(session: session, logger: logger?.tagged("api"))
         self.api = api
         self.process = process
         self.logger = logger

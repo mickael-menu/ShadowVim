@@ -22,7 +22,9 @@ import Toolkit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     let app = App(
-        logger: Debug.isDebugging ? NSLoggerLogger() : nil
+        logger: Debug.isDebugging
+            ? NSLoggerLogger().filter(minimumLevel: .trace)
+            : nil
     )
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
