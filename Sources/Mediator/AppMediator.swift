@@ -171,29 +171,56 @@ public final class AppMediator {
 
         switch event.type {
         case .keyDown:
+            return handleKeyDown(event, in: focusedBufferMediator.buffer)
+        default:
+            return event
+        }
+    }
+    
+    private func handleKeyDown(_ event: CGEvent, in buffer: BufferHandle) -> CGEvent? {
+        let modifiers = event.modifiers
+        
+        switch (modifiers, event.character) {
+        case ([.command], "z"):
+            nvim.api.transaction { [self] api in
+                buffers.edit(buffer: buffer, with: api)
+                    .flatMap { api.command("undo") }
+            }
+            .discardResult()
+            .forwardErrorToDelegate(of: self)
+            .run()
+            
+            return nil
+            
+        case ([.command, .shift], "z"):
+            nvim.api.transaction { [self] api in
+                buffers.edit(buffer: buffer, with: api)
+                    .flatMap { api.command("redo") }
+            }
+            .discardResult()
+            .forwardErrorToDelegate(of: self)
+            .run()
+            
+            return nil
+            
+        default:
             // Passthrough for ⌘-based keyboard shortcuts.
             guard !event.flags.contains(.maskCommand) else {
-                break
+                return event
             }
 
             // FIXME: See `nvim.paste` "Faster than nvim_input()."
 
             nvim.api.transaction { [self] api in
-                buffers.edit(buffer: focusedBufferMediator.buffer, with: api)
+                buffers.edit(buffer: buffer, with: api)
                     .flatMap { api.input(event.nvimKey) }
             }
             .discardResult()
-            .get(onFailure: { [self] in
-                delegate?.appMediator(self, didFailWithError: $0)
-            })
+            .forwardErrorToDelegate(of: self)
+            .run()
 
             return nil
-
-        default:
-            break
         }
-
-        return event
     }
 
     private var isAppFocused: Bool {
