@@ -176,33 +176,31 @@ public final class AppMediator {
             return event
         }
     }
-    
-    private func handleKeyDown(_ event: CGEvent, in buffer: BufferHandle) -> CGEvent? {
+
+    private func handleKeyDown(_ event: CGEvent, in buffer: Buffer) -> CGEvent? {
         let modifiers = event.modifiers
-        
+
         switch (modifiers, event.character) {
         case ([.command], "z"):
-            nvim.api.transaction { [self] api in
-                buffers.edit(buffer: buffer, with: api)
-                    .flatMap { api.command("undo") }
+            nvim.api.transaction(in: buffer) { api in
+                api.command("undo")
             }
             .discardResult()
             .forwardErrorToDelegate(of: self)
             .run()
-            
+
             return nil
-            
+
         case ([.command, .shift], "z"):
-            nvim.api.transaction { [self] api in
-                buffers.edit(buffer: buffer, with: api)
-                    .flatMap { api.command("redo") }
+            nvim.api.transaction(in: buffer) { api in
+                api.command("redo")
             }
             .discardResult()
             .forwardErrorToDelegate(of: self)
             .run()
-            
+
             return nil
-            
+
         default:
             // Passthrough for ⌘-based keyboard shortcuts.
             guard !event.flags.contains(.maskCommand) else {
@@ -211,9 +209,8 @@ public final class AppMediator {
 
             // FIXME: See `nvim.paste` "Faster than nvim_input()."
 
-            nvim.api.transaction { [self] api in
-                buffers.edit(buffer: buffer, with: api)
-                    .flatMap { api.input(event.nvimKey) }
+            nvim.api.transaction(in: buffer) { api in
+                api.input(event.nvimKey)
             }
             .discardResult()
             .forwardErrorToDelegate(of: self)
@@ -269,17 +266,16 @@ public final class AppMediator {
 
     private func editBuffer(for element: AXUIElement, name: BufferName) -> Async<BufferMediator, APIError> {
         buffers.edit(name: name, contents: element[.value] ?? "", with: nvim.api)
-            .map { [self] handle in
-                let buffer = bufferMediators.getOrPut(name) {
+            .map { [self] buffer in
+                let mediator = bufferMediators.getOrPut(name) {
                     BufferMediator(
                         nvim: nvim,
-                        buffer: handle,
+                        buffer: buffer,
                         element: element,
                         name: name,
-                        nvimBufferPublisher: buffers.publisher(for: handle),
                         nvimCursorPublisher: nvimCursorPublisher
                             .compactMap { buf, cur in
-                                guard buf == handle else {
+                                guard buf == buffer.handle else {
                                     return nil
                                 }
                                 return cur
@@ -289,8 +285,8 @@ public final class AppMediator {
                         delegate: self
                     )
                 }
-                buffer.element = element
-                return buffer
+                mediator.element = element
+                return mediator
             }
     }
 
@@ -362,21 +358,10 @@ extension AppMediator: NvimDelegate {
     public func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>? {
         switch method {
         case "SVRefresh":
-            guard let mediator = focusedBufferMediator else {
-                return .success(.bool(false))
+            DispatchQueue.main.async {
+                self.focusedBufferMediator?.refreshAX()
             }
-            nvim.api.transaction { api in
-                self.buffers.edit(buffer: mediator.buffer, with: api)
-                    .flatMap {
-                        api.bufGetLines(buffer: mediator.buffer, start: 0, end: -1)
-                    }
-                    .map { lines in
-                        try? mediator.element.set(.value, value: lines.joinedLines())
-                    }
-            }
-            .assertNoFailure()
-            .run()
-            return .success(.bool(true))
+            return .success(.nil)
         default:
             return nil
         }

@@ -33,7 +33,7 @@ protocol BufferMediatorDelegate: AnyObject {
 
 final class BufferMediator {
     var element: AXUIElement
-    let buffer: BufferHandle
+    let buffer: Buffer
     let name: String
     weak var delegate: BufferMediatorDelegate?
 
@@ -49,10 +49,9 @@ final class BufferMediator {
 
     init(
         nvim: Nvim,
-        buffer: BufferHandle,
+        buffer: Buffer,
         element: AXUIElement,
         name: String,
-        nvimBufferPublisher: AnyPublisher<Buffer, Never>,
         nvimCursorPublisher: AnyPublisher<Cursor, APIError>,
         logger: Logger?,
         delegate: BufferMediatorDelegate?
@@ -64,7 +63,7 @@ final class BufferMediator {
         self.logger = logger
         self.delegate = delegate
 
-        setupBufferSync(nvimBufferPublisher: nvimBufferPublisher)
+        setupBufferSync()
         setupCursorSync(nvimCursorPublisher: nvimCursorPublisher)
     }
 
@@ -74,18 +73,26 @@ final class BufferMediator {
 
     // MARK: - Buffer synchronization
 
-    private var nvimBuffer: Buffer?
+    func refreshAX() {
+        do {
+            nvimLock.activate()
+            try element.set(.value, value: buffer.lines.joinedLines())
+            syncCursorNvim2AX(nvimCursor)
+        } catch {
+            delegate?.bufferMediator(self, didFailWithError: error)
+        }
+    }
 
-    private func setupBufferSync(nvimBufferPublisher: AnyPublisher<Buffer, Never>) {
+    private func setupBufferSync() {
         // Nvim -> AX
-        nvimBufferPublisher
+        buffer.didChangePublisher
             .receive(on: DispatchQueue.main)
             .sink(
                 onFailure: { [unowned self] error in
                     delegate?.bufferMediator(self, didFailWithError: error)
                 },
-                receiveValue: { [unowned self] event in
-                    syncBufferNvim2AX(with: event)
+                receiveValue: { [unowned self] _ in
+                    syncBufferNvim2AX()
                 }
             )
             .store(in: &subscriptions)
@@ -104,9 +111,8 @@ final class BufferMediator {
             .store(in: &subscriptions)
     }
 
-    private func syncBufferNvim2AX(with buffer: Buffer) {
+    private func syncBufferNvim2AX() {
         do {
-            nvimBuffer = buffer
             let content = (try element.get(.value) as String?) ?? ""
             let value = try element.get(.value) ?? ""
             guard
@@ -128,14 +134,14 @@ final class BufferMediator {
 
     private func syncBufferAX2Nvim() {
         do {
-            guard !nvimLock.isOn, let nvimBuffer = nvimBuffer else {
+            guard !nvimLock.isOn else {
                 return
             }
             let lines = (try element.get(.value) ?? "").lines
 
             try withAsyncGroup { group in
                 let cursor = try cursorPosition(of: element)
-                let diff = lines.map { String($0) }.difference(from: nvimBuffer.lines)
+                let diff = lines.map { String($0) }.difference(from: buffer.lines)
                 for change in diff {
                     var start: LineIndex
                     var end: LineIndex
@@ -150,7 +156,7 @@ final class BufferMediator {
                         end = offset + 1
                         replacement = []
                     }
-                    nvim.api.bufSetLines(buffer: buffer, start: start, end: end, replacement: replacement)
+                    nvim.api.bufSetLines(buffer: buffer.handle, start: start, end: end, replacement: replacement)
                         .add(to: group)
                 }
 

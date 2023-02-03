@@ -71,7 +71,7 @@ public class Nvim {
             logger: logger,
             delegate: delegate
         )
-        
+
         try process.run()
         DispatchQueue.global().async {
             process.waitUntilExit()
@@ -79,7 +79,7 @@ public class Nvim {
             logger?.w("Nvim closed with status \(process.terminationStatus)")
             nvim.delegate?.nvim(nvim, didFailWithError: .processStopped(status: Int(process.terminationStatus)))
         }
-        
+
         return nvim
     }
 

@@ -130,8 +130,12 @@ public struct BufLinesEvent {
 
     /// Applies the changes in `lines` for this `BufLinesEvent`.
     public func applyChanges(in lines: [String]) -> [String] {
+        guard lastLine > -1 else {
+            // Initial event which contains the whole buffer.
+            return lineData
+        }
+
         var lines = lines
-        let lastLine = (lastLine > -1) ? lastLine : firstLine + lineData.count - 1
         lines.replaceSubrange(firstLine ..< lastLine, with: lineData)
         return lines
     }

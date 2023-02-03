@@ -20,29 +20,12 @@ import Foundation
 import Nvim
 import Toolkit
 
-/// Represents the current state of a Nvim buffer.
-struct Buffer {
-    /// Nvim buffer handle.
-    let handle: BufferHandle
-
-    /// Name of the buffer.
-    var name: String?
-
-    /// Current content lines.
-    var lines: [String] = []
-
-    /// Previous content lines, before receiving the last `BufLinesEvent`.
-    var oldLines: [String] = []
-
-    /// Last `BufLinesEvent` that was emitted by this buffer.
-    var lastLinesEvent: BufLinesEvent?
-}
-
 /// Manages the Nvim buffers.
 final class Buffers {
     public private(set) var editedBuffer: BufferHandle = 0
 
     @Published private(set) var buffers: [BufferHandle: Buffer] = [:]
+    private let bufLinesPublisher: AnyPublisher<BufLinesEvent, Never>
 
     private var subscriptions: Set<AnyCancellable> = []
     private let logger: Logger?
@@ -50,77 +33,54 @@ final class Buffers {
     init(events: EventDispatcher, logger: Logger?) {
         self.logger = logger
 
-        setupNotifications(using: events)
-    }
+        bufLinesPublisher = events.bufLinesPublisher()
+            .breakpointOnError()
+            .ignoreFailure()
 
-    /// Publisher to observes the changes of the buffer with given `handle`.
-    func publisher(for handle: BufferHandle) -> AnyPublisher<Buffer, Never> {
-        $buffers
-            .compactMap { $0[handle] }
-            .eraseToAnyPublisher()
-    }
-
-    func edit(name: String, contents: String, with api: API) -> APIAsync<BufferHandle> {
-        api.transaction { [self] api in
-            activate(name: name, with: api)
-                .flatMap { buffer in
-                    if let buffer = buffer {
-                        return .success(buffer)
-                    } else {
-                        return self.open(name: name, contents: contents, with: api)
-                    }
-                }
-        }
-    }
-
-    func edit(buffer: BufferHandle, with api: API) -> APIAsync<Void> {
-        guard editedBuffer != buffer else {
-            return .success(())
-        }
-
-        return api.cmd("buffer", args: .int(buffer))
-            .discardResult()
-            .onSuccess { self.editedBuffer = buffer }
-    }
-
-    private func activate(name: String, with api: API) -> APIAsync<BufferHandle?> {
-        Async { [self] in
-            guard let buffer = buffers.values.first(where: { $0.name == name }) else {
-                return .success(nil)
+        events.autoCmdPublisher(for: "BufEnter", args: "expand('<abuf>')")
+            .assertNoFailure()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] data in
+                self?.editedBuffer = Int(data.first?.stringValue ?? "0") ?? 0
             }
+            .store(in: &subscriptions)
+    }
 
-            return edit(buffer: buffer.handle, with: api)
-                .map { _ in buffer.handle }
+    func edit(name: String, contents: @autoclosure () -> String, with api: API) -> APIAsync<Buffer> {
+        if let (_, buffer) = buffers.first(where: { $0.value.name == name }) {
+            return activate(buffer: buffer.handle, with: api)
+                .map { _ in buffer }
+        } else {
+            return create(name: name, contents: contents(), with: api)
         }
     }
 
-    private func open(name: String, contents: String, with api: API) -> APIAsync<BufferHandle> {
-        var buffer: BufferHandle!
+    private func create(name: String, contents: String, with api: API) -> APIAsync<Buffer> {
+        var buffer: Buffer!
         let lines = contents.lines.map { String($0) }
 
         return api.transaction { api in
             api.createBuf(listed: false, scratch: true)
                 .flatMap { [self] handle in
                     precondition(Thread.isMainThread)
-                    buffer = handle
-                    buffers[handle] = Buffer(handle: handle, name: name, lines: lines)
-
-                    return api.bufSetLines(buffer: buffer, start: 0, end: -1, replacement: lines)
+                    buffer = makeBuffer(handle: handle, name: name)
+                    return api.bufSetLines(buffer: handle, start: 0, end: -1, replacement: lines)
                 }
                 .flatMap {
-                    api.bufAttach(buffer: buffer, sendBuffer: false)
+                    api.bufAttach(buffer: buffer.handle, sendBuffer: true)
                 }
                 .flatMap { _ in
-                    api.exec("""
+                    let handle = buffer!.handle
+                    return api.exec("""
                     " Activate the newly created buffer.
-                    buffer! \(buffer!)
+                    buffer! \(handle)
 
                     " Detect the filetype using the buffer contents and the
                     " provided name.
                     lua << EOF
-                    local ft, _ = vim.filetype.match({ filename = "\(name)", buf = \(buffer!) })
+                    local ft, _ = vim.filetype.match({ filename = "\(name)", buf = \(handle) })
                     if ft then
-                        vim.api.nvim_buf_set_option(\(buffer!), "filetype", ft)
+                        vim.api.nvim_buf_set_option(\(handle), "filetype", ft)
                     end
                     EOF
 
@@ -137,32 +97,35 @@ final class Buffers {
         .map { _ in buffer }
     }
 
-    // MARK: - Notifications
+    private func makeBuffer(handle: BufferHandle, name: String) -> Buffer {
+        precondition(buffers[handle] == nil)
 
-    private func setupNotifications(using events: EventDispatcher) {
-        events.bufLinesPublisher()
-            .receive(on: DispatchQueue.main)
-            .breakpointOnError()
-            .ignoreFailure()
-            .sink { [unowned self] event in
-                guard var buffer = buffers[event.buf] else {
-                    logger?.w("Received BufLinesEvent for an unknown buffer")
-                    return
-                }
+        let buffer = Buffer(
+            handle: handle,
+            name: name,
+            delegate: self,
+            linesEventPublisher: bufLinesPublisher
+                .filter { $0.buf == handle }
+                .eraseToAnyPublisher()
+        )
+        buffers[handle] = buffer
 
-                buffer.oldLines = buffer.lines
-                buffer.lines = event.applyChanges(in: buffer.lines)
-                buffer.lastLinesEvent = event
-                buffers[event.buf] = buffer
-            }
-            .store(in: &subscriptions)
+        return buffer
+    }
 
-        events.autoCmdPublisher(for: "BufEnter", args: "expand('<abuf>')")
-            .assertNoFailure()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] data in
-                self?.editedBuffer = Int(data.first?.stringValue ?? "0") ?? 0
-            }
-            .store(in: &subscriptions)
+    private func activate(buffer: BufferHandle, with api: API) -> APIAsync<Void> {
+        guard editedBuffer != buffer else {
+            return .success(())
+        }
+
+        return api.cmd("buffer", args: .int(buffer))
+            .discardResult()
+            .onSuccess { self.editedBuffer = buffer }
+    }
+}
+
+extension Buffers: BufferDelegate {
+    func buffer(_ buffer: Buffer, activateWith api: API) -> APIAsync<Void> {
+        activate(buffer: buffer.handle, with: api)
     }
 }
