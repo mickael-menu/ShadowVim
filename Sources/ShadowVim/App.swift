@@ -19,6 +19,7 @@ import AppKit
 import AX
 import Foundation
 import Mediator
+import Nvim
 import Toolkit
 
 class App {
@@ -150,7 +151,38 @@ class App {
 extension App: MainMediatorDelegate {
     func mainMediator(_ mediator: MainMediator, didFailWithError error: Error) {
         DispatchQueue.main.async {
-            self.presentAlert(error: error, style: .warning)
+            let userError = UserError(error: error)
+            let critical = userError?.critical ?? false
+            let error = userError ?? error
+            
+            self.presentAlert(error: error, style: critical ? .critical : .warning)
+        }
+    }
+}
+
+enum UserError: LocalizedError {
+    case nvimClosed(status: Int)
+    
+    var errorDescription: String? {
+        switch self {
+            case .nvimClosed(status: let status):
+            return "Nvim closed with status \(status). Relaunch ShadowVim?"
+        }
+    }
+    
+    var critical: Bool {
+        switch self {
+        case .nvimClosed:
+            return true
+        }
+    }
+    
+    init?(error: Error) {
+        switch error {
+        case NvimError.processStopped(status: let status):
+            self = .nvimClosed(status: status)
+        default:
+            return nil
         }
     }
 }

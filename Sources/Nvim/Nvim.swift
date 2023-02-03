@@ -21,7 +21,7 @@ import Foundation
 import Toolkit
 
 public enum NvimError: Error {
-    case processStopped
+    case processStopped(status: Int)
     case apiFailure(APIError)
     case rpcFailure(RPCError)
 }
@@ -61,9 +61,7 @@ public class Nvim {
                 // XDG: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
                 + ":$HOME/.local/bin",
         ]
-        try process.run()
-
-        return Nvim(
+        let nvim = Nvim(
             process: process,
             session: RPCSession(
                 logger: logger?.domain("rpc"),
@@ -73,6 +71,16 @@ public class Nvim {
             logger: logger,
             delegate: delegate
         )
+        
+        try process.run()
+        DispatchQueue.global().async {
+            process.waitUntilExit()
+            nvim.stop()
+            logger?.w("Nvim closed with status \(process.terminationStatus)")
+            nvim.delegate?.nvim(nvim, didFailWithError: .processStopped(status: Int(process.terminationStatus)))
+        }
+        
+        return nvim
     }
 
     /// Locates ShadowVim's default configuration file.
