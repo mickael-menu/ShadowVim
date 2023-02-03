@@ -486,36 +486,3 @@ public extension Async {
         }
     }
 }
-
-/// A non-blocking lock to protect critical sections.
-///
-/// Instead of blocking the calling thread, `acquire` returns an `Async` object
-/// which will be completed when the lock is freed.
-public class AsyncLock {
-    private let queue = DispatchQueue(label: "menu.mickael.AsyncLock")
-    private var isLocked: Bool = false
-    private var waitlist: [(Result<Void, Never>) -> Void] = []
-
-    public init() {}
-
-    public func acquire() -> Async<Void, Never> {
-        Async(on: queue) { [self] completion in
-            if isLocked {
-                waitlist.append(completion)
-            } else {
-                isLocked = true
-                completion(.success(()))
-            }
-        }
-    }
-
-    public func release() {
-        queue.async { [self] in
-            if waitlist.isEmpty {
-                isLocked = false
-            } else {
-                waitlist.removeFirst()(.success(()))
-            }
-        }
-    }
-}
