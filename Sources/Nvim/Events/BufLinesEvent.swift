@@ -218,7 +218,7 @@ public struct BufLinesEvent {
 
     /// New buffer lines joined with newline characters.
     private var data: String {
-        lineData.joined(separator: "\n")
+        lineData.joinedLines()
     }
 
     /// Calculates the character range in `lines` between the indexes `firstLine` and

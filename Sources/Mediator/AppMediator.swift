@@ -249,7 +249,7 @@ public final class AppMediator {
                         buffer: handle,
                         element: element,
                         name: name,
-                        nvimLinesPublisher: buffers.linesPublisher(for: handle),
+                        nvimBufferPublisher: buffers.publisher(for: handle),
                         nvimCursorPublisher: nvimCursorPublisher
                             .compactMap { buf, cur in
                                 guard buf == handle else {
@@ -258,6 +258,7 @@ public final class AppMediator {
                                 return cur
                             }
                             .eraseToAnyPublisher(),
+                        logger: logger,
                         delegate: self
                     )
                 }
@@ -343,7 +344,7 @@ extension AppMediator: NvimDelegate {
                         api.bufGetLines(buffer: mediator.buffer, start: 0, end: -1)
                     }
                     .map { lines in
-                        try? mediator.element.set(.value, value: lines.joined(separator: "\n"))
+                        try? mediator.element.set(.value, value: lines.joinedLines())
                     }
             }
             .assertNoFailure()

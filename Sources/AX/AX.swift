@@ -37,4 +37,4 @@ public func setLogger(_ logger: Logger?) {
     axLogger = logger
 }
 
-var axLogger: Logger? = nil
+var axLogger: Logger?

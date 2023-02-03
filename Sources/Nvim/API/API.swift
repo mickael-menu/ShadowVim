@@ -180,19 +180,19 @@ public class API {
     ///
     /// Appending:
     ///     bufSetLines(start: -1, end: -1, replacement: ["foo", "bar"])
-    public func bufSetLines(
+    public func bufSetLines<S: StringProtocol>(
         buffer: BufferHandle = 0,
         start: LineIndex,
         end: LineIndex,
         strictIndexing: Bool = true,
-        replacement: [String]
+        replacement: [S]
     ) -> APIAsync<Void> {
         request("nvim_buf_set_lines", with: [
             Value.buffer(buffer),
             start,
             end,
             strictIndexing,
-            replacement,
+            replacement.map { String($0) },
         ])
         .discardResult()
     }

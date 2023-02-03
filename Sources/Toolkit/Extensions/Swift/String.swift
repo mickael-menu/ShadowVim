@@ -37,3 +37,9 @@ public extension Range where Bound == String.Index {
         )
     }
 }
+
+public extension Sequence where Element: StringProtocol {
+    func joinedLines() -> String {
+        joined(separator: "\n")
+    }
+}

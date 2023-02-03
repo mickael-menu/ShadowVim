@@ -20,27 +20,43 @@ import Foundation
 import Nvim
 import Toolkit
 
+/// Represents the current state of a Nvim buffer.
+struct Buffer {
+    /// Nvim buffer handle.
+    let handle: BufferHandle
+
+    /// Name of the buffer.
+    var name: String?
+
+    /// Current content lines.
+    var lines: [String] = []
+
+    /// Previous content lines, before receiving the last `BufLinesEvent`.
+    var oldLines: [String] = []
+
+    /// Last `BufLinesEvent` that was emitted by this buffer.
+    var lastLinesEvent: BufLinesEvent?
+}
+
+/// Manages the Nvim buffers.
 final class Buffers {
-    private struct Buffer {
-        let handle: BufferHandle
-        let name: String?
-        var lines: [String]
-    }
-
     public private(set) var editedBuffer: BufferHandle = 0
-    @Atomic private var buffers: [BufferHandle: Buffer] = [:]
-    private var subscriptions: Set<AnyCancellable> = []
-    private let bufLinesEventPublisher: AnyPublisher<BufLinesEvent, APIError>
 
-    init(events: EventDispatcher) {
-        bufLinesEventPublisher = events.bufLinesPublisher()
+    @Published private(set) var buffers: [BufferHandle: Buffer] = [:]
+
+    private var subscriptions: Set<AnyCancellable> = []
+    private let logger: Logger?
+
+    init(events: EventDispatcher, logger: Logger?) {
+        self.logger = logger
 
         setupNotifications(using: events)
     }
 
-    func linesPublisher(for buffer: BufferHandle) -> AnyPublisher<BufLinesEvent, APIError> {
-        bufLinesEventPublisher
-            .filter { $0.buf == buffer }
+    /// Publisher to observes the changes of the buffer with given `handle`.
+    func publisher(for handle: BufferHandle) -> AnyPublisher<Buffer, Never> {
+        $buffers
+            .compactMap { $0[handle] }
             .eraseToAnyPublisher()
     }
 
@@ -84,12 +100,10 @@ final class Buffers {
 
         return api.transaction { api in
             api.createBuf(listed: false, scratch: true)
-                .flatMap { handle in
+                .flatMap { [self] handle in
+                    precondition(Thread.isMainThread)
                     buffer = handle
-
-                    self.$buffers.write {
-                        $0[handle] = Buffer(handle: handle, name: name, lines: lines)
-                    }
+                    buffers[handle] = Buffer(handle: handle, name: name, lines: lines)
 
                     return api.bufSetLines(buffer: buffer, start: 0, end: -1, replacement: lines)
                 }
@@ -126,26 +140,29 @@ final class Buffers {
     // MARK: - Notifications
 
     private func setupNotifications(using events: EventDispatcher) {
-        bufLinesEventPublisher
+        events.bufLinesPublisher()
+            .receive(on: DispatchQueue.main)
+            .breakpointOnError()
             .ignoreFailure()
-            .sink { [weak self] in self?.onBufLines(event: $0) }
+            .sink { [unowned self] event in
+                guard var buffer = buffers[event.buf] else {
+                    logger?.w("Received BufLinesEvent for an unknown buffer")
+                    return
+                }
+
+                buffer.oldLines = buffer.lines
+                buffer.lines = event.applyChanges(in: buffer.lines)
+                buffer.lastLinesEvent = event
+                buffers[event.buf] = buffer
+            }
             .store(in: &subscriptions)
 
         events.autoCmdPublisher(for: "BufEnter", args: "expand('<abuf>')")
             .assertNoFailure()
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] data in
                 self?.editedBuffer = Int(data.first?.stringValue ?? "0") ?? 0
             }
             .store(in: &subscriptions)
-    }
-
-    private func onBufLines(event: BufLinesEvent) {
-        $buffers.write { buffers in
-            guard var buffer = buffers[event.buf] else {
-                return
-            }
-            buffer.lines = event.applyChanges(in: buffer.lines)
-            buffers[event.buf] = buffer
-        }
     }
 }

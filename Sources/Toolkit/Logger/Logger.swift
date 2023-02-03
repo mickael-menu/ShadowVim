@@ -160,7 +160,7 @@ public extension LogPayloadConvertible {
     var logValue: LogValue {
         .dict(logPayload().mapValues(\.logValue))
     }
-    
+
     func merging(_ other: LogPayloadConvertible) -> LogPayloadConvertible {
         logPayload().merging(other.logPayload()) { _, o in o }
     }

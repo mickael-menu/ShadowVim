@@ -24,10 +24,12 @@ public typealias Event = String
 /// Receives Neovim RPC events and dispatch them to observers using publishers.
 public class EventDispatcher {
     private let api: API
+    private let logger: Logger?
     @Atomic private var mediators: [Event: EventMediator] = [:]
 
-    init(api: API) {
+    init(api: API, logger: Logger?) {
         self.api = api
+        self.logger = logger
     }
 
     /// Receives an `event` and dispatches it to the listening `EventMediator`.
@@ -38,7 +40,7 @@ public class EventDispatcher {
     public func publisher(for event: String) -> AnyPublisher<[Value], APIError> {
         let mediator = $mediators.write {
             $0.getOrPut(event) {
-                EventMediator(event: event, api: api)
+                EventMediator(event: event, api: api, logger: logger)
             }
         }
 
@@ -96,6 +98,7 @@ public class EventDispatcher {
         let mediator = EventMediator(
             event: eventName,
             api: api,
+            logger: logger,
 
             onSetup: { [api] in
                 var argsList = ""
@@ -140,6 +143,7 @@ private class EventMediator {
     let event: Event
 
     private let api: API
+    private let logger: Logger?
     private let onSetup: () -> APIAsync<Void>
     private let onTeardown: () -> APIAsync<Void>
     @Atomic private var receivers: [any EventReceiver] = []
@@ -147,10 +151,12 @@ private class EventMediator {
     init(
         event: Event,
         api: API,
+        logger: Logger?,
         onSetup: @escaping () -> APIAsync<Void> = { .success(()) },
         onTeardown: @escaping () -> APIAsync<Void> = { .success(()) }
     ) {
         self.event = event
+        self.logger = logger
         self.api = api
         self.onSetup = onSetup
         self.onTeardown = onTeardown

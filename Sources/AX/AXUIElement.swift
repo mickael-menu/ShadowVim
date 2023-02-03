@@ -344,13 +344,13 @@ extension AXUIElement: CustomStringConvertible {
     }
 }
 
- extension AXUIElement: LogPayloadConvertible {
-     public func logPayload() -> [LogKey: any LogValueConvertible] {
-         [
-             "hash": hashValue,
-             "pid": (try? Int(pid())) ?? 0,
-             "role": (try? get(.role) as String?) ?? "",
-             "description": (try? get(.description) as String?) ?? "",
-         ]
-     }
- }
+extension AXUIElement: LogPayloadConvertible {
+    public func logPayload() -> [LogKey: any LogValueConvertible] {
+        [
+            "hash": hashValue,
+            "pid": (try? Int(pid())) ?? 0,
+            "role": (try? get(.role) as String?) ?? "",
+            "description": (try? get(.description) as String?) ?? "",
+        ]
+    }
+}

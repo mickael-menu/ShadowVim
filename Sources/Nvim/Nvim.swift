@@ -114,7 +114,7 @@ public class Nvim {
         self.process = process
         self.logger = logger
         self.session = session
-        events = EventDispatcher(api: api)
+        events = EventDispatcher(api: api, logger: logger?.domain("events"))
         self.delegate = delegate
 
         NotificationCenter.default
