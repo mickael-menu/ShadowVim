@@ -159,3 +159,18 @@ extension Dictionary: LogValueConvertible where Key == LogKey, Value == any LogV
         .dict(logPayload().mapValues(\.logValue))
     }
 }
+
+extension CollectionDifference: LogValueConvertible {
+    public var logValue: LogValue {
+        var changes: [LogValue] = []
+        for change in self {
+            switch change {
+            case .insert(offset: let offset, element: let element, _):
+                changes.append(.string("insert at \(offset): '\(element)'"))
+            case .remove(offset: let offset, element: let element, _):
+                changes.append(.string("remove at \(offset): '\(element)'"))
+            }
+        }
+        return .array(changes)
+    }
+}

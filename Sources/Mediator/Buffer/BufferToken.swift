@@ -29,14 +29,17 @@ final class BufferToken {
     
     @Atomic private(set) var owner: Owner? = nil
     
+    private let logger: Logger?
     private let onRelease: (Owner) -> Void
     private var autoReleaseSubject = PassthroughSubject<Void, Never>()
     private var autoReleaseSubscription: AnyCancellable!
 
     public init(
         releaseTimer: TimeInterval = 0.3,
+        logger: Logger?,
         onRelease: @escaping (Owner) -> Void
     ) {
+        self.logger = logger
         self.onRelease = onRelease
         self.autoReleaseSubscription = autoReleaseSubject
             .debounce(for: .seconds(releaseTimer), scheduler: DispatchQueue.global())
@@ -53,10 +56,12 @@ final class BufferToken {
         case nil:
             $owner.write { $0 = newOwner }
             autoReleaseSubject.send()
+            logger?.t("Acquired by \(newOwner)")
             return true
             
         default:
             // Already acquired by the other owner.
+            logger?.t("Failed to acquire for \(newOwner)")
             return false
         }
     }
@@ -67,6 +72,7 @@ final class BufferToken {
                 return
             }
             owner = nil
+            logger?.t("Released by \(formerOwner)")
             onRelease(formerOwner)
         }
     }

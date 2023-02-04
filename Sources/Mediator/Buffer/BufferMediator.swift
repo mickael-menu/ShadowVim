@@ -32,8 +32,8 @@ protocol BufferMediatorDelegate: AnyObject {
 }
 
 final class BufferMediator {
-    var element: AXUIElement
-    let buffer: Buffer
+    var uiBuffer: AXUIElement
+    let nvimBuffer: Buffer
     let name: String
     weak var delegate: BufferMediatorDelegate?
 
@@ -45,25 +45,28 @@ final class BufferMediator {
     /// events (`selectedTextChanged`, `valueChanged`, etc.) will be fired in a
     /// row. To prevent synchronizing these changes back to Nvim, we ignore the
     /// events with this lock debounced with a given delay.
-    private lazy var token = BufferToken(
-        onRelease: { [weak self] in self?.didReleaseToken(owner: $0) }
-    )
+    private var token: BufferToken!
 
     init(
         nvim: Nvim,
-        buffer: Buffer,
-        element: AXUIElement,
+        nvimBuffer: Buffer,
+        uiBuffer: AXUIElement,
         name: String,
         nvimCursorPublisher: AnyPublisher<Cursor, APIError>,
         logger: Logger?,
         delegate: BufferMediatorDelegate?
     ) {
         self.nvim = nvim
-        self.buffer = buffer
-        self.element = element
+        self.nvimBuffer = nvimBuffer
+        self.uiBuffer = uiBuffer
         self.name = name
         self.logger = logger
         self.delegate = delegate
+        
+        self.token = BufferToken(
+            logger: logger?.domain("token"),
+            onRelease: { [weak self] in self?.didReleaseToken(owner: $0) }
+        )
 
         setupBufferSync()
         setupCursorSync(nvimCursorPublisher: nvimCursorPublisher)
@@ -72,28 +75,73 @@ final class BufferMediator {
     func didFocus() {
         uiCursorDidChange()
     }
-    
-    private var needsUpdate: Bool = false
 
     private func didReleaseToken(owner: BufferToken.Owner) {
         DispatchQueue.main.async { [self] in
-            guard needsUpdate  else {
-                return
-            }
-            needsUpdate = false
-            
             do {
-                let axLines: String = try element.get(.value) ?? ""
-                let bufferLines = buffer.lines.joinedLines()
-                if bufferLines != axLines {
-                    logger?.d("Needs updating")
-                    try element.set(.value, value: axLines)
-                } else {
-                    logger?.d("Already up to date")
+                let uiLines = (try uiBuffer.get(.value) ?? "").lines.map { String($0) }
+                let nvimLines = nvimBuffer.lines
+            
+                switch owner {
+                case .nvim:
+                    let changes = nvimLines.difference(from: uiLines)
+                    if !changes.isEmpty {
+                        logger?.d([
+                            .message: "Needs updating Nvim → UI",
+                            "changes": changes,
+                            "nvimLines": nvimLines,
+                            "uiLines": uiLines
+                        ])
+                        applyNvimChanges(changes)
+                        nvimCursorDidChange(nvimCursor)
+                    }
+                    
+                case .ui:
+                    let changes = uiLines.difference(from: nvimLines)
+                    if !changes.isEmpty {
+                        logger?.d([
+                            .message: "Needs updating UI → Nvim",
+                            "changes": changes,
+                            "nvimLines": nvimLines,
+                            "uiLines": uiLines
+                        ])
+                        
+//                        nvim.api.bufSetLines(buffer: nvimBuffer.handle, start: 0, end: -1, replacement: uiLines)
+//                            .forwardErrorToDelegate(of: self)
+//                            .run()
+                    }
                 }
+                    
             } catch {
-                logger?.e(error)
+                delegate?.bufferMediator(self, didFailWithError: error)
             }
+        }
+    }
+    
+    private func applyNvimChanges(_ changes: CollectionDifference<String>) {
+        do {
+            for change in changes {
+                switch change {
+                case .insert(offset: let offset, element: let element, _):
+                    guard let range: CFRange = try uiBuffer.get(.rangeForLine, with: offset) else {
+                        logger?.w("Failed to insert line at \(offset)")
+                        return
+                    }
+                    try uiBuffer.set(.selectedTextRange, value: CFRange(location: range.location, length: 0))
+                    try uiBuffer.set(.selectedText, value: element + "\n")
+                    
+                case .remove(offset: let offset, _, _):
+                    guard let range: CFRange = try uiBuffer.get(.rangeForLine, with: offset) else {
+                        logger?.w("Failed to remove line at \(offset)")
+                        return
+                    }
+                    try uiBuffer.set(.selectedTextRange, value: range)
+                    try uiBuffer.set(.selectedText, value: "")
+                }
+            }
+        } catch {
+            logger?.e(error)
+            delegate?.bufferMediator(self, didFailWithError: error)
         }
     }
 
@@ -105,7 +153,7 @@ final class BufferMediator {
         }
         
         do {
-            try element.set(.value, value: buffer.lines.joinedLines())
+            try uiBuffer.set(.value, value: nvimBuffer.lines.joinedLines())
             nvimCursorDidChange(nvimCursor)
         } catch {
             delegate?.bufferMediator(self, didFailWithError: error)
@@ -115,7 +163,7 @@ final class BufferMediator {
 
     private func setupBufferSync() {
         // Nvim -> UI
-        buffer.didChangePublisher
+        nvimBuffer.didChangePublisher
             .receive(on: DispatchQueue.main)
             .sink(
                 onFailure: { [unowned self] error in
@@ -128,7 +176,7 @@ final class BufferMediator {
             .store(in: &subscriptions)
 
         // UI -> Nvim
-        element.publisher(for: .valueChanged)
+        uiBuffer.publisher(for: .valueChanged)
             .receive(on: DispatchQueue.main)
             .sink(
                 onFailure: { [unowned self] error in
@@ -142,28 +190,32 @@ final class BufferMediator {
     }
 
     private func nvimBufferDidChange() {
+        precondition(Thread.isMainThread)
+
         guard token.tryAcquire(for: .nvim) else {
             return
         }
         
         do {
-            let content = (try element.get(.value) as String?) ?? ""
-            let value = try element.get(.value) ?? ""
-            
-            guard value == buffer.oldLines.joinedLines() else {
-                needsUpdate = true
+            let uiContent = try uiBuffer.get(.value) ?? ""
+            guard uiContent == nvimBuffer.oldLines.joinedLines() else {
+                logger?.t([
+                    .message: "Cannot apply buffer changes from Nvim",
+                    "expected": self.nvimBuffer.oldLines,
+                    "current": uiContent.lines.map { String($0) }
+                ])
                 return
             }
             
             guard
-                value != buffer.lines.joinedLines(),
-                let (range, replacement) = buffer.lastLinesEvent?.changes(in: content)
+                uiContent != nvimBuffer.lines.joinedLines(),
+                let (range, replacement) = nvimBuffer.lastLinesEvent?.changes(in: uiContent)
             else {
                 return
             }
 
-            try element.set(.selectedTextRange, value: range.cfRange(in: content))
-            try element.set(.selectedText, value: replacement)
+            try uiBuffer.set(.selectedTextRange, value: range.cfRange(in: uiContent))
+            try uiBuffer.set(.selectedText, value: replacement)
             nvimCursorDidChange(nvimCursor)
 
         } catch {
@@ -172,16 +224,18 @@ final class BufferMediator {
     }
 
     private func uiBufferDidChange() {
+        precondition(Thread.isMainThread)
+
         guard token.tryAcquire(for: .ui) else {
             return
         }
         
         do {
-            let lines = (try element.get(.value) ?? "").lines
+            let lines = (try uiBuffer.get(.value) ?? "").lines
 
             try withAsyncGroup { group in
-                let cursor = try cursorPosition(of: element)
-                let diff = lines.map { String($0) }.difference(from: buffer.lines)
+                let cursor = try cursorPosition(of: uiBuffer)
+                let diff = lines.map { String($0) }.difference(from: nvimBuffer.lines)
                 for change in diff {
                     var start: LineIndex
                     var end: LineIndex
@@ -196,7 +250,7 @@ final class BufferMediator {
                         end = offset + 1
                         replacement = []
                     }
-                    nvim.api.bufSetLines(buffer: buffer.handle, start: start, end: end, replacement: replacement)
+                    nvim.api.bufSetLines(buffer: nvimBuffer.handle, start: start, end: end, replacement: replacement)
                         .add(to: group)
                 }
 
@@ -240,7 +294,7 @@ final class BufferMediator {
             .store(in: &subscriptions)
 
         // UI -> Nvim
-        element.publisher(for: .selectedTextChanged)
+        uiBuffer.publisher(for: .selectedTextChanged)
             .sink(
                 onFailure: { [unowned self] error in
                     delegate?.bufferMediator(self, didFailWithError: error)
@@ -262,7 +316,7 @@ final class BufferMediator {
         }
 
         do {
-            guard let lineRange: CFRange = try element.get(.rangeForLine, with: cursor.position.line) else {
+            guard let lineRange: CFRange = try uiBuffer.get(.rangeForLine, with: cursor.position.line) else {
                 return
             }
 
@@ -278,7 +332,7 @@ final class BufferMediator {
                 }()
             )
 
-            try element.set(.selectedTextRange, value: range)
+            try uiBuffer.set(.selectedTextRange, value: range)
         } catch {
             delegate?.bufferMediator(self, didFailWithError: error)
         }
@@ -293,7 +347,7 @@ final class BufferMediator {
         
         do {
             guard
-                let curPos = try cursorPosition(of: element),
+                let curPos = try cursorPosition(of: uiBuffer),
                 nvimCursor.position != curPos
             else {
                 return

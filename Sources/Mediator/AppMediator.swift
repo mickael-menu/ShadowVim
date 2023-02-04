@@ -160,7 +160,7 @@ public final class AppMediator {
             // modal is opened.
             isAppFocused,
             let focusedBufferMediator = focusedBufferMediator,
-            focusedBufferMediator.element.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
+            focusedBufferMediator.uiBuffer.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
             return event
         }
@@ -171,7 +171,7 @@ public final class AppMediator {
 
         switch event.type {
         case .keyDown:
-            return handleKeyDown(event, in: focusedBufferMediator.buffer)
+            return handleKeyDown(event, in: focusedBufferMediator.nvimBuffer)
         default:
             return event
         }
@@ -270,8 +270,8 @@ public final class AppMediator {
                 let mediator = bufferMediators.getOrPut(name) {
                     BufferMediator(
                         nvim: nvim,
-                        buffer: buffer,
-                        element: element,
+                        nvimBuffer: buffer,
+                        uiBuffer: element,
                         name: name,
                         nvimCursorPublisher: nvimCursorPublisher
                             .compactMap { buf, cur in
@@ -285,7 +285,7 @@ public final class AppMediator {
                         delegate: self
                     )
                 }
-                mediator.element = element
+                mediator.uiBuffer = element
                 return mediator
             }
     }
