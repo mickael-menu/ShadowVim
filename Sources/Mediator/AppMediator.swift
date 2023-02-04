@@ -266,7 +266,7 @@ public final class AppMediator {
 
     private func editBuffer(for element: AXUIElement, name: BufferName) -> Async<BufferMediator, APIError> {
         buffers.edit(name: name, contents: element[.value] ?? "", with: nvim.api)
-            .map { [self] buffer in
+            .map(on: .main) { [self] buffer in
                 let mediator = bufferMediators.getOrPut(name) {
                     BufferMediator(
                         nvim: nvim,

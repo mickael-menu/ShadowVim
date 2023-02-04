@@ -30,6 +30,8 @@ public typealias ColumnIndex = Int
 /// Buffer location as 0-indexed offsets.
 public typealias BufferPosition = (line: LineIndex, column: ColumnIndex)
 
+public typealias BufferSelection = (start: BufferPosition, end: BufferPosition)
+
 /// https://neovim.io/doc/user/builtin.html#mode()
 public enum Mode: String {
     case normal = "n"

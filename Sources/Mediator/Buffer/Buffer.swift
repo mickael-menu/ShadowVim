@@ -18,6 +18,7 @@
 import Combine
 import Foundation
 import Nvim
+import Toolkit
 
 protocol BufferDelegate: AnyObject {
     func buffer(_ buffer: Buffer, activateWith api: API) -> APIAsync<Void>
@@ -86,6 +87,13 @@ extension API {
         transaction { api in
             buffer.activate(with: api)
                 .flatMap { block(api) }
+        }
+    }
+    
+    func transaction<Result>(in buffer: Buffer, block: @escaping (API) throws -> Async<Result, Error>) -> Async<Result, Error> {
+        transaction { api in
+            buffer.activate(with: api)
+                .tryFlatMap { try block(api) }
         }
     }
 }

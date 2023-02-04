@@ -75,13 +75,13 @@ public class API {
     ///
     /// You must return an `Async` object completed when the transaction is
     /// done.
-    public func transaction<Value>(
-        _ block: @escaping (API) -> APIAsync<Value>
-    ) -> Async<Value, APIError> {
+    public func transaction<Value, Failure>(
+        _ block: @escaping (API) -> Async<Value, Failure>
+    ) -> Async<Value, Failure> {
         switch transactionLevel {
         case let .root(lock: lock):
             return lock.acquire()
-                .setFailureType(to: APIError.self)
+                .setFailureType(to: Failure.self)
                 .flatMap { [self] in
                     block(API(session: session, logger: logger, transactionLevel: transactionLevel.makeChild()))
                 }

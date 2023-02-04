@@ -179,11 +179,7 @@ public final class Async<Success, Failure: Error> {
         on completionQueue: DispatchQueue = .main,
         _ completion: @escaping Completion
     ) {
-        run { result in
-            completionQueue.async {
-                completion(result)
-            }
-        }
+        run(on: completionQueue, completion: completion)
     }
 
     /// Runs the deferred task and forwards the result to `onSuccess`, or any
@@ -205,11 +201,12 @@ public final class Async<Success, Failure: Error> {
 
     /// Transforms the computed value or error.
     public func map<NewSuccess, NewFailure>(
+        on queue: DispatchQueue? = nil,
         success: @escaping (Success, @escaping NewCompletion<NewSuccess, NewFailure>) -> Void,
         failure: @escaping (Failure, @escaping NewCompletion<NewSuccess, NewFailure>) -> Void
     ) -> Async<NewSuccess, NewFailure> {
         Async<NewSuccess, NewFailure> { completion in
-            self.run { result in
+            self.run(on: queue) { result in
                 switch result {
                 case let .success(value):
                     success(value, completion)
@@ -224,10 +221,21 @@ public final class Async<Success, Failure: Error> {
     /// `completion` block.
     ///
     /// To keep things simple, this can only be called once.
-    private func run(completion: @escaping Completion) {
+    private func run(on completionQueue: DispatchQueue? = nil, completion: @escaping Completion) {
         precondition(!done, "Async doesn't cache the task's value. It must only be called once.")
         done = true
-        queue.async { self.task(completion) }
+        
+        let completionOnQueue: Completion = { result in
+            if let completionQueue = completionQueue {
+                completionQueue.async { completion(result) }
+            } else {
+                completion(result)
+            }
+        }
+        
+        queue.async {
+            self.task(completionOnQueue)
+        }
     }
 }
 
@@ -339,9 +347,11 @@ public extension Async {
     ///        "Hello, \(user.name)"
     ///     }
     func map<NewSuccess>(
+        on queue: DispatchQueue? = nil,
         _ transform: @escaping (Success) -> NewSuccess
     ) -> Async<NewSuccess, Failure> {
         map(
+            on: queue,
             success: { val, compl in compl(.success(transform(val))) },
             failure: { err, compl in compl(.failure(err)) }
         )
@@ -399,6 +409,23 @@ public extension Async {
     ) -> Async<NewSuccess, Failure> {
         map(
             success: { val, compl in transform(val).getResult(compl) },
+            failure: { err, compl in compl(.failure(err)) }
+        )
+    }
+
+    /// Transforms the value asynchronously using a nested `Async`, catching
+    /// any error.
+    func tryFlatMap<NewSuccess>(
+        _ transform: @escaping (Success) throws -> Async<NewSuccess, Error>
+    ) -> Async<NewSuccess, Error> {
+        map(
+            success: { val, compl in
+                do {
+                    try transform(val).getResult(compl)
+                } catch {
+                    compl(.failure(error))
+                }
+            },
             failure: { err, compl in compl(.failure(err)) }
         )
     }
