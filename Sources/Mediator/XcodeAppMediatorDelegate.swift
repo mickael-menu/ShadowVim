@@ -31,15 +31,15 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
         self.delegate = delegate
     }
 
+    private let xcodeDefaults = UserDefaults(suiteName: "com.apple.dt.Xcode")
     private var originalKeyBindingsMode: String?
 
     public func appMediatorWillStart(_ mediator: AppMediator) {
-        originalKeyBindingsMode = Process
-            .launchAndWait("defaults", "read", "-app", "xcode", "KeyBindingsMode")
-            .output?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // Disable Xcode's Vim bindings to avoid conflicts with ShadowVim.
-        Process.launchAndWait("defaults", "write", "-app", "xcode", "KeyBindingsMode", "-string", "Default")
+        if let defaults = xcodeDefaults {
+            // Disable Xcode's Vim bindings to avoid conflicts with ShadowVim.
+            originalKeyBindingsMode = defaults.keyBindingsMode
+            defaults.keyBindingsMode = "Default"
+        }
 
         observeCompletionPopUp(in: mediator.appElement)
     }
@@ -48,8 +48,8 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
         subscriptions = []
 
         // Restore original Xcode's key bindings mode.
-        if let mode = originalKeyBindingsMode {
-            Process.launchAndWait("defaults", "write", "-app", "xcode", "KeyBindingsMode", "-string", mode)
+        if let defaults = xcodeDefaults, let mode = originalKeyBindingsMode {
+            defaults.keyBindingsMode = mode
         }
 
         // Reset cursor, otherwise we start with a single character selected
@@ -134,5 +134,17 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
             .ignoreFailure()
             .map { _ in false }
             .assign(to: &$isCompletionPopUpVisible)
+    }
+}
+
+private extension UserDefaults {
+
+    enum Keys {
+        static let keyBindingsMode = "KeyBindingsMode"
+    }
+
+    var keyBindingsMode: String? {
+        get { string(forKey: Keys.keyBindingsMode) }
+        set { set(newValue, forKey: Keys.keyBindingsMode) }
     }
 }
