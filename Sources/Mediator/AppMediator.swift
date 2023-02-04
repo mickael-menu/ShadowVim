@@ -358,10 +358,9 @@ extension AppMediator: NvimDelegate {
     public func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>? {
         switch method {
         case "SVRefresh":
-            DispatchQueue.main.async {
-                self.focusedBufferMediator?.refreshAX()
-            }
-            return .success(.nil)
+            return .success(.bool(DispatchQueue.main.sync {
+                self.focusedBufferMediator?.refreshUI() ?? false
+            }))
         default:
             return nil
         }
