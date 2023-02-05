@@ -366,7 +366,7 @@ public class API {
 
     @discardableResult
     public func request(_ method: String, with params: [ValueConvertible]) -> APIAsync<Value> {
-        logger?.t([.message: "Call Nvim API", .method: method, .params: params.map(\.nvimValue)])
+        logger?.t("Call Nvim API", [.method: method, .params: params.map(\.nvimValue)])
 
         let requestCallbacks: RPCRequestCallbacks = {
             switch transactionLevel {

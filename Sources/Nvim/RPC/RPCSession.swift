@@ -183,7 +183,7 @@ final class RPCSession {
             else {
                 return .failure(.unexpectedMessage(message))
             }
-            logger?.t([.message: "Receive request", .messageId: id, .method: method, .params: params])
+            logger?.t("Receive request", [.messageId: id, .method: method, .params: params])
 
             guard
                 let delegate = delegate,
@@ -213,9 +213,9 @@ final class RPCSession {
 
             switch result {
             case let .success(value):
-                logger?.t([.message: "Receive response", .messageId: id, .result: value])
+                logger?.t("Receive response", [.messageId: id, .result: value])
             case let .failure(error):
-                logger?.t([.message: "Receive response", .messageId: id, .error: String(reflecting: error)])
+                logger?.t("Receive response", [.messageId: id, .error: String(reflecting: error)])
             }
 
             endRequest(id: id, with: result)
@@ -228,7 +228,7 @@ final class RPCSession {
             else {
                 return .failure(.unexpectedMessage(message))
             }
-            logger?.t([.message: "Receive notification", .method: method, .params: params])
+            logger?.t("Receive notification", [.method: method, .params: params])
             delegate?.session(self, didReceiveNotification: method, with: params)
         }
 
@@ -271,7 +271,7 @@ final class RPCSession {
                 ])
                 let data = MessagePack.pack(request)
 
-                logger?.t([.message: "Send request", .messageId: id, .method: method, .params: params.map(\.nvimValue)])
+                logger?.t("Send request", [.messageId: id, .method: method, .params: params.map(\.nvimValue)])
                 do {
                     try send(data)
                 } catch {
