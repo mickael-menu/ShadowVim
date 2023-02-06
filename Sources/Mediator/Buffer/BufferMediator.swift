@@ -112,32 +112,71 @@ final class BufferMediator {
                 }
             }
             
+            func synchronize(source: Owner) {
+                // Some apps (like Xcode) systematically add an empty line at
+                // the end of a document. To make sure the comparison won't
+                // fail in this case, we add an empty line in the Nvim buffer
+                // as well.
+                let uiLines = uiBuffer.lines
+                var nvimLines = nvimBuffer.lines
+                if uiLines.last == "" && nvimLines.last != "" {
+                    nvimLines.append("")
+                }
+
+                guard uiLines != nvimLines else {
+                    token = .free
+                    return
+                }
+
+                logger?.d("Will synchronize from \(source)", [
+                    "changes": {
+                        switch source {
+                        case .nvim: 
+                            return nvimLines.difference(from: uiLines)
+                        case .ui:
+                            return uiLines.difference(from: nvimLines)
+                        }
+                    }(),
+                    "nvimLines": nvimLines,
+                    "uiLines": uiLines
+                ])
+                
+                switch source {
+                case .nvim:
+                    perform(.updateUI(lines: nvimLines, selection: nvimBuffer.uiSelection))
+                case .ui:
+                    perform(.updateNvim(lines: uiLines, cursorPosition: uiBuffer.selection.start))
+                }
+
+                token = .synchronizing
+                perform(.startTokenTimeout)
+            }
+            
             switch event {
             case .tokenDidTimeout:
                 switch token {
-                case .free, .synchronizing:
+                case .free:
                     break
+                case .synchronizing:
+                    token = .free
                 case .acquired(let owner):
-                    if nvimBuffer.lines != uiBuffer.lines {
-                        token = .synchronizing
-                        switch owner {
-                        case .nvim:
-                            perform(.updateUI(lines: nvimBuffer.lines, selection: nvimBuffer.uiSelection))
-                        case .ui:
-                            perform(.updateNvim(lines: uiBuffer.lines, cursorPosition: uiBuffer.selection.start))
-                        }
-                    } else {
-                        token = .free
-                    }
+                    synchronize(source: owner)
                 }
                 
-            case .userDidRequestRefresh:
-                break
+            case .userDidRequestRefresh(source: let source):
+                switch token {
+                    case .synchronizing, .acquired:
+                        logger?.w("Token busy, cannot refresh")
+                    case .free:
+                        logger?.w("Refreshing with source \(source)")
+                        synchronize(source: source)
+                }
                 
             case .nvimBufferDidChange(oldLines: let oldLines, newLines: let newLines, event: let event):
                 nvimBuffer.lines = newLines
+                logger?.d("nvimBufferDidChange", ["lines": newLines])
                 
-                if tryAcquire(for: .nvim), uiBuffer.lines == oldLines {
+                if tryAcquire(for: .nvim) {
                     perform(.updateUIPartialLines(fromLines: oldLines, event: event))
                     perform(.updateUISelection(nvimBuffer.uiSelection))
                 }
@@ -159,6 +198,7 @@ final class BufferMediator {
                 
             case .uiBufferDidChange(lines: let lines):
                 uiBuffer.lines = lines
+                logger?.d("uiBufferDidChange", ["lines": lines])
                 
                 if tryAcquire(for: .ui) {
                     perform(.updateNvim(lines: lines, cursorPosition: uiBuffer.selection.start))
@@ -173,10 +213,6 @@ final class BufferMediator {
                 
             case .didFail(let error):
                 perform(.alert(error))
-            }
-            
-            if token == .synchronizing, nvimBuffer.lines == uiBuffer.lines {
-                token = .free
             }
             
             return actions
@@ -211,7 +247,7 @@ final class BufferMediator {
 
     private enum Event {
         case tokenDidTimeout
-        case userDidRequestRefresh
+        case userDidRequestRefresh(source: Owner)
         case nvimBufferDidChange(oldLines: [String], newLines: [String], event: BufLinesEvent)
         case nvimCursorDidChange(Cursor)
         case uiDidFocus(lines: [String], selection: BufferSelection)
@@ -268,6 +304,7 @@ final class BufferMediator {
     }    
     
     private func updateNvim(lines: [String], cursorPosition: BufferPosition) {
+        logger?.d("updateNvim", ["lines": lines, "cursorLine": cursorPosition.line, "cursorColumn": cursorPosition.column])
         nvim.api.transaction(in: nvimBuffer) { [self] api in
             withAsyncGroup { group in
                 let diff = lines.map { String($0) }.difference(from: nvimBuffer.lines)
@@ -307,6 +344,7 @@ final class BufferMediator {
     }
     
     private func updateUI(lines: [String], selection: BufferSelection) throws {
+        logger?.d("updateUI", ["lines": lines])
         let changes = lines.difference(from: state.uiBuffer.lines)
         if !changes.isEmpty {
             for change in changes {
@@ -379,19 +417,8 @@ final class BufferMediator {
 
     // MARK: - Buffer synchronization
 
-    func refreshUI() -> Bool {
-//        guard token.tryAcquire(for: .nvim) else {
-//            return false
-//        }
-//        
-//        do {
-//            try uiBuffer.set(.value, value: nvimBuffer.lines.joinedLines())
-//            nvimCursorDidChange(nvimCursor)
-//        } catch {
-//            delegate?.bufferMediator(self, didFailWithError: error)
-//        }
-//        return true
-        return true
+    func refreshUI() {
+        on(.userDidRequestRefresh(source: .nvim))
     }
 
     private func setupBufferSync() {
@@ -478,3 +505,4 @@ final class BufferMediator {
         )
     }
 }
+

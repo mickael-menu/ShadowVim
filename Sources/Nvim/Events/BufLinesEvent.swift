@@ -130,7 +130,7 @@ public struct BufLinesEvent {
 
     /// Applies the changes in `lines` for this `BufLinesEvent`.
     public func applyChanges(in lines: [String]) -> [String] {
-        guard lastLine > -1 else {
+        guard lastLine > -1 && !lines.isEmpty else {
             // Initial event which contains the whole buffer.
             return lineData
         }

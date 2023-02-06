@@ -25,14 +25,18 @@ public class AsyncLock {
     private let queue = DispatchQueue(label: "menu.mickael.AsyncLock")
     private var isLocked: Bool = false
     private var waitlist: [(Result<Void, Never>) -> Void] = []
+    private let logger: Logger?
 
-    public init() {}
+    public init(logger: Logger? = nil) {
+        self.logger = logger
+    }
 
     public func acquire() -> Async<Void, Never> {
         Async(on: queue) { [self] completion in
             if isLocked {
                 waitlist.append(completion)
             } else {
+                logger?.t("Locked")
                 isLocked = true
                 completion(.success(()))
             }
@@ -42,6 +46,7 @@ public class AsyncLock {
     public func release() {
         queue.async { [self] in
             if waitlist.isEmpty {
+                logger?.t("Released")
                 isLocked = false
             } else {
                 waitlist.removeFirst()(.success(()))

@@ -50,7 +50,7 @@ public class API {
         self.init(
             session: session,
             logger: logger,
-            transactionLevel: .root(lock: AsyncLock())
+            transactionLevel: .root(lock: AsyncLock(logger: logger?.domain("lock")))
         )
     }
 
