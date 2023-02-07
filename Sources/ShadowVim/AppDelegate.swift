@@ -21,11 +21,7 @@ import NSLoggerAdapter
 import Toolkit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    let app = App(
-        logger: Debug.isDebugging
-            ? NSLoggerLogger().filter(minimumLevel: .warning)
-            : nil
-    )
+    let container = Container()
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Prevent showing the menu bar and dock icon.
@@ -34,10 +30,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 //        let cmdline = CmdlineController(frame: NSRect(x: 0, y: 0, width: 480, height: 44))
 //        cmdline.show()
 
-        app.didLaunch()
+        container.app.didLaunch()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        app.willTerminate()
+        container.app.willTerminate()
     }
 }

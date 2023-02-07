@@ -27,7 +27,15 @@ protocol BufferMediatorDelegate: AnyObject {
     func bufferMediator(_ mediator: BufferMediator, didFailWithError error: Error)
 }
 
-final class BufferMediator {
+public final class BufferMediator {
+    public typealias Factory = ((
+        nvim: Nvim,
+        nvimBuffer: NvimBuffer,
+        uiElement: AXUIElement,
+        name: String,
+        nvimCursorPublisher: AnyPublisher<Cursor, APIError>
+    )) -> BufferMediator
+
     var uiElement: AXUIElement
     let nvimBuffer: NvimBuffer
     let name: String
@@ -39,21 +47,19 @@ final class BufferMediator {
     private let tokenTimeoutSubject = PassthroughSubject<Void, Never>()
     private var subscriptions: Set<AnyCancellable> = []
 
-    init(
+    public init(
         nvim: Nvim,
         nvimBuffer: NvimBuffer,
         uiElement: AXUIElement,
         name: String,
         nvimCursorPublisher: AnyPublisher<Cursor, APIError>,
-        logger: Logger?,
-        delegate: BufferMediatorDelegate?
+        logger: Logger?
     ) {
         self.nvim = nvim
         self.nvimBuffer = nvimBuffer
         self.uiElement = uiElement
         self.name = name
         self.logger = logger
-        self.delegate = delegate
 
         state = BufferState(
             nvim: .init(lines: nvimBuffer.lines),

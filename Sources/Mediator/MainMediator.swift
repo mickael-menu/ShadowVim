@@ -32,6 +32,7 @@ public final class MainMediator {
 
     private let bundleIDs: [BundleID]
     private let logger: Logger?
+    private let appMediatorFactory: AppMediator.Factory
     private var apps: [pid_t: AppMediator] = [:]
     private var subscriptions: Set<AnyCancellable> = []
     private let eventTap = EventTap()
@@ -40,10 +41,14 @@ public final class MainMediator {
         "com.apple.dt.Xcode": XcodeAppMediatorDelegate(delegate: self),
     ]
 
-    public init(bundleIDs: [String], logger: Logger?, delegate: MainMediatorDelegate? = nil) {
+    public init(
+        bundleIDs: [String],
+        logger: Logger?,
+        appMediatorFactory: @escaping AppMediator.Factory
+    ) {
         self.bundleIDs = bundleIDs
         self.logger = logger
-        self.delegate = delegate
+        self.appMediatorFactory = appMediatorFactory
     }
 
     public func start() throws {
@@ -116,11 +121,8 @@ public final class MainMediator {
             return mediator
         }
 
-        let mediator = try AppMediator(
-            app: app,
-            delegate: appDelegates[id] ?? self,
-            logger: logger
-        )
+        let mediator = try appMediatorFactory(app)
+        mediator.delegate = appDelegates[id] ?? self
         mediator.start()
         apps[app.processIdentifier] = mediator
         return mediator

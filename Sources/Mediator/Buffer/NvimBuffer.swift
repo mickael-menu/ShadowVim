@@ -25,7 +25,7 @@ protocol BufferDelegate: AnyObject {
 }
 
 /// Represents a live buffer in Nvim.
-final class NvimBuffer {
+public final class NvimBuffer {
     typealias ChangeEvent = (lines: [String], event: BufLinesEvent)
 
     /// Nvim buffer handle.

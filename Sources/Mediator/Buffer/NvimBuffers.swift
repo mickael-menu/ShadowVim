@@ -21,7 +21,7 @@ import Nvim
 import Toolkit
 
 /// Manages the Nvim buffers.
-final class NvimBuffers {
+public final class NvimBuffers {
     public private(set) var editedBuffer: BufferHandle = 0
 
     @Published private(set) var buffers: [BufferHandle: NvimBuffer] = [:]
@@ -30,7 +30,7 @@ final class NvimBuffers {
     private var subscriptions: Set<AnyCancellable> = []
     private let logger: Logger?
 
-    init(events: EventDispatcher, logger: Logger?) {
+    public init(events: EventDispatcher, logger: Logger?) {
         self.logger = logger
 
         bufLinesPublisher = events.bufLinesPublisher()
