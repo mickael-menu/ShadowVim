@@ -26,6 +26,9 @@ protocol BufferDelegate: AnyObject {
 
 /// Represents a live buffer in Nvim.
 final class Buffer {
+    
+    typealias ChangeEvent = (oldLines: [String], newLines: [String], event: BufLinesEvent)
+    
     /// Nvim buffer handle.
     let handle: BufferHandle
 
@@ -35,15 +38,9 @@ final class Buffer {
     /// Current content lines.
     var lines: [String] = []
 
-    /// Previous content lines, before receiving the last `BufLinesEvent`.
-    var oldLines: [String] = []
+    private let didChangeSubject = PassthroughSubject<ChangeEvent, Never>()
 
-    /// Last `BufLinesEvent` that was emitted by this buffer.
-    var lastLinesEvent: BufLinesEvent?
-
-    private let didChangeSubject = PassthroughSubject<Void, Never>()
-
-    lazy var didChangePublisher: AnyPublisher<Void, Never> =
+    lazy var didChangePublisher: AnyPublisher<ChangeEvent, Never> =
         didChangeSubject.eraseToAnyPublisher()
 
     private var subscriptions: Set<AnyCancellable> = []
@@ -65,10 +62,13 @@ final class Buffer {
             .sink { [unowned self] event in
                 precondition(event.buf == handle)
 
-                oldLines = lines
+                let oldLines = lines
                 lines = event.applyChanges(in: lines)
-                lastLinesEvent = event
-                didChangeSubject.send()
+                didChangeSubject.send((
+                    oldLines: oldLines,
+                    newLines: lines,
+                    event: event
+                ))
             }
             .store(in: &subscriptions)
     }

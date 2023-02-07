@@ -33,7 +33,7 @@ protocol BufferMediatorDelegate: AnyObject {
 
 final class BufferMediator {
 
-    var uiBuffer: AXUIElement
+    var uiElement: AXUIElement
     let nvimBuffer: Buffer
     let name: String
     weak var delegate: BufferMediatorDelegate?
@@ -46,7 +46,7 @@ final class BufferMediator {
     init(
         nvim: Nvim,
         nvimBuffer: Buffer,
-        uiBuffer: AXUIElement,
+        uiElement: AXUIElement,
         name: String,
         nvimCursorPublisher: AnyPublisher<Cursor, APIError>,
         logger: Logger?,
@@ -54,7 +54,7 @@ final class BufferMediator {
     ) {
         self.nvim = nvim
         self.nvimBuffer = nvimBuffer
-        self.uiBuffer = uiBuffer
+        self.uiElement = uiElement
         self.name = name
         self.logger = logger
         self.delegate = delegate
@@ -350,20 +350,20 @@ final class BufferMediator {
             for change in changes {
                 switch change {
                 case .insert(offset: let offset, element: let element, _):
-                    guard let range: CFRange = try uiBuffer.get(.rangeForLine, with: offset) else {
+                    guard let range: CFRange = try uiElement.get(.rangeForLine, with: offset) else {
                         logger?.w("Failed to insert line at \(offset)")
                         return
                     }
-                    try uiBuffer.set(.selectedTextRange, value: CFRange(location: range.location, length: 0))
-                    try uiBuffer.set(.selectedText, value: element + "\n")
+                    try uiElement.set(.selectedTextRange, value: CFRange(location: range.location, length: 0))
+                    try uiElement.set(.selectedText, value: element + "\n")
                     
                 case .remove(offset: let offset, _, _):
-                    guard let range: CFRange = try uiBuffer.get(.rangeForLine, with: offset) else {
+                    guard let range: CFRange = try uiElement.get(.rangeForLine, with: offset) else {
                         logger?.w("Failed to remove line at \(offset)")
                         return
                     }
-                    try uiBuffer.set(.selectedTextRange, value: range)
-                    try uiBuffer.set(.selectedText, value: "")
+                    try uiElement.set(.selectedTextRange, value: range)
+                    try uiElement.set(.selectedText, value: "")
                 }
             }
         }
@@ -373,21 +373,21 @@ final class BufferMediator {
 
     private func updateUIPartialLines(from fromLines: [String], with event: BufLinesEvent) throws {
         guard
-            let uiContent: String = try uiBuffer.get(.value),
+            let uiContent: String = try uiElement.get(.value),
             let (range, replacement) = event.changes(in: uiContent)
         else {
-            logger?.w("Failed to update partial lines")
+            logger?.w("Failed to update  partial lines")
             return
         }
 
-        try uiBuffer.set(.selectedTextRange, value: range.cfRange(in: uiContent))
-        try uiBuffer.set(.selectedText, value: replacement)
+        try uiElement.set(.selectedTextRange, value: range.cfRange(in: uiContent))
+        try uiElement.set(.selectedText, value: replacement)
     }
     
     private func updateUISelection(_ selection: BufferSelection) throws {
         guard
-            let startLineRange: CFRange = try uiBuffer.get(.rangeForLine, with: selection.start.line),
-            let endLineRange: CFRange = try uiBuffer.get(.rangeForLine, with: selection.end.line)
+            let startLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.start.line),
+            let endLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.end.line)
         else {
             return
         }
@@ -400,7 +400,7 @@ final class BufferMediator {
             length: end - start
         )
 
-        try uiBuffer.set(.selectedTextRange, value: range)
+        try uiElement.set(.selectedTextRange, value: range)
     }    
     
     private func fail(_ error: Error) {
@@ -408,11 +408,11 @@ final class BufferMediator {
     }
     
     private func uiLines() throws -> [String] {
-        (try uiBuffer.get(.value) ?? "").lines.map { String($0) }
+        (try uiElement.get(.value) ?? "").lines.map { String($0) }
     }
 
     private func uiSelection() throws -> BufferSelection? {
-        try selection(of: uiBuffer)
+        try selection(of: uiElement)
     }
 
     // MARK: - Buffer synchronization
@@ -427,17 +427,14 @@ final class BufferMediator {
             .receive(on: DispatchQueue.main)
             .sink(
                 onFailure: { [unowned self] in fail($0) },
-                receiveValue: { [unowned self] _ in
-                    guard let event = nvimBuffer.lastLinesEvent else {
-                        return
-                    }
-                    on(.nvimBufferDidChange(oldLines: nvimBuffer.oldLines, newLines: nvimBuffer.lines, event: event))
+                receiveValue: { [unowned self] in
+                    on(.nvimBufferDidChange(oldLines: $0.oldLines, newLines: $0.newLines, event: $0.event))
                 }
             )
             .store(in: &subscriptions)
 
         // UI -> Nvim
-        uiBuffer.publisher(for: .valueChanged)
+        uiElement.publisher(for: .valueChanged)
             .receive(on: DispatchQueue.main)
             .tryMap { [unowned self] _ in try uiLines() }
             .sink(
@@ -462,7 +459,7 @@ final class BufferMediator {
             .store(in: &subscriptions)
 
         // UI -> Nvim
-        uiBuffer.publisher(for: .selectedTextChanged)
+        uiElement.publisher(for: .selectedTextChanged)
             .receive(on: DispatchQueue.main)
             .tryCompactMap { [unowned self] _ in try uiSelection() }
             .sink(
