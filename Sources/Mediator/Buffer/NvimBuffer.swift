@@ -21,14 +21,13 @@ import Nvim
 import Toolkit
 
 protocol BufferDelegate: AnyObject {
-    func buffer(_ buffer: Buffer, activateWith api: API) -> APIAsync<Void>
+    func buffer(_ buffer: NvimBuffer, activateWith api: API) -> APIAsync<Void>
 }
 
 /// Represents a live buffer in Nvim.
-final class Buffer {
-    
-    typealias ChangeEvent = (oldLines: [String], newLines: [String], event: BufLinesEvent)
-    
+final class NvimBuffer {
+    typealias ChangeEvent = (lines: [String], event: BufLinesEvent)
+
     /// Nvim buffer handle.
     let handle: BufferHandle
 
@@ -62,11 +61,9 @@ final class Buffer {
             .sink { [unowned self] event in
                 precondition(event.buf == handle)
 
-                let oldLines = lines
                 lines = event.applyChanges(in: lines)
                 didChangeSubject.send((
-                    oldLines: oldLines,
-                    newLines: lines,
+                    lines: lines,
                     event: event
                 ))
             }
@@ -83,14 +80,14 @@ final class Buffer {
 }
 
 extension API {
-    func transaction<Result>(in buffer: Buffer, block: @escaping (API) -> APIAsync<Result>) -> APIAsync<Result> {
+    func transaction<Result>(in buffer: NvimBuffer, block: @escaping (API) -> APIAsync<Result>) -> APIAsync<Result> {
         transaction { api in
             buffer.activate(with: api)
                 .flatMap { block(api) }
         }
     }
-    
-    func transaction<Result>(in buffer: Buffer, block: @escaping (API) throws -> Async<Result, Error>) -> Async<Result, Error> {
+
+    func transaction<Result>(in buffer: NvimBuffer, block: @escaping (API) throws -> Async<Result, Error>) -> Async<Result, Error> {
         transaction { api in
             buffer.activate(with: api)
                 .tryFlatMap { try block(api) }

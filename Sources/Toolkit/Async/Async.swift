@@ -224,7 +224,7 @@ public final class Async<Success, Failure: Error> {
     private func run(on completionQueue: DispatchQueue? = nil, completion: @escaping Completion) {
         precondition(!done, "Async doesn't cache the task's value. It must only be called once.")
         done = true
-        
+
         let completionOnQueue: Completion = { result in
             if let completionQueue = completionQueue {
                 completionQueue.async { completion(result) }
@@ -232,7 +232,7 @@ public final class Async<Success, Failure: Error> {
                 completion(result)
             }
         }
-        
+
         queue.async {
             self.task(completionOnQueue)
         }

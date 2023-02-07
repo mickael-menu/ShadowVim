@@ -16,6 +16,7 @@
 //
 
 import Foundation
+import Toolkit
 
 public typealias BufferName = String
 public typealias BufferHandle = Int
@@ -28,12 +29,28 @@ public typealias LineIndex = Int
 public typealias ColumnIndex = Int
 
 /// Buffer location as 0-indexed offsets.
-public typealias BufferPosition = (line: LineIndex, column: ColumnIndex)
+public struct BufferPosition: Equatable {
+    public var line: LineIndex
+    public var column: ColumnIndex
 
-public typealias BufferSelection = (start: BufferPosition, end: BufferPosition)
+    public init(line: LineIndex = 0, column: ColumnIndex = 0) {
+        self.line = line
+        self.column = column
+    }
+}
+
+public struct BufferSelection: Equatable {
+    public var start: BufferPosition
+    public var end: BufferPosition
+
+    public init(start: BufferPosition = .init(), end: BufferPosition = .init()) {
+        self.start = start
+        self.end = end
+    }
+}
 
 /// https://neovim.io/doc/user/builtin.html#mode()
-public enum Mode: String {
+public enum Mode: String, Equatable {
     case normal = "n"
     case visual = "v"
     case visualLine = "V"
@@ -45,4 +62,32 @@ public enum Mode: String {
     case hitEnterPrompt = "r"
     case shell = "!"
     case terminal = "t"
+}
+
+public struct Cursor: Equatable {
+    public var position: BufferPosition
+    public var mode: Mode
+
+    public init(position: BufferPosition, mode: Mode) {
+        self.position = position
+        self.mode = mode
+    }
+}
+
+extension BufferPosition: LogPayloadConvertible {
+    public func logPayload() -> [LogKey: LogValueConvertible] {
+        ["line": line, "column": column]
+    }
+}
+
+extension BufferSelection: LogPayloadConvertible {
+    public func logPayload() -> [LogKey: LogValueConvertible] {
+        ["start": start, "end": end]
+    }
+}
+
+extension Cursor: LogPayloadConvertible {
+    public func logPayload() -> [LogKey: LogValueConvertible] {
+        ["position": position, "mode": mode.rawValue]
+    }
 }

@@ -77,7 +77,7 @@ public final class AppMediator {
     private let logger: Logger?
     private var isStarted = false
     private let nvim: Nvim
-    private let buffers: Buffers
+    private let buffers: NvimBuffers
     private var bufferMediators: [BufferName: BufferMediator] = [:]
     private var focusedBufferMediator: BufferMediator?
     private var subscriptions: Set<AnyCancellable> = []
@@ -88,7 +88,7 @@ public final class AppMediator {
         self.logger = logger
         appElement = AXUIElement.app(app)
         nvim = try Nvim.start(logger: logger?.domain("nvim"))
-        buffers = Buffers(events: nvim.events, logger: logger?.domain("buffers"))
+        buffers = NvimBuffers(events: nvim.events, logger: logger?.domain("buffers"))
         nvim.delegate = self
 
         setupFocusSync()
@@ -177,7 +177,7 @@ public final class AppMediator {
         }
     }
 
-    private func handleKeyDown(_ event: CGEvent, in buffer: Buffer) -> CGEvent? {
+    private func handleKeyDown(_ event: CGEvent, in buffer: NvimBuffer) -> CGEvent? {
         let modifiers = event.modifiers
 
         switch (modifiers, event.character) {
@@ -310,7 +310,7 @@ public final class AppMediator {
                 }
 
                 let cursor = Cursor(
-                    position: (line: line - 1, column: col - 1),
+                    position: BufferPosition(line: line - 1, column: col - 1),
                     mode: Mode(rawValue: mode) ?? .normal
                 )
                 return (buffer, cursor)
@@ -358,9 +358,7 @@ extension AppMediator: NvimDelegate {
     public func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>? {
         switch method {
         case "SVRefresh":
-            DispatchQueue.main.async {
-                self.focusedBufferMediator?.refreshUI()
-            }
+            focusedBufferMediator?.didRequestRefresh()
             return .success(.bool(true))
         default:
             return nil

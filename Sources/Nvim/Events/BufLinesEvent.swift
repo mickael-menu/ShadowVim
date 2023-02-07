@@ -17,6 +17,7 @@
 
 import Combine
 import Foundation
+import Toolkit
 
 public extension EventDispatcher {
     /// Subscribes a new handler for the `nvim_buf_lines_event` event of the given `buffer`.
@@ -36,7 +37,7 @@ public extension EventDispatcher {
 /// When `changedtick` is nil this means the screen lines (display) changed but not the buffer
 /// contents. `linedata` contains the changed screen lines. This happens when 'inccommand'
 /// shows a buffer preview.
-public struct BufLinesEvent {
+public struct BufLinesEvent: Equatable {
     /// API buffer handle (buffer number).
     public let buf: BufferHandle
 
@@ -130,7 +131,7 @@ public struct BufLinesEvent {
 
     /// Applies the changes in `lines` for this `BufLinesEvent`.
     public func applyChanges(in lines: [String]) -> [String] {
-        guard lastLine > -1 && !lines.isEmpty else {
+        guard lastLine > -1, !lines.isEmpty else {
             // Initial event which contains the whole buffer.
             return lineData
         }
@@ -257,5 +258,18 @@ public struct BufLinesEvent {
 extension BufLinesEvent: CustomStringConvertible {
     public var description: String {
         "BufLinesEvent#\(changedTick ?? -1) \(firstLine)..<\(lastLine) \(lineData)"
+    }
+}
+
+extension BufLinesEvent: LogPayloadConvertible {
+    public func logPayload() -> [LogKey: LogValueConvertible] {
+        [
+            "buf": buf,
+            "changedTick": changedTick ?? -1,
+            "firstLine": firstLine,
+            "lastLine": lastLine,
+            "lineData": lineData,
+            "more": more,
+        ]
     }
 }

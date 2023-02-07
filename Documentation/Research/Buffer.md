@@ -7,14 +7,13 @@ While there are two live buffers for any document (Nvim and UI), there is no nat
 * Undo/redo using the UI instead of `u`/`^R`.
 * Maybe Xcode auto-formatting, when it's enabled in the preferences. Although this one can conflict with Nvim.
 
-## Token
+## Edition token
 
-To address this, let's introduce a shared "buffer token" whose owner temporarily becomes the source of truth.
+To address this, let's introduce a shared "edition token" whose owner temporarily becomes the source of truth.
 
 * The **main buffer** is the buffer currently owning the token and is the source of truth for the content.
 * The **subordinate buffer** is the alternate buffer that will apply the changes from the owner buffer.
 * The buffers are **idle** when none of them owns the token.
-* A *subordinate* buffer is **frozen** when receiving conflicting change events. It will be resynchronized and unfrozen when the token is released by the *main* buffer.
 
 ### Ownership flow
 
@@ -22,9 +21,7 @@ The token is automatically acquired – if free – when changes are made in one
 
 ## Partial changes synchronization
 
-This synchronization occurs when the *main* buffer emits events for discrete changes.
-
-To prevent messing up the *subordinate* buffer with garbage events, partial changes are only applied if the content of the *subordinate* is the same as the content of *main* before the change. If it's not the case, the *subordinate* will become *frozen* until the token is released and the buffer-wide synchronization is triggered.
+This synchronization occurs when the *main* buffer emits events for discrete changes. They are applied by modifying discrete range of text in the *subordinate* buffer. If at some point the data gets corrupted, it will automatically be resynchronized once the *main* buffer releases the token.
 
 ## Buffer-wide synchronization
 

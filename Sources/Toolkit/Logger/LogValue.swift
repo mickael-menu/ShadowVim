@@ -165,9 +165,9 @@ extension CollectionDifference: LogValueConvertible {
         var changes: [LogValue] = []
         for change in self {
             switch change {
-            case .insert(offset: let offset, element: let element, _):
+            case let .insert(offset: offset, element: element, _):
                 changes.append(.string("insert at \(offset): '\(element)'"))
-            case .remove(offset: let offset, element: let element, _):
+            case let .remove(offset: offset, element: element, _):
                 changes.append(.string("remove at \(offset): '\(element)'"))
             }
         }

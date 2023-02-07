@@ -49,7 +49,6 @@ public struct DomainLogger: Logger {
 }
 
 public extension Logger {
-    
     /// Creates a new logger as a sub-domain of the receiver.
     func domain(_ domain: String) -> Logger {
         DomainLogger(logger: self, domain: domain)

@@ -21,10 +21,10 @@ import Nvim
 import Toolkit
 
 /// Manages the Nvim buffers.
-final class Buffers {
+final class NvimBuffers {
     public private(set) var editedBuffer: BufferHandle = 0
 
-    @Published private(set) var buffers: [BufferHandle: Buffer] = [:]
+    @Published private(set) var buffers: [BufferHandle: NvimBuffer] = [:]
     private let bufLinesPublisher: AnyPublisher<BufLinesEvent, Never>
 
     private var subscriptions: Set<AnyCancellable> = []
@@ -46,7 +46,7 @@ final class Buffers {
             .store(in: &subscriptions)
     }
 
-    func edit(name: String, contents: @autoclosure () -> String, with api: API) -> APIAsync<Buffer> {
+    func edit(name: String, contents: @autoclosure () -> String, with api: API) -> APIAsync<NvimBuffer> {
         if let (_, buffer) = buffers.first(where: { $0.value.name == name }) {
             return activate(buffer: buffer.handle, with: api)
                 .map { _ in buffer }
@@ -55,8 +55,8 @@ final class Buffers {
         }
     }
 
-    private func create(name: String, contents: String, with api: API) -> APIAsync<Buffer> {
-        var buffer: Buffer!
+    private func create(name: String, contents: String, with api: API) -> APIAsync<NvimBuffer> {
+        var buffer: NvimBuffer!
         let lines = contents.lines.map { String($0) }
 
         return api.transaction { api in
@@ -97,10 +97,10 @@ final class Buffers {
         .map { _ in buffer }
     }
 
-    private func makeBuffer(handle: BufferHandle, name: String) -> Buffer {
+    private func makeBuffer(handle: BufferHandle, name: String) -> NvimBuffer {
         precondition(buffers[handle] == nil)
 
-        let buffer = Buffer(
+        let buffer = NvimBuffer(
             handle: handle,
             name: name,
             delegate: self,
@@ -124,8 +124,8 @@ final class Buffers {
     }
 }
 
-extension Buffers: BufferDelegate {
-    func buffer(_ buffer: Buffer, activateWith api: API) -> APIAsync<Void> {
+extension NvimBuffers: BufferDelegate {
+    func buffer(_ buffer: NvimBuffer, activateWith api: API) -> APIAsync<Void> {
         activate(buffer: buffer.handle, with: api)
     }
 }

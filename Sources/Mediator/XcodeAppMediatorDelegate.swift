@@ -138,7 +138,6 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
 }
 
 private extension UserDefaults {
-
     enum Keys {
         static let keyBindingsMode = "KeyBindingsMode"
     }
