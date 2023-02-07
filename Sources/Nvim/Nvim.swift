@@ -21,7 +21,7 @@ import Foundation
 import Toolkit
 
 public enum NvimError: Error {
-    case processStopped
+    case processStopped(status: Int)
     case apiFailure(APIError)
     case rpcFailure(RPCError)
 }
@@ -34,11 +34,10 @@ public protocol NvimDelegate: AnyObject {
 public class Nvim {
     /// Starts a new Nvim process.
     public static func start(
-        logger: Logger,
+        logger: Logger?,
         executableURL: URL = URL(fileURLWithPath: "/usr/bin/env"),
         delegate: NvimDelegate? = nil
     ) throws -> Nvim {
-        let logger = logger.tagged("nvim")
         let input = Pipe()
         let output = Pipe()
         let process = Process()
@@ -62,18 +61,26 @@ public class Nvim {
                 // XDG: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
                 + ":$HOME/.local/bin",
         ]
-        try process.run()
-
-        return Nvim(
+        let nvim = Nvim(
             process: process,
             session: RPCSession(
-                logger: logger,
+                logger: logger?.domain("rpc"),
                 input: input.fileHandleForWriting,
                 output: output.fileHandleForReading
             ),
             logger: logger,
             delegate: delegate
         )
+
+        try process.run()
+        DispatchQueue.global().async {
+            process.waitUntilExit()
+            nvim.stop()
+            logger?.w("Nvim closed with status \(process.terminationStatus)")
+            nvim.delegate?.nvim(nvim, didFailWithError: .processStopped(status: Int(process.terminationStatus)))
+        }
+
+        return nvim
     }
 
     /// Locates ShadowVim's default configuration file.
@@ -105,17 +112,17 @@ public class Nvim {
     public weak var delegate: NvimDelegate?
     private let process: Process
     private let session: RPCSession
-    private let logger: Logger
+    private let logger: Logger?
     private var isStopped = false
     private var subscriptions: Set<AnyCancellable> = []
 
-    private init(process: Process, session: RPCSession, logger: Logger, delegate: NvimDelegate? = nil) {
-        let api = API(session: session)
+    private init(process: Process, session: RPCSession, logger: Logger?, delegate: NvimDelegate? = nil) {
+        let api = API(session: session, logger: logger?.domain("api"))
         self.api = api
         self.process = process
         self.logger = logger
         self.session = session
-        events = EventDispatcher(api: api)
+        events = EventDispatcher(api: api, logger: logger?.domain("events"))
         self.delegate = delegate
 
         NotificationCenter.default

@@ -19,6 +19,7 @@ import AppKit
 import ApplicationServices
 import Combine
 import Foundation
+import Toolkit
 
 public typealias AXUIElement = ApplicationServices.AXUIElement
 
@@ -340,5 +341,16 @@ extension AXUIElement: CustomStringConvertible {
         let description = self[.description] as String? ?? ""
 
         return "\(role)\t#\(id) (pid:\(pid), desc:\(description))"
+    }
+}
+
+extension AXUIElement: LogPayloadConvertible {
+    public func logPayload() -> [LogKey: any LogValueConvertible] {
+        [
+            "hash": hashValue,
+            "pid": (try? Int(pid())) ?? 0,
+            "role": (try? get(.role) as String?) ?? "",
+            "description": (try? get(.description) as String?) ?? "",
+        ]
     }
 }

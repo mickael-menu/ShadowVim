@@ -32,7 +32,8 @@ final class AXNotificationObserver {
         }
 
         return $observers.write {
-            // In very unlikely case the observer was created after the previous read.
+            // In the very unlikely case the observer was created after the
+            // previous read.
             if let obs = $0[pid] {
                 return obs
             }
@@ -46,6 +47,12 @@ final class AXNotificationObserver {
 
     private init(pid: pid_t) {
         self.pid = pid
+    }
+
+    deinit {
+        if let obs = _observer {
+            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(obs), .defaultMode)
+        }
     }
 
     /// Returns a new publisher for a notification emitted by the given source `element`.
@@ -76,21 +83,18 @@ final class AXNotificationObserver {
 
     /// Removes a `receiver` previously registered.
     fileprivate func deregister(_ receiver: NotificationReceiver) throws {
-        try $subscriptions.write {
-            guard let subscription = $0[receiver.key] else {
-                assertionFailure("No subscription found")
-                return
-            }
+        guard let subscription = subscriptions[receiver.key] else {
+            assertionFailure("No subscription found")
+            return
+        }
 
-            subscription.remove(receiver)
+        subscription.remove(receiver)
 
-            if subscription.isEmpty {
-                try observer().remove(
-                    notification: receiver.key.notification,
-                    element: receiver.key.source
-                )
-                $0.removeValue(forKey: receiver.key)
-            }
+        if subscription.isEmpty {
+            try observer().remove(
+                notification: receiver.key.notification,
+                element: receiver.key.source
+            )
         }
     }
 
@@ -119,12 +123,6 @@ final class AXNotificationObserver {
     }
 
     private var _observer: AXObserver?
-
-    deinit {
-        if let obs = _observer {
-            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(obs), .defaultMode)
-        }
-    }
 }
 
 /// Identifies uniquely a `notification` with an associated `source` accessibility element.
@@ -229,6 +227,7 @@ struct AXNotificationPublisher: Publisher {
 
 private extension AXObserver {
     func add(notification: AXNotification, element: AXUIElement, context: AnyObject) throws {
+        precondition(Thread.isMainThread)
         let notification = notification.rawValue as CFString
         let context = Unmanaged.passUnretained(context).toOpaque()
         let result = AXObserverAddNotification(self, element, notification, context)
@@ -238,6 +237,7 @@ private extension AXObserver {
     }
 
     func remove(notification: AXNotification, element: AXUIElement) throws {
+        precondition(Thread.isMainThread)
         let notification = notification.rawValue as CFString
         let result = AXObserverRemoveNotification(self, element, notification)
         if let error = AXError(code: result), case .notificationNotRegistered = error {

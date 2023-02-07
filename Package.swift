@@ -35,6 +35,12 @@ let package = Package(
                 "Toolkit",
             ]
         ),
+        .testTarget(
+            name: "MediatorTests",
+            dependencies: [
+                "Mediator",
+            ]
+        ),
         .target(
             name: "Nvim",
             dependencies: [

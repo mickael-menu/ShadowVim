@@ -16,16 +16,19 @@
 //
 
 import AppKit
+import AX
 import Foundation
 import Mediator
+import Nvim
 import Toolkit
 
 class App {
-    private let logger: Logger
+    private let logger: Logger?
     private let mediator: MainMediator
 
-    init(logger: Logger) {
+    init(logger: Logger?) {
         self.logger = logger
+        AX.setLogger(logger?.domain("ax"))
 
         mediator = MainMediator(
             bundleIDs: [
@@ -62,9 +65,9 @@ class App {
     func presentAlert(error: Error, style: AlertStyle) {
         switch style {
         case .warning:
-            logger.w(error)
+            logger?.w(error)
         case .critical:
-            logger.e(error)
+            logger?.e(error)
         }
 
         // Prevent showing multiple alerts for the same error.
@@ -148,7 +151,38 @@ class App {
 extension App: MainMediatorDelegate {
     func mainMediator(_ mediator: MainMediator, didFailWithError error: Error) {
         DispatchQueue.main.async {
-            self.presentAlert(error: error, style: .warning)
+            let userError = UserError(error: error)
+            let critical = userError?.critical ?? false
+            let error = userError ?? error
+
+            self.presentAlert(error: error, style: critical ? .critical : .warning)
+        }
+    }
+}
+
+enum UserError: LocalizedError {
+    case nvimClosed(status: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case let .nvimClosed(status: status):
+            return "Nvim closed with status \(status). Relaunch ShadowVim?"
+        }
+    }
+
+    var critical: Bool {
+        switch self {
+        case .nvimClosed:
+            return true
+        }
+    }
+
+    init?(error: Error) {
+        switch error {
+        case let NvimError.processStopped(status: status):
+            self = .nvimClosed(status: status)
+        default:
+            return nil
         }
     }
 }

@@ -64,13 +64,17 @@ public enum LogValue {
             }
 
             var output: String = "{\n"
-            for (i, v) in dict.enumerated() {
+            let keys = dict.keys.sorted(by: { k1, k2 in k1.rawValue.localizedStandardCompare(k2.rawValue) == .orderedAscending })
+            for (i, k) in keys.enumerated() {
+                guard let v = dict[k] else {
+                    continue
+                }
                 if i > 0 {
                     output += "\n"
                 }
-                output += "\(indent)\(v.key.rawValue): "
+                output += "\(indent)\(k.rawValue): "
 
-                var valueOutput = v.value.format()
+                var valueOutput = v.format()
                 if valueOutput.range(of: "\n") != nil {
                     valueOutput = "\n" + valueOutput.indent(with: indent + indent)
                 }
@@ -114,6 +118,18 @@ extension Int: LogValueConvertible {
     }
 }
 
+extension Int64: LogValueConvertible {
+    public var logValue: LogValue {
+        .int(Int(self))
+    }
+}
+
+extension UInt64: LogValueConvertible {
+    public var logValue: LogValue {
+        .int(Int(self))
+    }
+}
+
 extension Double: LogValueConvertible {
     public var logValue: LogValue {
         .double(self)
@@ -141,5 +157,20 @@ extension Array: LogValueConvertible where Element: LogValueConvertible {
 extension Dictionary: LogValueConvertible where Key == LogKey, Value == any LogValueConvertible {
     public var logValue: LogValue {
         .dict(logPayload().mapValues(\.logValue))
+    }
+}
+
+extension CollectionDifference: LogValueConvertible {
+    public var logValue: LogValue {
+        var changes: [LogValue] = []
+        for change in self {
+            switch change {
+            case let .insert(offset: offset, element: element, _):
+                changes.append(.string("insert at \(offset): '\(element)'"))
+            case let .remove(offset: offset, element: element, _):
+                changes.append(.string("remove at \(offset): '\(element)'"))
+            }
+        }
+        return .array(changes)
     }
 }

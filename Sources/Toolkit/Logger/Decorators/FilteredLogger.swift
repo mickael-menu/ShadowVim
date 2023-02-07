@@ -17,24 +17,30 @@
 
 import Foundation
 
-/// Indicates whether the app is running without release optimizations.
-private let debug: Bool = {
-    var isDebug = false
-    func set(debug: Bool) -> Bool {
-        isDebug = debug
-        return isDebug
+/// A decorator filtering incoming log entries satisfying the given predicate.
+public struct FilteredLogger: Logger {
+    private let logger: Logger
+    private let isLogged: (LogEntry) -> Bool
+
+    public init(logger: Logger, isLogged: @escaping (LogEntry) -> Bool) {
+        self.logger = logger
+        self.isLogged = isLogged
     }
-    // assert:
-    // "Condition is only evaluated in playgrounds and -Onone builds."
-    // so isDebug is never changed to true in Release builds
-    assert(set(debug: true))
-    return isDebug
-}()
 
-public enum Debug {
-    public static var isDebugging: Bool { debug }
+    public func log(_ entry: LogEntry) {
+        guard isLogged(entry) else {
+            return
+        }
+        logger.log(entry)
+    }
+}
 
-    public static func printCallStack() {
-        Thread.callStackSymbols.forEach { print($0) }
+public extension Logger {
+    func filter(isLogged: @escaping (LogEntry) -> Bool) -> Logger {
+        FilteredLogger(logger: self, isLogged: isLogged)
+    }
+
+    func filter(minimumLevel: LogLevel) -> Logger {
+        filter { $0.level >= minimumLevel }
     }
 }

@@ -74,21 +74,21 @@ public final class AppMediator {
 
     public let app: NSRunningApplication
     public let appElement: AXUIElement
-    private let logger: Logger
+    private let logger: Logger?
     private var isStarted = false
     private let nvim: Nvim
-    private let buffers: Buffers
+    private let buffers: NvimBuffers
     private var bufferMediators: [BufferName: BufferMediator] = [:]
     private var focusedBufferMediator: BufferMediator?
     private var subscriptions: Set<AnyCancellable> = []
 
-    init(app: NSRunningApplication, delegate: AppMediatorDelegate?, logger: Logger) throws {
+    init(app: NSRunningApplication, delegate: AppMediatorDelegate?, logger: Logger?) throws {
         self.app = app
         self.delegate = delegate
         self.logger = logger
         appElement = AXUIElement.app(app)
-        nvim = try Nvim.start(logger: logger)
-        buffers = Buffers(events: nvim.events)
+        nvim = try Nvim.start(logger: logger?.domain("nvim"))
+        buffers = NvimBuffers(events: nvim.events, logger: logger?.domain("buffers"))
         nvim.delegate = self
 
         setupFocusSync()
@@ -160,7 +160,7 @@ public final class AppMediator {
             // modal is opened.
             isAppFocused,
             let focusedBufferMediator = focusedBufferMediator,
-            focusedBufferMediator.element.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
+            focusedBufferMediator.uiElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
             return event
         }
@@ -171,29 +171,53 @@ public final class AppMediator {
 
         switch event.type {
         case .keyDown:
-            // Passthrough for ⌘-based keyboard shortcuts.
-            guard !event.flags.contains(.maskCommand) else {
-                break
-            }
+            return handleKeyDown(event, in: focusedBufferMediator.nvimBuffer)
+        default:
+            return event
+        }
+    }
 
-            // FIXME: See `nvim.paste` "Faster than nvim_input()."
+    private func handleKeyDown(_ event: CGEvent, in buffer: NvimBuffer) -> CGEvent? {
+        let modifiers = event.modifiers
 
-            nvim.api.transaction { [self] api in
-                buffers.edit(buffer: focusedBufferMediator.buffer, with: api)
-                    .flatMap { api.input(event.nvimKey) }
+        switch (modifiers, event.character) {
+        case ([.command], "z"):
+            nvim.api.transaction(in: buffer) { api in
+                api.command("undo")
             }
             .discardResult()
-            .get(onFailure: { [self] in
-                delegate?.appMediator(self, didFailWithError: $0)
-            })
+            .forwardErrorToDelegate(of: self)
+            .run()
+
+            return nil
+
+        case ([.command, .shift], "z"):
+            nvim.api.transaction(in: buffer) { api in
+                api.command("redo")
+            }
+            .discardResult()
+            .forwardErrorToDelegate(of: self)
+            .run()
 
             return nil
 
         default:
-            break
-        }
+            // Passthrough for ⌘-based keyboard shortcuts.
+            guard !event.flags.contains(.maskCommand) else {
+                return event
+            }
 
-        return event
+            // FIXME: See `nvim.paste` "Faster than nvim_input()."
+
+            nvim.api.transaction(in: buffer) { api in
+                api.input(event.nvimKey)
+            }
+            .discardResult()
+            .forwardErrorToDelegate(of: self)
+            .run()
+
+            return nil
+        }
     }
 
     private var isAppFocused: Bool {
@@ -242,27 +266,27 @@ public final class AppMediator {
 
     private func editBuffer(for element: AXUIElement, name: BufferName) -> Async<BufferMediator, APIError> {
         buffers.edit(name: name, contents: element[.value] ?? "", with: nvim.api)
-            .map { [self] handle in
-                let buffer = bufferMediators.getOrPut(name) {
+            .map(on: .main) { [self] buffer in
+                let mediator = bufferMediators.getOrPut(name) {
                     BufferMediator(
                         nvim: nvim,
-                        buffer: handle,
-                        element: element,
+                        nvimBuffer: buffer,
+                        uiElement: element,
                         name: name,
-                        nvimLinesPublisher: buffers.linesPublisher(for: handle),
                         nvimCursorPublisher: nvimCursorPublisher
                             .compactMap { buf, cur in
-                                guard buf == handle else {
+                                guard buf == buffer.handle else {
                                     return nil
                                 }
                                 return cur
                             }
                             .eraseToAnyPublisher(),
+                        logger: logger,
                         delegate: self
                     )
                 }
-                buffer.element = element
-                return buffer
+                mediator.uiElement = element
+                return mediator
             }
     }
 
@@ -286,7 +310,7 @@ public final class AppMediator {
                 }
 
                 let cursor = Cursor(
-                    position: (line: line - 1, column: col - 1),
+                    position: BufferPosition(line: line - 1, column: col - 1),
                     mode: Mode(rawValue: mode) ?? .normal
                 )
                 return (buffer, cursor)
@@ -332,27 +356,9 @@ extension AppMediator: BufferMediatorDelegate {
 
 extension AppMediator: NvimDelegate {
     public func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>? {
-        logger.i("Received RPC request from Nvim", [
-            "method": "SVRefresh",
-            "data": String(describing: data),
-        ])
-
         switch method {
         case "SVRefresh":
-            guard let mediator = focusedBufferMediator else {
-                return .success(.bool(false))
-            }
-            nvim.api.transaction { api in
-                self.buffers.edit(buffer: mediator.buffer, with: api)
-                    .flatMap {
-                        api.bufGetLines(buffer: mediator.buffer, start: 0, end: -1)
-                    }
-                    .map { lines in
-                        try? mediator.element.set(.value, value: lines.joined(separator: "\n"))
-                    }
-            }
-            .assertNoFailure()
-            .run()
+            focusedBufferMediator?.didRequestRefresh()
             return .success(.bool(true))
         default:
             return nil

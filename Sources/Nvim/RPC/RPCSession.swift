@@ -65,26 +65,26 @@ struct RPCRequestCallbacks {
 final class RPCSession {
     typealias RequestCompletion = (Result<Value, RPCError>) -> Void
 
-    private let logger: Logger
+    private let logger: Logger?
     private let _send: (Data) throws -> Void
     private let _receive: () -> Data
     private var receiveTask: Task<Void, Never>?
 
     weak var delegate: RPCSessionDelegate?
-    private var isClosed: Bool = false
+    @Atomic private var isClosed: Bool = false
 
     init(
-        logger: Logger,
+        logger: Logger?,
         send: @escaping (Data) throws -> Void,
         receive: @escaping () -> Data
     ) {
-        self.logger = logger.tagged("rpc")
+        self.logger = logger
         _send = send
         _receive = receive
     }
 
     convenience init(
-        logger: Logger,
+        logger: Logger?,
         input: FileHandle,
         output: FileHandle
     ) {
@@ -103,8 +103,10 @@ final class RPCSession {
         guard !isClosed else {
             return
         }
-        isClosed = true
         receiveTask?.cancel()
+        $isClosed.write {
+            $0 = true
+        }
     }
 
     // MARK: - Receive
@@ -122,7 +124,10 @@ final class RPCSession {
 
                     Value.from(message)
                         .flatMap { receive(message: $0) }
-                        .onError { delegate?.session(self, didFailWithError: $0) }
+                        .onError {
+                            logger?.e($0)
+                            delegate?.session(self, didFailWithError: $0)
+                        }
 
                     data = remainder
 
@@ -130,7 +135,9 @@ final class RPCSession {
                     data += receive()
 
                 } catch {
-                    delegate?.session(self, didFailWithError: .unpackFailure(error))
+                    let error = RPCError.unpackFailure(error)
+                    logger?.e(error)
+                    delegate?.session(self, didFailWithError: error)
                 }
 
                 if data.isEmpty {
@@ -176,7 +183,7 @@ final class RPCSession {
             else {
                 return .failure(.unexpectedMessage(message))
             }
-            logger.i(">\(id) \(method)(\(params))\n")
+            logger?.t("Receive request", [.messageId: id, .method: method, .params: params])
 
             guard
                 let delegate = delegate,
@@ -204,8 +211,14 @@ final class RPCSession {
                 return .success(body[3])
             }()
 
+            switch result {
+            case let .success(value):
+                logger?.t("Receive response", [.messageId: id, .result: value])
+            case let .failure(error):
+                logger?.t("Receive response", [.messageId: id, .error: String(reflecting: error)])
+            }
+
             endRequest(id: id, with: result)
-            logger.i("\(id)< \(body[2]) | \(body[3])\n")
 
         case .notification:
             guard
@@ -215,7 +228,7 @@ final class RPCSession {
             else {
                 return .failure(.unexpectedMessage(message))
             }
-            logger.i("@\(method)", ["params": params])
+            logger?.t("Receive notification", [.method: method, .params: params])
             delegate?.session(self, didReceiveNotification: method, with: params)
         }
 
@@ -258,7 +271,7 @@ final class RPCSession {
                 ])
                 let data = MessagePack.pack(request)
 
-                logger.i("\(id)> \(method)(\(params))\n")
+                logger?.t("Send request", [.messageId: id, .method: method, .params: params.map(\.nvimValue)])
                 do {
                     try send(data)
                 } catch {
@@ -271,11 +284,15 @@ final class RPCSession {
     }
 
     func endRequest(id: RPCMessageID, with result: Result<Value, RPCError>) {
-        guard let completion = requests.removeValue(forKey: id) else {
-            delegate?.session(self, didFailWithError: .unknownRequestId(id))
-            return
+        sendQueue.async { [self] in
+            guard let completion = requests.removeValue(forKey: id) else {
+                let error = RPCError.unknownRequestId(id)
+                logger?.e(error)
+                delegate?.session(self, didFailWithError: error)
+                return
+            }
+            completion(result)
         }
-        completion(result)
     }
 
     private func send(_ data: Data) throws {
@@ -284,4 +301,12 @@ final class RPCSession {
         }
         return try _send(data)
     }
+}
+
+private extension LogKey {
+    static var messageId: LogKey { "@messageId" }
+    static var method: LogKey { "method" }
+    static var params: LogKey { "params" }
+    static var result: LogKey { "result" }
+    static var error: LogKey { "error" }
 }

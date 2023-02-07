@@ -15,29 +15,28 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-import Combine
 import Foundation
 
-/// A switch (boolean) that reverts automatically to `false` after a delay.
-///
-/// Every time it is activated, the `false` value is debounced.
-public final class TimeSwitch {
-    @Atomic public private(set) var isOn: Bool = false
-    private var subject = PassthroughSubject<Void, Never>()
-    private var subscription: AnyCancellable!
+/// Lossy equatable error wrapper to help with unit testing and keeping enum
+/// equatables.
+public struct EquatableError: Equatable {
+    public let error: Error
 
-    public init(timer: TimeInterval) {
-        subscription = subject
-            .debounce(for: .seconds(timer), scheduler: DispatchQueue.global())
-            .sink { [unowned self] _ in
-                $isOn.write { $0 = false }
-            }
+    public init(error: Error) {
+        self.error = error
     }
 
-    public func activate() {
-        $isOn.write {
-            $0 = true
-            subject.send(())
-        }
+    public static func == (lhs: EquatableError, rhs: EquatableError) -> Bool {
+        String(reflecting: lhs.error) == String(reflecting: rhs.error)
+    }
+}
+
+extension EquatableError: LogValueConvertible {
+    public var logValue: LogValue { .string(String(reflecting: error)) }
+}
+
+public extension Error {
+    func equatable() -> EquatableError {
+        EquatableError(error: self)
     }
 }

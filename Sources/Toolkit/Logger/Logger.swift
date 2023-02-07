@@ -23,66 +23,65 @@ public protocol Logger {
 }
 
 public extension Logger {
-    func log(_ level: LogLevel, _ payloads: LogPayloadConvertible..., file: String = #file, line: Int = #line, function: String = #function) {
-        log(level: level, file: file, line: line, function: function, payloads: payloads)
+    func log(_ level: LogLevel, _ message: String, _ payload: @autoclosure @escaping () -> LogPayloadConvertible = [:], file: String = #file, line: Int = #line, function: String = #function) {
+        log(level: level, file: file, line: line, function: function, message: message, payload: payload)
     }
 
-    func d(_ payloads: LogPayloadConvertible..., file: String = #file, line: Int = #line, function: String = #function) {
-        log(level: .debug, file: file, line: line, function: function, payloads: payloads)
+    func t(_ message: String, _ payload: @autoclosure @escaping () -> LogPayloadConvertible = [:], file: String = #file, line: Int = #line, function: String = #function) {
+        log(level: .trace, file: file, line: line, function: function, message: message, payload: payload)
     }
 
-    func i(_ payloads: LogPayloadConvertible..., file: String = #file, line: Int = #line, function: String = #function) {
-        log(level: .info, file: file, line: line, function: function, payloads: payloads)
+    func d(_ message: String, _ payload: @autoclosure @escaping () -> LogPayloadConvertible = [:], file: String = #file, line: Int = #line, function: String = #function) {
+        log(level: .debug, file: file, line: line, function: function, message: message, payload: payload)
     }
 
-    func w(_ payloads: LogPayloadConvertible..., file: String = #file, line: Int = #line, function: String = #function) {
-        log(level: .warning, file: file, line: line, function: function, payloads: payloads)
+    func i(_ message: String, _ payload: @autoclosure @escaping () -> LogPayloadConvertible = [:], file: String = #file, line: Int = #line, function: String = #function) {
+        log(level: .info, file: file, line: line, function: function, message: message, payload: payload)
     }
 
-    func e(_ payloads: LogPayloadConvertible..., file: String = #file, line: Int = #line, function: String = #function) {
-        log(level: .error, file: file, line: line, function: function, payloads: payloads)
+    func w(_ message: String, _ payload: @autoclosure @escaping () -> LogPayloadConvertible = [:], file: String = #file, line: Int = #line, function: String = #function) {
+        log(level: .warning, file: file, line: line, function: function, message: message, payload: payload)
     }
 
-    func w(_ error: Error, file: String = #file, line: Int = #line, function: String = #function) {
-        log(error: error, level: .warning, file: file, line: line, function: function)
+    func e(_ message: String, _ payload: @autoclosure @escaping () -> LogPayloadConvertible = [:], file: String = #file, line: Int = #line, function: String = #function) {
+        log(level: .error, file: file, line: line, function: function, message: message, payload: payload)
     }
 
-    func e(_ error: Error, file: String = #file, line: Int = #line, function: String = #function) {
-        log(error: error, level: .error, file: file, line: line, function: function)
+    func w(_ error: Error, _ message: String? = nil, file: String = #file, line: Int = #line, function: String = #function) {
+        log(error: error, level: .warning, file: file, line: line, message: message, function: function)
     }
 
-    private func log(error: Error, level: LogLevel, file: String, line: Int, function: String) {
-        var payload: [LogKey: any LogValueConvertible] = [
-            .message: "Error: \(String(reflecting: error))",
-            .callStack: Thread.callStackSymbols,
-        ]
-        if let error = error as? LocalizedError {
-            if let desc = error.errorDescription {
-                payload["errorDescription"] = desc
+    func e(_ error: Error, _ message: String? = nil, file: String = #file, line: Int = #line, function: String = #function) {
+        log(error: error, level: .error, file: file, line: line, message: message, function: function)
+    }
+
+    private func log(error: Error, level: LogLevel, file: String, line: Int, message: String?, function: String) {
+        let message = message?.appending("\n") ?? "" + "Error: \(String(reflecting: error))"
+        log(level: level, file: file, line: line, function: function, message: message) {
+            var payload: [LogKey: any LogValueConvertible] = [
+                .message: "Error: \(String(reflecting: error))",
+                .callStack: Thread.callStackSymbols,
+            ]
+            if let error = error as? LocalizedError {
+                if let desc = error.errorDescription {
+                    payload["errorDescription"] = desc
+                }
+                if let reason = error.failureReason {
+                    payload["failureReason"] = reason
+                }
             }
-            if let reason = error.failureReason {
-                payload["failureReason"] = reason
-            }
+            return payload
         }
-        log(level: level, file: file, line: line, function: function, payloads: [payload])
     }
 
-    private func log(level: LogLevel, file: String, line: Int, function: String, payloads: [LogPayloadConvertible]) {
-        log(LogEntry(
-            level: level,
-            file: file,
-            line: line,
-            function: function,
-            payload: payloads.reduce(into: [:]) { res, i in
-                res.merge(i.logPayload().mapValues(\.logValue)) { _, new in new }
-            }
-        ))
+    private func log(level: LogLevel, file: String, line: Int, function: String, message: String, payload: @escaping () -> LogPayloadConvertible) {
+        let payload = {
+            var p = payload().logPayload()
+            p[.message] = message
+            return p
+        }
+        log(LogEntry(level: level, file: file, line: line, function: function, payload: payload))
     }
-}
-
-public struct NullLogger: Logger {
-    public init() {}
-    public func log(_ entry: LogEntry) {}
 }
 
 public struct LogEntry {
@@ -92,15 +91,15 @@ public struct LogEntry {
     public let line: Int
     public let function: String
 
-    /// Structured payload for this log entry.
-    public var payload: LogPayload
+    /// Generates the structured payload for this log entry.
+    public var payload: () -> LogPayloadConvertible
 
     public init(
         level: LogLevel,
         file: String,
         line: Int,
         function: String,
-        payload: LogPayload
+        payload: @escaping () -> LogPayloadConvertible
     ) {
         self.level = level
         self.file = file
@@ -108,10 +107,23 @@ public struct LogEntry {
         self.function = function
         self.payload = payload
     }
+
+    public func combined(with otherPayload: @escaping () -> LogPayloadConvertible) -> LogEntry {
+        combined(with: otherPayload())
+    }
+
+    public func combined(with otherPayload: LogPayloadConvertible) -> LogEntry {
+        var copy = self
+        copy.payload = {
+            payload().merging(otherPayload)
+        }
+        return copy
+    }
 }
 
 /// Severity level.
 public enum LogLevel: Int, Comparable {
+    case trace
     case debug
     case info
     case warning
@@ -124,8 +136,8 @@ public enum LogLevel: Int, Comparable {
 
 /// A `LogKey` identifies a structured metadata in a `LogPayload`.
 public struct LogKey: RawRepresentable, Hashable, ExpressibleByStringLiteral {
-    /// Free tag for grouping entries together.
-    public static let tag: LogKey = "tag"
+    /// Reverse domain name used to group entries together.
+    public static let domain: LogKey = "domain"
 
     /// A human-readable string message.
     public static let message: LogKey = "message"
@@ -150,15 +162,13 @@ public protocol LogPayloadConvertible: LogValueConvertible {
     func logPayload() -> [LogKey: any LogValueConvertible]
 }
 
-extension String: LogPayloadConvertible {
-    public func logPayload() -> [LogKey: any LogValueConvertible] {
-        [.message: self]
-    }
-}
-
 public extension LogPayloadConvertible {
-    func logValue() -> LogValue {
+    var logValue: LogValue {
         .dict(logPayload().mapValues(\.logValue))
+    }
+
+    func merging(_ other: LogPayloadConvertible) -> LogPayloadConvertible {
+        logPayload().merging(other.logPayload()) { _, o in o }
     }
 }
 

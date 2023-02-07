@@ -17,6 +17,7 @@
 
 import ApplicationServices
 import Foundation
+import Toolkit
 
 /// Returns whether the current process is a trusted accessibility client.
 ///
@@ -31,3 +32,9 @@ public func isProcessTrusted(prompt: Bool = false) -> Bool {
         kAXTrustedCheckOptionPrompt.takeUnretainedValue(): prompt,
     ] as CFDictionary)
 }
+
+public func setLogger(_ logger: Logger?) {
+    axLogger = logger
+}
+
+var axLogger: Logger?

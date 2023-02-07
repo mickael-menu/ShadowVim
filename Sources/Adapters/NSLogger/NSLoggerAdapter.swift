@@ -28,7 +28,7 @@ public struct NSLoggerLogger: Toolkit.Logger {
 
     public func log(_ entry: LogEntry) {
         DispatchQueue.main.async {
-            var payload = entry.payload
+            var payload = entry.payload().logPayload().mapValues(\.logValue)
             let domain = payload.removeNSDomain()
 
             var output = ""
@@ -52,16 +52,18 @@ public struct NSLoggerLogger: Toolkit.Logger {
 
 private extension LogPayload {
     mutating func removeNSDomain() -> NSLogger.Logger.Domain {
-        guard case let .string(tag) = removeValue(forKey: .tag) else {
-            return .app
+        guard case let .string(domain) = removeValue(forKey: .domain) else {
+            return .custom("app")
         }
-        return .custom(tag)
+        return .custom(domain)
     }
 }
 
 private extension LogLevel {
     var nsLevel: NSLogger.Logger.Level {
         switch self {
+        case .trace:
+            return .noise
         case .debug:
             return .debug
         case .info:

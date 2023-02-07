@@ -39,3 +39,10 @@ The `position` and `size` AX attributes seem to return incorrect values with Xco
 ## Command line
 
 Integrate it directly in Xcode's UI?
+
+## Replace next snippet placeholder
+
+```viml
+nmap gp /<LT>#.\{-}#><CR>gn
+nmap cgp /<LT>#.\{-}#><CR>cgn
+```
