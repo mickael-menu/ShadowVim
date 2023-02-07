@@ -72,7 +72,7 @@ public struct BufLinesEvent: Equatable {
     /// `nvim_buf_lines_event` notifications (e.g. because it was too big).
     public let more: Bool
 
-    init(
+    public init(
         buf: BufferHandle = 0,
         changedTick: Int?,
         firstLine: LineIndex,

@@ -23,7 +23,7 @@ import Toolkit
 class AppDelegate: NSObject, NSApplicationDelegate {
     let app = App(
         logger: Debug.isDebugging
-            ? NSLoggerLogger().filter(minimumLevel: .trace)
+            ? NSLoggerLogger().filter(minimumLevel: .warning)
             : nil
     )
 

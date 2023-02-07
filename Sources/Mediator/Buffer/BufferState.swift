@@ -34,8 +34,12 @@ struct BufferState: Equatable {
     /// State of the UI buffer.
     private(set) var ui: UIState
 
-    init(nvim: NvimState, ui: UIState) {
-        token = .free
+    init(
+        token: EditionToken = .free,
+        nvim: NvimState = NvimState(),
+        ui: UIState = UIState()
+    ) {
+        self.token = token
         self.nvim = nvim
         self.ui = ui
     }
