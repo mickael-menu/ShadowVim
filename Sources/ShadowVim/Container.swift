@@ -15,68 +15,28 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-import AppKit
-import AX
-import Combine
 import Foundation
 import Mediator
 import NSLoggerAdapter
-import Nvim
 import Toolkit
 
 final class Container {
-    let logger: Logger? = Debug.isDebugging
-        ? NSLoggerLogger().filter(minimumLevel: .trace)
-        : nil
+    private let logger: Logger?
+    private let mediator: MediatorContainer
 
     init() {
-        AX.setLogger(logger?.domain("ax"))
+        let logger: Logger? = Debug.isDebugging
+            ? NSLoggerLogger().filter(minimumLevel: .trace)
+            : nil
+
+        self.logger = logger?.domain("app")
+        mediator = MediatorContainer(logger: logger)
     }
 
-    lazy var app = App(
-        mediator: mainMediator,
-        logger: logger?.domain("app")
-    )
-
-    lazy var mainMediator = MainMediator(
-        bundleIDs: [
-            "com.apple.dt.Xcode",
-//            "com.apple.TextEdit",
-//            "com.google.android.studio",
-        ],
-        logger: logger?.domain("mediator.main"),
-        appMediatorFactory: appMediator
-    )
-
-    func appMediator(app: NSRunningApplication) throws -> AppMediator {
-        let nvim = try Nvim.start(logger: logger?.domain("nvim"))
-
-        return try AppMediator(
-            app: app,
-            nvim: nvim,
-            buffers: NvimBuffers(
-                events: nvim.events,
-                logger: logger?.domain("mediator.nvim.buffers")
-            ),
-            logger: logger?.domain("mediator.app"),
-            bufferMediatorFactory: bufferMediator
-        )
-    }
-
-    func bufferMediator(
-        nvim: Nvim,
-        nvimBuffer: NvimBuffer,
-        uiElement: AXUIElement,
-        name: String,
-        nvimCursorPublisher: AnyPublisher<Cursor, APIError>
-    ) -> BufferMediator {
-        BufferMediator(
-            nvim: nvim,
-            nvimBuffer: nvimBuffer,
-            uiElement: uiElement,
-            name: name,
-            nvimCursorPublisher: nvimCursorPublisher,
-            logger: logger?.domain("mediator.buffer")
+    func app() -> App {
+        App(
+            mediator: mediator.mainMediator(),
+            logger: logger
         )
     }
 }

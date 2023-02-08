@@ -16,12 +16,17 @@
 //
 
 import Cocoa
-import Mediator
-import NSLoggerAdapter
-import Toolkit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    let container = Container()
+    let container: Container
+    let app: App
+
+    override init() {
+        container = Container()
+        app = container.app()
+
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Prevent showing the menu bar and dock icon.
@@ -30,10 +35,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 //        let cmdline = CmdlineController(frame: NSRect(x: 0, y: 0, width: 480, height: 44))
 //        cmdline.show()
 
-        container.app.didLaunch()
+        app.didLaunch()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        container.app.willTerminate()
+        app.willTerminate()
     }
 }
