@@ -15,30 +15,28 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-import Cocoa
+import Foundation
+import Mediator
+import NSLoggerAdapter
+import Toolkit
 
-class AppDelegate: NSObject, NSApplicationDelegate {
-    let container: Container
-    let app: App
+final class Container {
+    private let logger: Logger?
+    private let mediator: MediatorContainer
 
-    override init() {
-        container = Container()
-        app = container.app()
+    init() {
+        let logger: Logger? = Debug.isDebugging
+            ? NSLoggerLogger().filter(minimumLevel: .trace)
+            : nil
 
-        super.init()
+        self.logger = logger?.domain("app")
+        mediator = MediatorContainer(logger: logger)
     }
 
-    func applicationDidFinishLaunching(_ aNotification: Notification) {
-        // Prevent showing the menu bar and dock icon.
-//        NSApp.setActivationPolicy(.accessory)
-
-//        let cmdline = CmdlineController(frame: NSRect(x: 0, y: 0, width: 480, height: 44))
-//        cmdline.show()
-
-        app.didLaunch()
-    }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        app.willTerminate()
+    func app() -> App {
+        App(
+            mediator: mediator.mainMediator(),
+            logger: logger
+        )
     }
 }

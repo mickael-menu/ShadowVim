@@ -31,106 +31,28 @@ public protocol NvimDelegate: AnyObject {
     func nvim(_ nvim: Nvim, didFailWithError error: NvimError)
 }
 
-public class Nvim {
-    /// Starts a new Nvim process.
-    public static func start(
-        logger: Logger?,
-        executableURL: URL = URL(fileURLWithPath: "/usr/bin/env"),
-        delegate: NvimDelegate? = nil
-    ) throws -> Nvim {
-        let input = Pipe()
-        let output = Pipe()
-        let process = Process()
-        process.executableURL = executableURL
-        process.arguments = [
-            "nvim",
-            "--headless",
-            "--embed",
-            "-n", // Ignore swap files.
-            "--clean", // Don't load default config and plugins.
-            "-u", configURL().path,
-        ]
-        process.standardInput = input
-        process.standardOutput = output
-        process.environment = [
-            "PATH": "$PATH:$HOME/bin"
-                // MacPorts: https://guide.macports.org/#installing.shell.postflight
-                + ":/usr/local/bin"
-                // Homebrew: https://docs.brew.sh/FAQ#why-should-i-install-homebrew-in-the-default-location
-                + ":/opt/homebrew/bin:/opt/local/bin"
-                // XDG: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-                + ":$HOME/.local/bin",
-        ]
-        let nvim = Nvim(
-            process: process,
-            session: RPCSession(
-                logger: logger?.domain("rpc"),
-                input: input.fileHandleForWriting,
-                output: output.fileHandleForReading
-            ),
-            logger: logger,
-            delegate: delegate
-        )
-
-        try process.run()
-        DispatchQueue.global().async {
-            process.waitUntilExit()
-            nvim.stop()
-            logger?.w("Nvim closed with status \(process.terminationStatus)")
-            nvim.delegate?.nvim(nvim, didFailWithError: .processStopped(status: Int(process.terminationStatus)))
-        }
-
-        return nvim
-    }
-
-    /// Locates ShadowVim's default configuration file.
-    ///
-    /// Precedence:
-    ///   1. $XDG_CONFIG_HOME/svim/init.vim
-    ///   2. $XDG_CONFIG_HOME/svim/init.lua
-    ///   3. ~/.config/svim/init.vim
-    ///   4. ~/.config/svim/init.lua
-    ///
-    /// See https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-    private static func configURL() -> URL {
-        var configDir = ProcessInfo.processInfo
-            .environment["XDG_CONFIG_HOME"] ?? "~/.config"
-        configDir = NSString(string: configDir).expandingTildeInPath
-
-        let configBase = URL(fileURLWithPath: configDir, isDirectory: true)
-            .appendingPathComponent("svim/init", isDirectory: false)
-        let vimlConfig = configBase.appendingPathExtension("vim")
-        let luaConfig = configBase.appendingPathExtension("lua")
-
-        return ((try? vimlConfig.checkResourceIsReachable()) ?? false)
-            ? vimlConfig
-            : luaConfig
-    }
-
+public final class Nvim {
     public let api: API
     public let events: EventDispatcher
     public weak var delegate: NvimDelegate?
-    private let process: Process
+
+    private let process: NvimProcess
     private let session: RPCSession
     private let logger: Logger?
-    private var isStopped = false
     private var subscriptions: Set<AnyCancellable> = []
 
-    private init(process: Process, session: RPCSession, logger: Logger?, delegate: NvimDelegate? = nil) {
-        let api = API(session: session, logger: logger?.domain("api"))
-        self.api = api
+    init(
+        process: NvimProcess,
+        session: RPCSession,
+        api: API,
+        events: EventDispatcher,
+        logger: Logger?
+    ) {
         self.process = process
-        self.logger = logger
         self.session = session
-        events = EventDispatcher(api: api, logger: logger?.domain("events"))
-        self.delegate = delegate
-
-        NotificationCenter.default
-            .publisher(for: Process.didTerminateNotification, object: process)
-            .sink { [weak self] _ in
-                self?.didTerminate()
-            }
-            .store(in: &subscriptions)
+        self.api = api
+        self.events = events
+        self.logger = logger
 
         session.start(delegate: self)
     }
@@ -141,19 +63,16 @@ public class Nvim {
 
     /// Stops the Nvim process.
     public func stop() {
-        guard !isStopped else {
-            return
-        }
-        process.interrupt()
-        didTerminate()
+        process.stop()
     }
+}
 
-    private func didTerminate() {
-        guard !isStopped else {
-            return
-        }
-        isStopped = true
+extension Nvim: NvimProcessDelegate {
+    public func nvimProcess(_ nvimProcess: NvimProcess, didTerminateWithStatus status: Int) {
         session.close()
+
+        logger?.w("Nvim closed with status \(status)")
+        delegate?.nvim(self, didFailWithError: .processStopped(status: status))
     }
 }
 

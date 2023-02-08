@@ -23,21 +23,13 @@ import Nvim
 import Toolkit
 
 class App {
-    private let logger: Logger?
     private let mediator: MainMediator
+    private let logger: Logger?
 
-    init(logger: Logger?) {
+    init(mediator: MainMediator, logger: Logger?) {
+        self.mediator = mediator
         self.logger = logger
-        AX.setLogger(logger?.domain("ax"))
 
-        mediator = MainMediator(
-            bundleIDs: [
-                "com.apple.dt.Xcode",
-//                "com.apple.TextEdit",
-//                "com.google.android.studio",
-            ],
-            logger: logger
-        )
         mediator.delegate = self
     }
 

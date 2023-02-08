@@ -70,25 +70,36 @@ public extension AppMediatorDelegate {
 }
 
 public final class AppMediator {
+    public typealias Factory = (_ app: NSRunningApplication) throws -> AppMediator
+
     public weak var delegate: AppMediatorDelegate?
 
     public let app: NSRunningApplication
     public let appElement: AXUIElement
-    private let logger: Logger?
     private var isStarted = false
     private let nvim: Nvim
     private let buffers: NvimBuffers
+    private let logger: Logger?
+    private let bufferMediatorFactory: BufferMediator.Factory
+
     private var bufferMediators: [BufferName: BufferMediator] = [:]
     private var focusedBufferMediator: BufferMediator?
     private var subscriptions: Set<AnyCancellable> = []
 
-    init(app: NSRunningApplication, delegate: AppMediatorDelegate?, logger: Logger?) throws {
+    public init(
+        app: NSRunningApplication,
+        nvim: Nvim,
+        buffers: NvimBuffers,
+        logger: Logger?,
+        bufferMediatorFactory: @escaping BufferMediator.Factory
+    ) throws {
         self.app = app
-        self.delegate = delegate
-        self.logger = logger
         appElement = AXUIElement.app(app)
-        nvim = try Nvim.start(logger: logger?.domain("nvim"))
-        buffers = NvimBuffers(events: nvim.events, logger: logger?.domain("buffers"))
+        self.nvim = nvim
+        self.buffers = buffers
+        self.logger = logger
+        self.bufferMediatorFactory = bufferMediatorFactory
+
         nvim.delegate = self
 
         setupFocusSync()
@@ -268,7 +279,7 @@ public final class AppMediator {
         buffers.edit(name: name, contents: element[.value] ?? "", with: nvim.api)
             .map(on: .main) { [self] buffer in
                 let mediator = bufferMediators.getOrPut(name) {
-                    BufferMediator(
+                    bufferMediatorFactory((
                         nvim: nvim,
                         nvimBuffer: buffer,
                         uiElement: element,
@@ -280,11 +291,10 @@ public final class AppMediator {
                                 }
                                 return cur
                             }
-                            .eraseToAnyPublisher(),
-                        logger: logger,
-                        delegate: self
-                    )
+                            .eraseToAnyPublisher()
+                    ))
                 }
+                mediator.delegate = self
                 mediator.uiElement = element
                 return mediator
             }
