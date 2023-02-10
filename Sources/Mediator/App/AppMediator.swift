@@ -101,8 +101,6 @@ public final class AppMediator {
 
         nvim.delegate = self
 
-        setupFocusSync()
-
 //        nvim.api.uiAttach(
 //            width: 1000,
 //            height: 100,
@@ -159,7 +157,7 @@ public final class AppMediator {
     private func perform(_ action: AppState.Action) {
         switch action {
         case .start:
-
+            setupFocusSync()
             delegate?.appMediatorWillStart(self)
         case .stop:
             performStop()

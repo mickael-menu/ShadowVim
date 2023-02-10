@@ -244,7 +244,7 @@ public final class BufferMediator {
             let uiContent: String = try uiElement.get(.value),
             let (range, replacement) = event.changes(in: uiContent)
         else {
-            logger?.w("Failed to update  partial lines")
+            logger?.w("Failed to update partial lines")
             return
         }
 
