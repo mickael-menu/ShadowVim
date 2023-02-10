@@ -35,6 +35,9 @@ class App {
 
     func didLaunch() {
         do {
+            guard AX.isProcessTrusted(prompt: true) else {
+                throw UserError.a11yPermissionRequired
+            }
             try mediator.start()
             hide()
         } catch {
@@ -134,6 +137,7 @@ class App {
 
     func relaunch() {
         precondition(Thread.isMainThread)
+
         if let bundleID = Bundle.main.bundleIdentifier {
             try! Process.run(URL(filePath: "/usr/bin/open"), arguments: ["-b", bundleID])
         }
@@ -154,10 +158,13 @@ extension App: MainMediatorDelegate {
 }
 
 enum UserError: LocalizedError {
+    case a11yPermissionRequired
     case nvimClosed(status: Int)
 
     var errorDescription: String? {
         switch self {
+        case .a11yPermissionRequired:
+            return "ShadowVim needs the accessibility permission to work properly."
         case let .nvimClosed(status: status):
             return "Nvim closed with status \(status). Relaunch ShadowVim?"
         }
@@ -165,7 +172,7 @@ enum UserError: LocalizedError {
 
     var critical: Bool {
         switch self {
-        case .nvimClosed:
+        case .a11yPermissionRequired, .nvimClosed:
             return true
         }
     }
