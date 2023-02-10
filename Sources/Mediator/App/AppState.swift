@@ -15,28 +15,28 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-import Foundation
 import AX
+import Foundation
 import Nvim
 
 enum AppState {
     case stopped
-    case idle
-    case focused(buffer: BufferMediator)
-    case passthrough
+    case idle(passthrough: Bool)
+    case focused(buffer: BufferMediator, passthrough: Bool)
 
     enum Event {
         case start
         case stop
         case focus(buffer: BufferMediator)
         case unfocus
-        case togglePassthrough(focusedBuffer: BufferMediator?)
+        case togglePassthrough
     }
 
     enum Action {
         case start
         case stop
         case activateBuffer(BufferMediator)
+        case playSound(name: String)
     }
 
     mutating func on(_ event: Event) -> [Action] {
@@ -44,26 +44,23 @@ enum AppState {
 
         switch (self, event) {
         case (.stopped, .start):
-            self = .idle
+            self = .idle(passthrough: false)
             perform(.start)
 
-        case let (.idle, .focus(buffer: buffer)):
-            self = .focused(buffer: buffer)
+        case let (.idle(passthrough: passthrough), .focus(buffer: buffer)):
+            self = .focused(buffer: buffer, passthrough: passthrough)
             perform(.activateBuffer(buffer))
 
-        case (.idle, .togglePassthrough):
-            self = .passthrough
-            
-        case (.focused, .unfocus):
-            self = .idle
+        case let (.idle(passthrough: passthrough), .togglePassthrough):
+            self = .idle(passthrough: !passthrough)
+            perform(.playSound(name: "Pop"))
 
-        case let (.passthrough, .togglePassthrough(focusedBuffer: buffer)):
-            if let buffer = buffer {
-                self = .focused(buffer: buffer)
-                perform(.activateBuffer(buffer))
-            } else {
-                self = .idle
-            }
+        case let (.focused(buffer: _, passthrough: passthrough), .unfocus):
+            self = .idle(passthrough: passthrough)
+
+        case let (.focused(buffer: buffer, passthrough: passthrough), .togglePassthrough):
+            self = .focused(buffer: buffer, passthrough: !passthrough)
+            perform(.playSound(name: "Pop"))
 
         case (_, .stop):
             self = .stopped
