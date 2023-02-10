@@ -33,8 +33,8 @@ final class Container {
         mediator = MediatorContainer(logger: logger)
     }
 
-    func app() -> App {
-        App(
+    func shadowVim() -> ShadowVim {
+        ShadowVim(
             mediator: mediator.mainMediator(),
             logger: logger
         )

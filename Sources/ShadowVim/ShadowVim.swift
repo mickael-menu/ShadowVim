@@ -22,8 +22,15 @@ import Mediator
 import Nvim
 import Toolkit
 
-class App {
-    private let mediator: MainMediator
+protocol ShadowVimDelegate: AnyObject {
+    func shadowVimDidRequestRelaunch(_ shadowVim: ShadowVim)
+}
+
+class ShadowVim {
+    
+    weak var delegate: ShadowVimDelegate?
+    
+    private var mediator: MainMediator
     private let logger: Logger?
 
     init(mediator: MainMediator, logger: Logger?) {
@@ -31,6 +38,10 @@ class App {
         self.logger = logger
 
         mediator.delegate = self
+    }
+    
+    deinit {
+        mediator.stop()
     }
 
     func didLaunch() {
@@ -137,15 +148,11 @@ class App {
 
     func relaunch() {
         precondition(Thread.isMainThread)
-
-        if let bundleID = Bundle.main.bundleIdentifier {
-            try! Process.run(URL(filePath: "/usr/bin/open"), arguments: ["-b", bundleID])
-        }
-        quit()
+        delegate?.shadowVimDidRequestRelaunch(self)
     }
 }
 
-extension App: MainMediatorDelegate {
+extension ShadowVim: MainMediatorDelegate {
     func mainMediator(_ mediator: MainMediator, didFailWithError error: Error) {
         DispatchQueue.main.async {
             let userError = UserError(error: error)
