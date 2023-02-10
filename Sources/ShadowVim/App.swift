@@ -133,8 +133,9 @@ class App {
     }
 
     func relaunch() {
+        precondition(Thread.isMainThread)
         if let bundleID = Bundle.main.bundleIdentifier {
-            Process.launchedProcess(launchPath: "/usr/bin/open", arguments: ["-b", bundleID])
+            try! Process.run(URL(filePath: "/usr/bin/open"), arguments: ["-b", bundleID])
         }
         quit()
     }

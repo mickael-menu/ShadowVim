@@ -43,7 +43,7 @@ public final class BufferMediator {
     private(set) var uiElement: AXUIElement?
     private let logger: Logger?
     private let tokenTimeoutSubject = PassthroughSubject<Void, Never>()
-    
+
     private var subscriptions: Set<AnyCancellable> = []
     private var uiSubscriptions: Set<AnyCancellable> = []
 
@@ -96,14 +96,14 @@ public final class BufferMediator {
             self.on(.userDidRequestRefresh(source: .nvim))
         }
     }
-    
+
     func didFocus(element: AXUIElement) {
         do {
             if uiElement != element {
                 uiElement = element
                 subscribeToElementChanges(element)
             }
-            
+
             if let selection = try element.selection() {
                 on(.uiSelectionDidChange(selection))
             }
@@ -111,10 +111,10 @@ public final class BufferMediator {
             fail(error)
         }
     }
-    
+
     private func subscribeToElementChanges(_ element: AXUIElement) {
         uiSubscriptions = []
-        
+
         element.publisher(for: .valueChanged)
             .receive(on: DispatchQueue.main)
             .tryMap { try $0.lines() }
@@ -309,5 +309,16 @@ private extension AXUIElement {
                 column: end - endLineRange.location
             )
         )
+    }
+}
+
+// MARK: - Logging
+
+extension BufferMediator: LogPayloadConvertible {
+    public func logPayload() -> [LogKey: LogValueConvertible] {
+        [
+            "handle": nvimBuffer.handle,
+            "name": nvimBuffer.name ?? "",
+        ]
     }
 }

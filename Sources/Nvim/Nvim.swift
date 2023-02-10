@@ -54,6 +54,7 @@ public final class Nvim {
         self.events = events
         self.logger = logger
 
+        process.delegate = self
         session.start(delegate: self)
     }
 
