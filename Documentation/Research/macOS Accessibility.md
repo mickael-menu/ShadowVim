@@ -16,3 +16,8 @@ Some APIs might do it for us, like [`rangeForLine`](https://developer.apple.com/
 
 We can use `NSWorkspace.didActivateApplicationNotification` to be notified when the current application changes.
 
+## Reading `AXClassName` attributes
+
+Unfortunately, we can't read the class of `AXUIElement`s without a special Apple entitlement.
+
+https://stackoverflow.com/questions/45590888/how-to-get-the-objective-c-class-name-corresponding-to-an-axuielement

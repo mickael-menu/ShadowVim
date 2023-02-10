@@ -25,10 +25,13 @@ import Toolkit
 /// Xcode-specific overrides for `AppMediator`.
 public class XcodeAppMediatorDelegate: AppMediatorDelegate {
     public weak var delegate: AppMediatorDelegate?
+    private let logger: Logger?
+
     private var subscriptions: Set<AnyCancellable> = []
 
-    public init(delegate: AppMediatorDelegate) {
+    public init(delegate: AppMediatorDelegate, logger: Logger?) {
         self.delegate = delegate
+        self.logger = logger
     }
 
     private let xcodeDefaults = UserDefaults(suiteName: "com.apple.dt.Xcode")
@@ -82,7 +85,7 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
         // We override the default Xcode "Stop" keyboard shortcut to quit
         // manually the app. This way `AppDelegate.applicationWillTerminate()`
         // will be called, allowing to revert the Vim bindings setting.
-        if event.flags.contains(.maskCommand), event.keyCode == .period {
+        if event.modifiers == [.command], event.keyCode == .period {
             NSApp.terminate(self)
             return nil
         }

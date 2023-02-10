@@ -76,12 +76,12 @@ public final class AppMediator {
 
     public let app: NSRunningApplication
     public let appElement: AXUIElement
-    private var isStarted = false
     private let nvim: Nvim
     private let buffers: NvimBuffers
     private let logger: Logger?
     private let bufferMediatorFactory: BufferMediator.Factory
 
+    private var state: AppState = .stopped
     private var bufferMediators: [BufferName: BufferMediator] = [:]
     private var focusedBufferMediator: BufferMediator?
     private var subscriptions: Set<AnyCancellable> = []
@@ -143,18 +143,40 @@ public final class AppMediator {
     }
 
     public func start() {
-        guard !isStarted else {
-            return
-        }
-        delegate?.appMediatorWillStart(self)
-        isStarted = true
+        on(.start)
     }
 
     public func stop() {
-        guard isStarted else {
-            return
+        on(.stop)
+    }
+
+    private func on(_ event: AppState.Event) {
+        precondition(Thread.isMainThread)
+        for action in state.on(event) {
+            perform(action)
         }
-        isStarted = false
+    }
+
+    private func perform(_ action: AppState.Action) {
+        switch action {
+        case .start:
+
+            delegate?.appMediatorWillStart(self)
+        case .stop:
+            performStop()
+
+        case let .activateBuffer(buffer):
+            buffer.didFocus()
+
+        case let .playSound(name: name):
+            if let sound = NSSound(named: name) {
+                sound.stop()
+                sound.play()
+            }
+        }
+    }
+
+    private func performStop() {
         nvim.stop()
         subscriptions.removeAll()
         delegate?.appMediatorDidStop(self)
@@ -170,8 +192,8 @@ public final class AppMediator {
             // Check that we're still the focused app. Useful when the Spotlight
             // modal is opened.
             isAppFocused,
-            let focusedBufferMediator = focusedBufferMediator,
-            focusedBufferMediator.uiElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
+            case let .focused(buffer: buffer, passthrough: passthrough) = state,
+            buffer.uiElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
             return event
         }
@@ -182,17 +204,17 @@ public final class AppMediator {
 
         switch event.type {
         case .keyDown:
-            return handleKeyDown(event, in: focusedBufferMediator.nvimBuffer)
+            return handleKeyDown(event, in: buffer.nvimBuffer, passthrough: passthrough)
         default:
             return event
         }
     }
 
-    private func handleKeyDown(_ event: CGEvent, in buffer: NvimBuffer) -> CGEvent? {
+    private func handleKeyDown(_ event: CGEvent, in buffer: NvimBuffer, passthrough: Bool) -> CGEvent? {
         let modifiers = event.modifiers
 
         switch (modifiers, event.character) {
-        case ([.command], "z"):
+        case ([.command], "z") where !passthrough:
             nvim.api.transaction(in: buffer) { api in
                 api.command("undo")
             }
@@ -202,7 +224,7 @@ public final class AppMediator {
 
             return nil
 
-        case ([.command, .shift], "z"):
+        case ([.command, .shift], "z") where !passthrough:
             nvim.api.transaction(in: buffer) { api in
                 api.command("redo")
             }
@@ -212,9 +234,19 @@ public final class AppMediator {
 
             return nil
 
+        case ([.control, .option, .command], "."):
+            // ⌃⌥⌘. toggles passthrough mode.
+            on(.togglePassthrough)
+            return nil
+
+        case ([.control], "\u{0F}"), ([.control], "\t"):
+            // Passthrough for the navigation shortcuts.
+            // They need to be set in the Xcode config.
+            return event
+
         default:
             // Passthrough for ⌘-based keyboard shortcuts.
-            guard !event.flags.contains(.maskCommand) else {
+            guard !passthrough, !event.flags.contains(.maskCommand) else {
                 return event
             }
 
@@ -263,15 +295,14 @@ public final class AppMediator {
             shouldPlugInElement(element),
             let name = nameForElement(element)
         else {
-            focusedBufferMediator = nil
+            on(.unfocus)
             return
         }
 
         editBuffer(for: element, name: name)
             .forwardErrorToDelegate(of: self)
-            .get { [self] bufferMediator in
-                focusedBufferMediator = bufferMediator
-                bufferMediator.didFocus()
+            .get { [self] mediator in
+                on(.focus(buffer: mediator))
             }
     }
 
@@ -283,7 +314,6 @@ public final class AppMediator {
                         nvim: nvim,
                         nvimBuffer: buffer,
                         uiElement: element,
-                        name: name,
                         nvimCursorPublisher: nvimCursorPublisher
                             .compactMap { buf, cur in
                                 guard buf == buffer.handle else {
@@ -296,6 +326,7 @@ public final class AppMediator {
                 }
                 mediator.delegate = self
                 mediator.uiElement = element
+                mediator.didFocus()
                 return mediator
             }
     }
