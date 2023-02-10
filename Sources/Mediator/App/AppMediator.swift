@@ -34,7 +34,7 @@ public protocol AppMediatorDelegate: AnyObject {
 
     /// Returns whether an Nvim buffer should be associated with this
     /// accessibility `element`.
-    func appMediator(_ mediator: AppMediator, shouldPlugInElement element: AXUIElement) -> Bool
+    func appMediator(_ mediator: AppMediator, shouldPlugInElement element: AXUIElement, name: String) -> Bool
 
     /// Returns the Nvim buffer name for the given accessibility `element`.
     func appMediator(_ mediator: AppMediator, nameForElement element: AXUIElement) -> String?
@@ -52,7 +52,7 @@ public extension AppMediatorDelegate {
     func appMediatorWillStart(_ mediator: AppMediator) {}
     func appMediatorDidStop(_ mediator: AppMediator) {}
 
-    func appMediator(_ mediator: AppMediator, shouldPlugInElement element: AXUIElement) -> Bool {
+    func appMediator(_ mediator: AppMediator, shouldPlugInElement element: AXUIElement, name: String) -> Bool {
         true
     }
 
@@ -290,8 +290,8 @@ public final class AppMediator {
         guard
             element.isValid,
             (try? element.get(.role)) == AXRole.textArea,
-            shouldPlugInElement(element),
-            let name = nameForElement(element)
+            let name = nameForElement(element),
+            shouldPlugInElement(element, name: name)
         else {
             on(.unfocus)
             return
@@ -357,11 +357,11 @@ public final class AppMediator {
 
     // MARK: - Delegate
 
-    private func shouldPlugInElement(_ element: AXUIElement) -> Bool {
+    private func shouldPlugInElement(_ element: AXUIElement, name: String) -> Bool {
         guard let delegate = delegate else {
             return true
         }
-        return delegate.appMediator(self, shouldPlugInElement: element)
+        return delegate.appMediator(self, shouldPlugInElement: element, name: name)
     }
 
     private func nameForElement(_ element: AXUIElement) -> String? {
