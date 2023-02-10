@@ -36,6 +36,10 @@ class EventTap {
 
     init() {}
 
+    deinit {
+        CFMachPortInvalidate(tap)
+    }
+
     func run() throws {
         tap = CGEvent.tapCreate(
             tap: .cghidEventTap,

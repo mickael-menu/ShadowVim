@@ -21,7 +21,7 @@ import NSLoggerAdapter
 import Toolkit
 
 final class Container {
-    private let logger: Logger?
+    let logger: Logger?
     private let mediator: MediatorContainer
 
     init() {

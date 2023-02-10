@@ -35,12 +35,10 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
     }
 
     private let xcodeDefaults = UserDefaults(suiteName: "com.apple.dt.Xcode")
-    private var originalKeyBindingsMode: String?
 
     public func appMediatorWillStart(_ mediator: AppMediator) {
         if let defaults = xcodeDefaults {
             // Disable Xcode's Vim bindings to avoid conflicts with ShadowVim.
-            originalKeyBindingsMode = defaults.keyBindingsMode
             defaults.keyBindingsMode = "Default"
         }
 
@@ -49,11 +47,6 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
 
     public func appMediatorDidStop(_ mediator: AppMediator) {
         subscriptions = []
-
-        // Restore original Xcode's key bindings mode.
-        if let defaults = xcodeDefaults, let mode = originalKeyBindingsMode {
-            defaults.keyBindingsMode = mode
-        }
 
         // Reset cursor, otherwise we start with a single character selected
         // when quitting from normal mode.
@@ -79,6 +72,7 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
             // will end with "MyProject.xcodeproj/". So we can safely ignore
             // folders.
             && !name.hasSuffix("/")
+            && !name.contains("/svim/")
     }
 
     public func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: CGEvent) -> Bool {

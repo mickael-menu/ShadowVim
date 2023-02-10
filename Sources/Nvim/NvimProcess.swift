@@ -110,7 +110,7 @@ public final class NvimProcess {
         self.output = output
         self.logger = logger
 
-        process.terminationHandler = { [unowned self] _ in
+        process.terminationHandler = { [self] _ in
             DispatchQueue.main.async { self.didTerminate() }
         }
 
@@ -135,7 +135,6 @@ public final class NvimProcess {
         if process.isRunning {
             process.interrupt()
         }
-        didTerminate()
     }
 
     private func didTerminate() {

@@ -71,7 +71,11 @@ public final class Nvim {
 extension Nvim: NvimProcessDelegate {
     public func nvimProcess(_ nvimProcess: NvimProcess, didTerminateWithStatus status: Int) {
         session.close()
-        delegate?.nvim(self, didFailWithError: .processStopped(status: status))
+
+        // When resetting Nvim, the status code will be 2. We can ignore it.
+        if status != 2 {
+            delegate?.nvim(self, didFailWithError: .processStopped(status: status))
+        }
     }
 }
 

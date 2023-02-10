@@ -110,10 +110,10 @@ class ShadowVim {
         switch style {
         case .warning:
             alert.addButton(withTitle: "Ignore")
-            alert.addButton(withTitle: "Reset")
+            alert.addButton(withTitle: "Relaunch")
             let response = alert.runModal()
             if response == .alertSecondButtonReturn {
-                mediator.reset()
+                delegate?.shadowVimDidRequestRelaunch(self) 
             }
 
         case .critical:
@@ -152,6 +152,12 @@ class ShadowVim {
 }
 
 extension ShadowVim: MainMediatorDelegate {
+    func mainMediatorDidRequestRelaunch(_ mediator: MainMediator) {
+        DispatchQueue.main.async {
+            self.delegate?.shadowVimDidRequestRelaunch(self)
+        }
+    }
+
     func mainMediator(_ mediator: MainMediator, didFailWithError error: Error) {
         DispatchQueue.main.async {
             let userError = UserError(error: error)

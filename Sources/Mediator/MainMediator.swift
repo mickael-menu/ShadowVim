@@ -23,6 +23,7 @@ import Toolkit
 
 public protocol MainMediatorDelegate: AnyObject {
     func mainMediator(_ mediator: MainMediator, didFailWithError error: Error)
+    func mainMediatorDidRequestRelaunch(_ mediator: MainMediator)
 }
 
 private typealias BundleID = String
@@ -57,26 +58,6 @@ public final class MainMediator {
         eventTap.delegate = self
         try eventTap.run()
 
-        reset()
-    }
-
-    public func stop() {
-        precondition(Thread.isMainThread)
-
-        for (_, app) in apps {
-            app.stop()
-        }
-
-        subscriptions = []
-        apps = [:]
-    }
-
-    public func reset() {
-        precondition(Thread.isMainThread)
-        logger?.i("Reset ShadowVim")
-
-        stop()
-
         if let app = NSWorkspace.shared.frontmostApplication {
             do {
                 _ = try mediator(of: app)
@@ -105,6 +86,17 @@ public final class MainMediator {
                 self?.terminate(app: $0)
             }
             .store(in: &subscriptions)
+    }
+
+    public func stop() {
+        precondition(Thread.isMainThread)
+
+        for (_, app) in apps {
+            app.stop()
+        }
+
+        subscriptions = []
+        apps = [:]
     }
 
     private func mediator(of app: NSRunningApplication) throws -> AppMediator? {
@@ -143,8 +135,8 @@ extension MainMediator: AppMediatorDelegate {
 
 extension MainMediator: EventTapDelegate {
     func eventTap(_ tap: EventTap, didReceive event: CGEvent) -> CGEvent? {
-        if isResetEvent(event) {
-            reset()
+        if isRelaunchEvent(event) {
+            delegate?.mainMediatorDidRequestRelaunch(self)
             return nil
         }
 
@@ -163,8 +155,8 @@ extension MainMediator: EventTapDelegate {
         }
     }
 
-    /// ⌃⌥⌘-Esc triggers a reset of ShadowVim.
-    private func isResetEvent(_ event: CGEvent) -> Bool {
+    /// ⌃⌥⌘-Esc triggers a relaunch of ShadowVim.
+    private func isRelaunchEvent(_ event: CGEvent) -> Bool {
         event.type == .keyDown
             && event.flags.isSuperset(of: [.maskControl, .maskAlternate, .maskCommand])
             && event.keyCode == .escape
