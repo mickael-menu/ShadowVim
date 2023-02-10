@@ -38,7 +38,7 @@ public final class MainMediator {
     private let eventTap = EventTap()
 
     private lazy var appDelegates: [BundleID: AppMediatorDelegate] = [
-        "com.apple.dt.Xcode": XcodeAppMediatorDelegate(delegate: self),
+        "com.apple.dt.Xcode": XcodeAppMediatorDelegate(delegate: self, logger: logger?.domain("xcode")),
     ]
 
     public init(

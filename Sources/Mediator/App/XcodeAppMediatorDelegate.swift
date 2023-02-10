@@ -25,10 +25,13 @@ import Toolkit
 /// Xcode-specific overrides for `AppMediator`.
 public class XcodeAppMediatorDelegate: AppMediatorDelegate {
     public weak var delegate: AppMediatorDelegate?
+    private let logger: Logger?
+
     private var subscriptions: Set<AnyCancellable> = []
 
-    public init(delegate: AppMediatorDelegate) {
+    public init(delegate: AppMediatorDelegate, logger: Logger?) {
         self.delegate = delegate
+        self.logger = logger
     }
 
     private let xcodeDefaults = UserDefaults(suiteName: "com.apple.dt.Xcode")

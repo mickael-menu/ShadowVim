@@ -76,12 +76,12 @@ public final class AppMediator {
 
     public let app: NSRunningApplication
     public let appElement: AXUIElement
-    private var isStarted = false
     private let nvim: Nvim
     private let buffers: NvimBuffers
     private let logger: Logger?
     private let bufferMediatorFactory: BufferMediator.Factory
 
+    private var state: AppState = .stopped
     private var bufferMediators: [BufferName: BufferMediator] = [:]
     private var focusedBufferMediator: BufferMediator?
     private var subscriptions: Set<AnyCancellable> = []
@@ -143,18 +143,34 @@ public final class AppMediator {
     }
 
     public func start() {
-        guard !isStarted else {
-            return
-        }
-        delegate?.appMediatorWillStart(self)
-        isStarted = true
+        on(.start)
     }
 
     public func stop() {
-        guard isStarted else {
-            return
+        on(.stop)
+    }
+    
+    private func on(_ event: AppState.Event) {
+        precondition(Thread.isMainThread)
+        for action in state.on(event) {
+            perform(action)
         }
-        isStarted = false
+    }
+    
+    private func perform(_ action: AppState.Action) {
+        switch action {
+        case .start:
+            
+            delegate?.appMediatorWillStart(self)
+        case .stop:
+            performStop()
+            
+        case .activateBuffer(let buffer):
+            buffer.didFocus()
+        }
+    }
+    
+    private func performStop() {
         nvim.stop()
         subscriptions.removeAll()
         delegate?.appMediatorDidStop(self)
@@ -170,8 +186,8 @@ public final class AppMediator {
             // Check that we're still the focused app. Useful when the Spotlight
             // modal is opened.
             isAppFocused,
-            let focusedBufferMediator = focusedBufferMediator,
-            focusedBufferMediator.uiElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
+            case .focused(let bufferBuffer) = state,
+            bufferBuffer.uiElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
             return event
         }
@@ -182,7 +198,7 @@ public final class AppMediator {
 
         switch event.type {
         case .keyDown:
-            return handleKeyDown(event, in: focusedBufferMediator.nvimBuffer)
+            return handleKeyDown(event, in: bufferBuffer.nvimBuffer)
         default:
             return event
         }
@@ -211,6 +227,11 @@ public final class AppMediator {
             .run()
 
             return nil
+        
+        case ([.control], "\u{0F}"), ([.control], "\t"):
+            // Passthrough for the navigation shortcuts.
+            // They need to be set in the Xcode config.
+            return event
 
         default:
             // Passthrough for ⌘-based keyboard shortcuts.
@@ -263,15 +284,14 @@ public final class AppMediator {
             shouldPlugInElement(element),
             let name = nameForElement(element)
         else {
-            focusedBufferMediator = nil
+            on(.unfocus)
             return
         }
 
         editBuffer(for: element, name: name)
             .forwardErrorToDelegate(of: self)
-            .get { [self] bufferMediator in
-                focusedBufferMediator = bufferMediator
-                bufferMediator.didFocus()
+            .get { [self] mediator in
+                on(.focus(buffer: mediator))
             }
     }
 
@@ -283,7 +303,6 @@ public final class AppMediator {
                         nvim: nvim,
                         nvimBuffer: buffer,
                         uiElement: element,
-                        name: name,
                         nvimCursorPublisher: nvimCursorPublisher
                             .compactMap { buf, cur in
                                 guard buf == buffer.handle else {
@@ -296,6 +315,7 @@ public final class AppMediator {
                 }
                 mediator.delegate = self
                 mediator.uiElement = element
+                mediator.didFocus()
                 return mediator
             }
     }

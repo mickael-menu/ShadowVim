@@ -32,17 +32,15 @@ public final class BufferMediator {
         nvim: Nvim,
         nvimBuffer: NvimBuffer,
         uiElement: AXUIElement,
-        name: String,
         nvimCursorPublisher: AnyPublisher<Cursor, APIError>
     )) -> BufferMediator
 
     var uiElement: AXUIElement
-    let nvimBuffer: NvimBuffer
-    let name: String
     weak var delegate: BufferMediatorDelegate?
 
     private var state: BufferState
     private let nvim: Nvim
+    let nvimBuffer: NvimBuffer
     private let logger: Logger?
     private let tokenTimeoutSubject = PassthroughSubject<Void, Never>()
     private var subscriptions: Set<AnyCancellable> = []
@@ -51,14 +49,12 @@ public final class BufferMediator {
         nvim: Nvim,
         nvimBuffer: NvimBuffer,
         uiElement: AXUIElement,
-        name: String,
         nvimCursorPublisher: AnyPublisher<Cursor, APIError>,
         logger: Logger?
     ) {
         self.nvim = nvim
         self.nvimBuffer = nvimBuffer
         self.uiElement = uiElement
-        self.name = name
         self.logger = logger
 
         state = BufferState(
@@ -109,13 +105,16 @@ public final class BufferMediator {
             .store(in: &subscriptions)
 
         tokenTimeoutSubject
+            .receive(on: DispatchQueue.main)
             .debounce(for: .seconds(0.3), scheduler: DispatchQueue.main)
             .sink { [weak self] in self?.on(.tokenDidTimeout) }
             .store(in: &subscriptions)
     }
 
     func didRequestRefresh() {
-        on(.userDidRequestRefresh(source: .nvim))
+        DispatchQueue.main.async {
+            self.on(.userDidRequestRefresh(source: .nvim))
+        }
     }
 
     func didFocus() {
@@ -129,11 +128,10 @@ public final class BufferMediator {
     }
 
     private func on(_ event: BufferState.Event) {
-        DispatchQueue.main.async { [self] in
-            let actions = state.on(event, logger: logger)
-            for action in actions {
-                perform(action)
-            }
+        precondition(Thread.isMainThread)
+        let actions = state.on(event, logger: logger)
+        for action in actions {
+            perform(action)
         }
     }
 

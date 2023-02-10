@@ -65,14 +65,12 @@ public final class MediatorContainer {
         nvim: Nvim,
         nvimBuffer: NvimBuffer,
         uiElement: AXUIElement,
-        name: String,
         nvimCursorPublisher: AnyPublisher<Cursor, APIError>
     ) -> BufferMediator {
         BufferMediator(
             nvim: nvim,
             nvimBuffer: nvimBuffer,
             uiElement: uiElement,
-            name: name,
             nvimCursorPublisher: nvimCursorPublisher,
             logger: logger?.domain("buffer")
         )
