@@ -149,7 +149,7 @@ extension AppState.Action: LogPayloadConvertible {
 }
 
 private extension LogKey {
-    static var name: LogKey { "name" }
+    static var name: LogKey { "@name" }
     static var buffer: LogKey { "buffer" }
     static var passthrough: LogKey { "passthrough" }
 }

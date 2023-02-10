@@ -83,7 +83,6 @@ public final class AppMediator {
 
     private var state: AppState = .stopped
     private var bufferMediators: [BufferName: BufferMediator] = [:]
-    private var focusedBufferMediator: BufferMediator?
     private var subscriptions: Set<AnyCancellable> = []
 
     public init(
@@ -190,8 +189,7 @@ public final class AppMediator {
             // modal is opened.
             isAppFocused,
             case let .focused(buffer: buffer, passthrough: passthrough) = state,
-            let bufferUIElement = buffer.uiElement,
-            bufferUIElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
+            buffer.uiElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
             return event
         }
@@ -396,7 +394,9 @@ extension AppMediator: NvimDelegate {
     public func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>? {
         switch method {
         case "SVRefresh":
-            focusedBufferMediator?.didRequestRefresh()
+            if case let .focused(buffer, _) = state {
+                buffer.didRequestRefresh()
+            }
             return .success(.bool(true))
         default:
             return nil

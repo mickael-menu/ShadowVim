@@ -40,7 +40,7 @@ public final class BufferMediator {
     private var state: BufferState
     private let nvim: Nvim
     let nvimBuffer: NvimBuffer
-    private(set) var uiElement: AXUIElement?
+    private(set) var uiElement: AXUIElement
     private let logger: Logger?
     private let tokenTimeoutSubject = PassthroughSubject<Void, Never>()
 
@@ -63,6 +63,8 @@ public final class BufferMediator {
             nvim: .init(lines: nvimBuffer.lines),
             ui: .init(lines: (try? uiElement.lines()) ?? [])
         )
+
+        subscribeToElementChanges(uiElement)
 
         nvimBuffer.didChangePublisher
             .receive(on: DispatchQueue.main)
@@ -103,6 +105,8 @@ public final class BufferMediator {
                 uiElement = element
                 subscribeToElementChanges(element)
             }
+
+            on(.uiBufferDidChange(lines: try element.lines()))
 
             if let selection = try element.selection() {
                 on(.uiSelectionDidChange(selection))
@@ -210,7 +214,7 @@ public final class BufferMediator {
     }
 
     private func updateUI(diff: CollectionDifference<String>, selection: BufferSelection) throws {
-        if let uiElement = uiElement, !diff.isEmpty {
+        if !diff.isEmpty {
             for change in diff {
                 switch change {
                 case let .insert(offset: offset, element: element, _):
@@ -237,7 +241,6 @@ public final class BufferMediator {
 
     private func updateUIPartialLines(with event: BufLinesEvent) throws {
         guard
-            let uiElement = uiElement,
             let uiContent: String = try uiElement.get(.value),
             let (range, replacement) = event.changes(in: uiContent)
         else {
@@ -251,7 +254,6 @@ public final class BufferMediator {
 
     private func updateUISelection(_ selection: BufferSelection) throws {
         guard
-            let uiElement = uiElement,
             let startLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.start.line),
             let endLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.end.line)
         else {

@@ -417,5 +417,5 @@ extension BufferState.Action: LogPayloadConvertible {
 }
 
 private extension LogKey {
-    static var name: LogKey { "name" }
+    static var name: LogKey { "@name" }
 }
