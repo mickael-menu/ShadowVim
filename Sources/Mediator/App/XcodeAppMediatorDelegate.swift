@@ -74,7 +74,7 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
     }
 
     public func appMediator(_ mediator: AppMediator, shouldPlugInElement element: AXUIElement, name: String) -> Bool {
-        return (try? element.get(.description)) == "Source Editor"
+        (try? element.get(.description)) == "Source Editor"
             // When showing a read-only editor (e.g. SDK header files), the name
             // will end with "MyProject.xcodeproj/". So we can safely ignore
             // folders.

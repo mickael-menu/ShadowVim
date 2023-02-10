@@ -71,8 +71,6 @@ public final class Nvim {
 extension Nvim: NvimProcessDelegate {
     public func nvimProcess(_ nvimProcess: NvimProcess, didTerminateWithStatus status: Int) {
         session.close()
-
-        logger?.w("Nvim closed with status \(status)")
         delegate?.nvim(self, didFailWithError: .processStopped(status: status))
     }
 }

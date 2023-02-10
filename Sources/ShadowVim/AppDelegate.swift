@@ -18,10 +18,9 @@
 import Cocoa
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-
     var container: Container?
     var shadowVim: ShadowVim?
-    
+
     private func startup() {
         container = Container()
         shadowVim = container?.shadowVim()

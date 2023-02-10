@@ -29,6 +29,10 @@ public final class NvimProcess {
         executableURL: URL = URL(fileURLWithPath: "/usr/bin/env"),
         logger: Logger?
     ) throws -> NvimProcess {
+        // Prevent crashes when reading/writing pipes in the `RPCSession` when
+        // the nvim process is terminated.
+        signal(SIGPIPE, SIG_IGN)
+
         let input = Pipe()
         let output = Pipe()
         let process = Process()
@@ -58,7 +62,8 @@ public final class NvimProcess {
         return NvimProcess(
             process: process,
             input: input.fileHandleForWriting,
-            output: output.fileHandleForReading
+            output: output.fileHandleForReading,
+            logger: logger
         )
     }
 
@@ -92,17 +97,22 @@ public final class NvimProcess {
     public weak var delegate: NvimProcessDelegate?
 
     private var isRunning: Bool = true
+    private let logger: Logger?
 
     public init(
         process: Process,
         input: FileHandle,
-        output: FileHandle
+        output: FileHandle,
+        logger: Logger?
     ) {
         self.process = process
         self.input = input
         self.output = output
+        self.logger = logger
 
-        process.terminationHandler = { [unowned self] _ in didTerminate() }
+        process.terminationHandler = { [unowned self] _ in
+            DispatchQueue.main.async { self.didTerminate() }
+        }
 
         // FIXME: To catch :q?
 //        DispatchQueue.global().async {
@@ -129,10 +139,13 @@ public final class NvimProcess {
     }
 
     private func didTerminate() {
+        let status = Int(process.terminationStatus)
+        logger?.i("Nvim process terminated with status \(status)")
+
         guard isRunning else {
             return
         }
         isRunning = false
-        delegate?.nvimProcess(self, didTerminateWithStatus: Int(process.terminationStatus))
+        delegate?.nvimProcess(self, didTerminateWithStatus: status)
     }
 }

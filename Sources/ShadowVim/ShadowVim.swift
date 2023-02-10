@@ -27,9 +27,8 @@ protocol ShadowVimDelegate: AnyObject {
 }
 
 class ShadowVim {
-    
     weak var delegate: ShadowVimDelegate?
-    
+
     private var mediator: MainMediator
     private let logger: Logger?
 
@@ -39,7 +38,7 @@ class ShadowVim {
 
         mediator.delegate = self
     }
-    
+
     deinit {
         mediator.stop()
     }
@@ -166,20 +165,39 @@ extension ShadowVim: MainMediatorDelegate {
 
 enum UserError: LocalizedError {
     case a11yPermissionRequired
-    case nvimClosed(status: Int)
+    case nvimNotExecutable
+    case nvimNotFound
+    case nvimTerminated(status: Int)
 
     var errorDescription: String? {
         switch self {
         case .a11yPermissionRequired:
-            return "ShadowVim needs the accessibility permission to work properly."
-        case let .nvimClosed(status: status):
-            return "Nvim closed with status \(status). Relaunch ShadowVim?"
+            return "ShadowVim needs the accessibility permission to work properly"
+        case .nvimNotExecutable:
+            return "Neovim failed to execute"
+        case .nvimNotFound:
+            return "Neovim not found"
+        case let .nvimTerminated(status: status):
+            return "Nvim closed with status \(status)"
+        }
+    }
+
+    var failureReason: String? {
+        switch self {
+        case .nvimNotExecutable:
+            return "Verify the nvim binary file permissions."
+        case .nvimNotFound:
+            return "Verify it is installed on your computer at the expected location."
+        case .nvimTerminated:
+            return "Relaunch ShadowVim?"
+        default:
+            return nil
         }
     }
 
     var critical: Bool {
         switch self {
-        case .a11yPermissionRequired, .nvimClosed:
+        case .a11yPermissionRequired, .nvimNotExecutable, .nvimNotFound, .nvimTerminated:
             return true
         }
     }
@@ -187,7 +205,19 @@ enum UserError: LocalizedError {
     init?(error: Error) {
         switch error {
         case let NvimError.processStopped(status: status):
-            self = .nvimClosed(status: status)
+            // man env
+            // > The env utility exits 0 on success, and >0 if an error occurs.
+            // > An exit status of 126 indicates that utility was found, but
+            // > could not be executed.  An exit status of 127 indicates that
+            // > utility could not be found.
+            switch status {
+            case 126:
+                self = .nvimNotExecutable
+            case 127:
+                self = .nvimNotFound
+            default:
+                self = .nvimTerminated(status: status)
+            }
         default:
             return nil
         }
