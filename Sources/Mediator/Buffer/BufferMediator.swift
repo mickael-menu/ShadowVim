@@ -35,15 +35,17 @@ public final class BufferMediator {
         nvimCursorPublisher: AnyPublisher<Cursor, APIError>
     )) -> BufferMediator
 
-    var uiElement: AXUIElement
     weak var delegate: BufferMediatorDelegate?
 
     private var state: BufferState
     private let nvim: Nvim
     let nvimBuffer: NvimBuffer
+    private(set) var uiElement: AXUIElement?
     private let logger: Logger?
     private let tokenTimeoutSubject = PassthroughSubject<Void, Never>()
+    
     private var subscriptions: Set<AnyCancellable> = []
+    private var uiSubscriptions: Set<AnyCancellable> = []
 
     public init(
         nvim: Nvim,
@@ -82,28 +84,6 @@ public final class BufferMediator {
             )
             .store(in: &subscriptions)
 
-        uiElement.publisher(for: .valueChanged)
-            .receive(on: DispatchQueue.main)
-            .tryMap { try $0.lines() }
-            .sink(
-                onFailure: { [unowned self] in fail($0) },
-                receiveValue: { [unowned self] in
-                    on(.uiBufferDidChange(lines: $0))
-                }
-            )
-            .store(in: &subscriptions)
-
-        uiElement.publisher(for: .selectedTextChanged)
-            .receive(on: DispatchQueue.main)
-            .tryCompactMap { try $0.selection() }
-            .sink(
-                onFailure: { [unowned self] in fail($0) },
-                receiveValue: { [unowned self] in
-                    on(.uiSelectionDidChange($0))
-                }
-            )
-            .store(in: &subscriptions)
-
         tokenTimeoutSubject
             .receive(on: DispatchQueue.main)
             .debounce(for: .seconds(0.3), scheduler: DispatchQueue.main)
@@ -116,15 +96,46 @@ public final class BufferMediator {
             self.on(.userDidRequestRefresh(source: .nvim))
         }
     }
-
-    func didFocus() {
+    
+    func didFocus(element: AXUIElement) {
         do {
-            if let selection = try uiElement.selection() {
+            if uiElement != element {
+                uiElement = element
+                subscribeToElementChanges(element)
+            }
+            
+            if let selection = try element.selection() {
                 on(.uiSelectionDidChange(selection))
             }
         } catch {
             fail(error)
         }
+    }
+    
+    private func subscribeToElementChanges(_ element: AXUIElement) {
+        uiSubscriptions = []
+        
+        element.publisher(for: .valueChanged)
+            .receive(on: DispatchQueue.main)
+            .tryMap { try $0.lines() }
+            .sink(
+                onFailure: { [unowned self] in fail($0) },
+                receiveValue: { [unowned self] in
+                    on(.uiBufferDidChange(lines: $0))
+                }
+            )
+            .store(in: &uiSubscriptions)
+
+        element.publisher(for: .selectedTextChanged)
+            .receive(on: DispatchQueue.main)
+            .tryCompactMap { try $0.selection() }
+            .sink(
+                onFailure: { [unowned self] in fail($0) },
+                receiveValue: { [unowned self] in
+                    on(.uiSelectionDidChange($0))
+                }
+            )
+            .store(in: &uiSubscriptions)
     }
 
     private func on(_ event: BufferState.Event) {
@@ -199,7 +210,7 @@ public final class BufferMediator {
     }
 
     private func updateUI(diff: CollectionDifference<String>, selection: BufferSelection) throws {
-        if !diff.isEmpty {
+        if let uiElement = uiElement, !diff.isEmpty {
             for change in diff {
                 switch change {
                 case let .insert(offset: offset, element: element, _):
@@ -226,6 +237,7 @@ public final class BufferMediator {
 
     private func updateUIPartialLines(with event: BufLinesEvent) throws {
         guard
+            let uiElement = uiElement,
             let uiContent: String = try uiElement.get(.value),
             let (range, replacement) = event.changes(in: uiContent)
         else {
@@ -239,6 +251,7 @@ public final class BufferMediator {
 
     private func updateUISelection(_ selection: BufferSelection) throws {
         guard
+            let uiElement = uiElement,
             let startLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.start.line),
             let endLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.end.line)
         else {

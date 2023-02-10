@@ -35,7 +35,6 @@ enum AppState {
     enum Action {
         case start
         case stop
-        case activateBuffer(BufferMediator)
         case playSound(name: String)
     }
 
@@ -49,7 +48,6 @@ enum AppState {
 
         case let (.idle(passthrough: passthrough), .focus(buffer: buffer)):
             self = .focused(buffer: buffer, passthrough: passthrough)
-            perform(.activateBuffer(buffer))
 
         case let (.idle(passthrough: passthrough), .togglePassthrough):
             self = .idle(passthrough: !passthrough)

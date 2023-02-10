@@ -28,7 +28,7 @@ public final class MediatorContainer {
 
     public init(logger: Logger?) {
         self.logger = logger?.domain("mediator")
-            .filter(minimumLevel: .debug)
+            .filter(minimumLevel: .trace)
 
         nvimContainer = NvimContainer(logger: logger)
 
@@ -72,7 +72,8 @@ public final class MediatorContainer {
             nvimBuffer: nvimBuffer,
             uiElement: uiElement,
             nvimCursorPublisher: nvimCursorPublisher,
-            logger: logger?.domain("buffer")
+            logger: logger?.domain("buffer.\(nvimBuffer.handle)")
+                .with("path", to: nvimBuffer.name ?? "")
         )
     }
 }

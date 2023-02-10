@@ -165,9 +165,6 @@ public final class AppMediator {
         case .stop:
             performStop()
 
-        case let .activateBuffer(buffer):
-            buffer.didFocus()
-
         case let .playSound(name: name):
             if let sound = NSSound(named: name) {
                 sound.stop()
@@ -193,7 +190,8 @@ public final class AppMediator {
             // modal is opened.
             isAppFocused,
             case let .focused(buffer: buffer, passthrough: passthrough) = state,
-            buffer.uiElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
+            let bufferUIElement = buffer.uiElement,
+            bufferUIElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
             return event
         }
@@ -325,8 +323,7 @@ public final class AppMediator {
                     ))
                 }
                 mediator.delegate = self
-                mediator.uiElement = element
-                mediator.didFocus()
+                mediator.didFocus(element: element)
                 return mediator
             }
     }
