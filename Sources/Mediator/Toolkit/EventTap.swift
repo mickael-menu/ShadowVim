@@ -32,12 +32,14 @@ protocol EventTapDelegate: AnyObject {
 ///  - https://stackoverflow.com/a/31898592/1474476
 class EventTap {
     weak var delegate: EventTapDelegate?
-    private var tap: CFMachPort!
+    private var tap: CFMachPort?
 
     init() {}
 
     deinit {
-        CFMachPortInvalidate(tap)
+        if let tap = tap {
+            CFMachPortInvalidate(tap)
+        }
     }
 
     func run() throws {
@@ -58,7 +60,7 @@ class EventTap {
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         )
-        guard tap != nil else {
+        guard let tap = tap else {
             throw EventTapError.failedToCreateTap
         }
 
@@ -68,6 +70,10 @@ class EventTap {
     }
 
     private func handle(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> CGEvent? {
+        guard let tap = tap else {
+            return event
+        }
+
         switch type {
         case .tapDisabledByTimeout:
             CGEvent.tapEnable(tap: tap, enable: true)

@@ -15,29 +15,32 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+import Foundation
 import Sparkle
 import SwiftUI
 
-@main
-struct ShadowVimApp: SwiftUI.App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+// Taken from https://sparkle-project.org/documentation/programmatic-setup/
 
-    private let updaterController: SPUStandardUpdaterController
+final class UpdaterViewModel: ObservableObject {
+    @Published var canCheckForUpdates = false
 
-    init() {
-        updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
-            updaterDelegate: nil,
-            userDriverDelegate: nil
-        )
+    init(updater: SPUUpdater) {
+        updater.publisher(for: \.canCheckForUpdates)
+            .assign(to: &$canCheckForUpdates)
+    }
+}
+
+struct UpdaterButton: View {
+    private let updater: SPUUpdater
+    @ObservedObject private var viewModel: UpdaterViewModel
+
+    init(updater: SPUUpdater) {
+        self.updater = updater
+        viewModel = UpdaterViewModel(updater: updater)
     }
 
-    var body: some Scene {
-        Settings {}
-            .commands {
-                CommandGroup(after: .appInfo) {
-                    UpdaterButton(updater: updaterController.updater)
-                }
-            }
+    var body: some View {
+        Button("Check for Updates…", action: updater.checkForUpdates)
+            .disabled(!viewModel.canCheckForUpdates)
     }
 }
