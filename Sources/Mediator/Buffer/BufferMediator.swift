@@ -35,15 +35,17 @@ public final class BufferMediator {
         nvimCursorPublisher: AnyPublisher<Cursor, APIError>
     )) -> BufferMediator
 
-    var uiElement: AXUIElement
     weak var delegate: BufferMediatorDelegate?
 
     private var state: BufferState
     private let nvim: Nvim
     let nvimBuffer: NvimBuffer
+    private(set) var uiElement: AXUIElement
     private let logger: Logger?
     private let tokenTimeoutSubject = PassthroughSubject<Void, Never>()
+
     private var subscriptions: Set<AnyCancellable> = []
+    private var uiSubscriptions: Set<AnyCancellable> = []
 
     public init(
         nvim: Nvim,
@@ -61,6 +63,8 @@ public final class BufferMediator {
             nvim: .init(lines: nvimBuffer.lines),
             ui: .init(lines: (try? uiElement.lines()) ?? [])
         )
+
+        subscribeToElementChanges(uiElement)
 
         nvimBuffer.didChangePublisher
             .receive(on: DispatchQueue.main)
@@ -82,28 +86,6 @@ public final class BufferMediator {
             )
             .store(in: &subscriptions)
 
-        uiElement.publisher(for: .valueChanged)
-            .receive(on: DispatchQueue.main)
-            .tryMap { try $0.lines() }
-            .sink(
-                onFailure: { [unowned self] in fail($0) },
-                receiveValue: { [unowned self] in
-                    on(.uiBufferDidChange(lines: $0))
-                }
-            )
-            .store(in: &subscriptions)
-
-        uiElement.publisher(for: .selectedTextChanged)
-            .receive(on: DispatchQueue.main)
-            .tryCompactMap { try $0.selection() }
-            .sink(
-                onFailure: { [unowned self] in fail($0) },
-                receiveValue: { [unowned self] in
-                    on(.uiSelectionDidChange($0))
-                }
-            )
-            .store(in: &subscriptions)
-
         tokenTimeoutSubject
             .receive(on: DispatchQueue.main)
             .debounce(for: .seconds(0.3), scheduler: DispatchQueue.main)
@@ -117,14 +99,47 @@ public final class BufferMediator {
         }
     }
 
-    func didFocus() {
+    func didFocus(element: AXUIElement) {
         do {
-            if let selection = try uiElement.selection() {
+            if uiElement != element {
+                uiElement = element
+                subscribeToElementChanges(element)
+            }
+
+            on(.uiBufferDidChange(lines: try element.lines()))
+
+            if let selection = try element.selection() {
                 on(.uiSelectionDidChange(selection))
             }
         } catch {
             fail(error)
         }
+    }
+
+    private func subscribeToElementChanges(_ element: AXUIElement) {
+        uiSubscriptions = []
+
+        element.publisher(for: .valueChanged)
+            .receive(on: DispatchQueue.main)
+            .tryMap { try $0.lines() }
+            .sink(
+                onFailure: { [unowned self] in fail($0) },
+                receiveValue: { [unowned self] in
+                    on(.uiBufferDidChange(lines: $0))
+                }
+            )
+            .store(in: &uiSubscriptions)
+
+        element.publisher(for: .selectedTextChanged)
+            .receive(on: DispatchQueue.main)
+            .tryCompactMap { try $0.selection() }
+            .sink(
+                onFailure: { [unowned self] in fail($0) },
+                receiveValue: { [unowned self] in
+                    on(.uiSelectionDidChange($0))
+                }
+            )
+            .store(in: &uiSubscriptions)
     }
 
     private func on(_ event: BufferState.Event) {
@@ -229,7 +244,7 @@ public final class BufferMediator {
             let uiContent: String = try uiElement.get(.value),
             let (range, replacement) = event.changes(in: uiContent)
         else {
-            logger?.w("Failed to update  partial lines")
+            logger?.w("Failed to update partial lines")
             return
         }
 
@@ -296,5 +311,16 @@ private extension AXUIElement {
                 column: end - endLineRange.location
             )
         )
+    }
+}
+
+// MARK: - Logging
+
+extension BufferMediator: LogPayloadConvertible {
+    public func logPayload() -> [LogKey: LogValueConvertible] {
+        [
+            "handle": nvimBuffer.handle,
+            "name": nvimBuffer.name ?? "",
+        ]
     }
 }

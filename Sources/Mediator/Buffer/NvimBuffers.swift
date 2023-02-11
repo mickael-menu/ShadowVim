@@ -60,41 +60,23 @@ public final class NvimBuffers {
         let lines = contents.lines.map { String($0) }
 
         return api.transaction { api in
-            api.createBuf(listed: false, scratch: true)
+            api.editNoWrite(name: name)
                 .flatMap { [self] handle in
                     precondition(Thread.isMainThread)
                     buffer = makeBuffer(handle: handle, name: name)
+                    // Reset the content, in case it's different from the file.
                     return api.bufSetLines(buffer: handle, start: 0, end: -1, replacement: lines)
                 }
                 .flatMap {
                     api.bufAttach(buffer: buffer.handle, sendBuffer: true)
                 }
                 .flatMap { _ in
-                    let handle = buffer!.handle
-                    return api.exec("""
-                    " Activate the newly created buffer.
-                    buffer! \(handle)
-
-                    " Detect the filetype using the buffer contents and the
-                    " provided name.
-                    lua << EOF
-                    local ft, _ = vim.filetype.match({ filename = "\(name)", buf = \(handle) })
-                    if ft then
-                        vim.api.nvim_buf_set_option(\(handle), "filetype", ft)
-                    end
-                    EOF
-
-                    " Clear the undo history, to prevent going back to an
-                    " empty buffer.
-                    let old_undolevels = &undolevels
-                    set undolevels=-1
-                    exe "normal a \\<BS>\\<Esc>"
-                    let &undolevels = old_undolevels
-                    unlet old_undolevels
-                    """)
+                    // Clear the undo history, to prevent going back to an
+                    // empty buffer.
+                    api.clearUndoHistory()
                 }
+                .map { _ in buffer }
         }
-        .map { _ in buffer }
     }
 
     private func makeBuffer(handle: BufferHandle, name: String) -> NvimBuffer {
@@ -127,5 +109,36 @@ public final class NvimBuffers {
 extension NvimBuffers: BufferDelegate {
     func buffer(_ buffer: NvimBuffer, activateWith api: API) -> APIAsync<Void> {
         activate(buffer: buffer.handle, with: api)
+    }
+}
+
+private extension API {
+    func editNoWrite(name: String) -> APIAsync<BufferHandle> {
+        transaction { api in
+            api.exec(
+                """
+                edit \(name)
+
+                set buftype=nowrite
+                set bufhidden=hide
+                set noswapfile
+                """
+            )
+            .flatMap { _ in api.getCurrentBuf() }
+        }
+    }
+
+    func clearUndoHistory() -> APIAsync<Void> {
+        // This snippet is from the Vim help.
+        // :help undo-remarks
+        exec(
+            """
+            let old_undolevels = &undolevels
+            set undolevels=-1
+            exe "normal a \\<BS>\\<Esc>"
+            let &undolevels = old_undolevels
+            unlet old_undolevels
+            """
+        ).discardResult()
     }
 }

@@ -54,6 +54,7 @@ public final class Nvim {
         self.events = events
         self.logger = logger
 
+        process.delegate = self
         session.start(delegate: self)
     }
 
@@ -71,8 +72,10 @@ extension Nvim: NvimProcessDelegate {
     public func nvimProcess(_ nvimProcess: NvimProcess, didTerminateWithStatus status: Int) {
         session.close()
 
-        logger?.w("Nvim closed with status \(status)")
-        delegate?.nvim(self, didFailWithError: .processStopped(status: status))
+        // When resetting Nvim, the status code will be 2. We can ignore it.
+        if status != 2 {
+            delegate?.nvim(self, didFailWithError: .processStopped(status: status))
+        }
     }
 }
 

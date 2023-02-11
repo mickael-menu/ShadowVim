@@ -18,6 +18,7 @@
 import AX
 import Foundation
 import Nvim
+import Toolkit
 
 enum AppState {
     case stopped
@@ -35,11 +36,11 @@ enum AppState {
     enum Action {
         case start
         case stop
-        case activateBuffer(BufferMediator)
         case playSound(name: String)
     }
 
-    mutating func on(_ event: Event) -> [Action] {
+    mutating func on(_ event: Event, logger: Logger? = nil) -> [Action] {
+        let oldState = self
         var actions: [Action] = []
 
         switch (self, event) {
@@ -49,11 +50,13 @@ enum AppState {
 
         case let (.idle(passthrough: passthrough), .focus(buffer: buffer)):
             self = .focused(buffer: buffer, passthrough: passthrough)
-            perform(.activateBuffer(buffer))
 
         case let (.idle(passthrough: passthrough), .togglePassthrough):
             self = .idle(passthrough: !passthrough)
             perform(.playSound(name: "Pop"))
+
+        case let (.focused(buffer: _, passthrough: passthrough), .focus(buffer: buffer)):
+            self = .focused(buffer: buffer, passthrough: passthrough)
 
         case let (.focused(buffer: _, passthrough: passthrough), .unfocus):
             self = .idle(passthrough: passthrough)
@@ -74,6 +77,79 @@ enum AppState {
             actions.append(contentsOf: action)
         }
 
+        let newState = self
+        logger?.t("on \(event.name)", [
+            "event": event,
+            "oldState": oldState,
+            "newState": newState,
+            "actions": actions,
+        ])
         return actions
     }
+}
+
+// MARK: - Logging
+
+extension AppState: LogPayloadConvertible {
+    func logPayload() -> [LogKey: LogValueConvertible] {
+        switch self {
+        case .stopped:
+            return [.name: "stopped"]
+        case let .idle(passthrough: passthrough):
+            return [.name: "idle", .passthrough: passthrough]
+        case let .focused(buffer: buffer, passthrough: passthrough):
+            return [.name: "focused", .buffer: buffer, .passthrough: passthrough]
+        }
+    }
+}
+
+extension AppState.Event: LogPayloadConvertible {
+    var name: String {
+        switch self {
+        case .start:
+            return "start"
+        case .stop:
+            return "stop"
+        case .focus:
+            return "focus"
+        case .unfocus:
+            return "unfocus"
+        case .togglePassthrough:
+            return "togglePassthrough"
+        }
+    }
+
+    func logPayload() -> [LogKey: LogValueConvertible] {
+        switch self {
+        case .start:
+            return [.name: name]
+        case .stop:
+            return [.name: name]
+        case let .focus(buffer: buffer):
+            return [.name: name, .buffer: buffer]
+        case .unfocus:
+            return [.name: name]
+        case .togglePassthrough:
+            return [.name: name]
+        }
+    }
+}
+
+extension AppState.Action: LogPayloadConvertible {
+    func logPayload() -> [LogKey: LogValueConvertible] {
+        switch self {
+        case .start:
+            return [.name: "start"]
+        case .stop:
+            return [.name: "stop"]
+        case let .playSound(name: name):
+            return [.name: "playSound", "sound": name]
+        }
+    }
+}
+
+private extension LogKey {
+    static var name: LogKey { "@name" }
+    static var buffer: LogKey { "buffer" }
+    static var passthrough: LogKey { "passthrough" }
 }

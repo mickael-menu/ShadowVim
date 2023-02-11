@@ -167,8 +167,9 @@ public struct BufLinesEvent: Equatable {
         }
 
         let lines = content.lines
-        precondition(firstLine <= lines.count)
-        precondition(lastLine <= lines.count)
+        guard firstLine <= lines.count, lastLine <= lines.count else {
+            return nil
+        }
 
         if lineData.isEmpty {
             return deletionChanges(in: content, lines: lines)

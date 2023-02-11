@@ -23,6 +23,7 @@ import Toolkit
 
 public protocol MainMediatorDelegate: AnyObject {
     func mainMediator(_ mediator: MainMediator, didFailWithError error: Error)
+    func mainMediatorDidRequestRelaunch(_ mediator: MainMediator)
 }
 
 private typealias BundleID = String
@@ -32,6 +33,7 @@ public final class MainMediator {
 
     private let bundleIDs: [BundleID]
     private let logger: Logger?
+    private let setVerboseLogger: () -> Void
     private let appMediatorFactory: AppMediator.Factory
     private var apps: [pid_t: AppMediator] = [:]
     private var subscriptions: Set<AnyCancellable> = []
@@ -44,10 +46,12 @@ public final class MainMediator {
     public init(
         bundleIDs: [String],
         logger: Logger?,
+        setVerboseLogger: @escaping () -> Void,
         appMediatorFactory: @escaping AppMediator.Factory
     ) {
         self.bundleIDs = bundleIDs
         self.logger = logger
+        self.setVerboseLogger = setVerboseLogger
         self.appMediatorFactory = appMediatorFactory
     }
 
@@ -56,26 +60,6 @@ public final class MainMediator {
 
         eventTap.delegate = self
         try eventTap.run()
-
-        reset()
-    }
-
-    public func stop() {
-        precondition(Thread.isMainThread)
-
-        for (_, app) in apps {
-            app.stop()
-        }
-
-        subscriptions = []
-        apps = [:]
-    }
-
-    public func reset() {
-        precondition(Thread.isMainThread)
-        logger?.i("Reset ShadowVim")
-
-        stop()
 
         if let app = NSWorkspace.shared.frontmostApplication {
             do {
@@ -105,6 +89,17 @@ public final class MainMediator {
                 self?.terminate(app: $0)
             }
             .store(in: &subscriptions)
+    }
+
+    public func stop() {
+        precondition(Thread.isMainThread)
+
+        for (_, app) in apps {
+            app.stop()
+        }
+
+        subscriptions = []
+        apps = [:]
     }
 
     private func mediator(of app: NSRunningApplication) throws -> AppMediator? {
@@ -143,8 +138,12 @@ extension MainMediator: AppMediatorDelegate {
 
 extension MainMediator: EventTapDelegate {
     func eventTap(_ tap: EventTap, didReceive event: CGEvent) -> CGEvent? {
-        if isResetEvent(event) {
-            reset()
+        if isRelaunchEvent(event) {
+            delegate?.mainMediatorDidRequestRelaunch(self)
+            return nil
+        }
+        if isVerboseLoggerEvent(event) {
+            setVerboseLogger()
             return nil
         }
 
@@ -163,10 +162,17 @@ extension MainMediator: EventTapDelegate {
         }
     }
 
-    /// ⌃⌥⌘-Esc triggers a reset of ShadowVim.
-    private func isResetEvent(_ event: CGEvent) -> Bool {
+    /// ⌃⌥⌘-Esc triggers a relaunch of ShadowVim.
+    private func isRelaunchEvent(_ event: CGEvent) -> Bool {
+        event.type == .keyDown
+            && event.modifiers == [.control, .option, .command]
+            && event.keyCode == .escape
+    }
+
+    /// ⌃⌥⌘/ enables the verbose logger.
+    private func isVerboseLoggerEvent(_ event: CGEvent) -> Bool {
         event.type == .keyDown
             && event.flags.isSuperset(of: [.maskControl, .maskAlternate, .maskCommand])
-            && event.keyCode == .escape
+            && event.character == "/"
     }
 }

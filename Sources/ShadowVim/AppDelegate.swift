@@ -18,14 +18,14 @@
 import Cocoa
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    let container: Container
-    let app: App
+    var container: Container?
+    var shadowVim: ShadowVim?
 
-    override init() {
+    private func startup() {
         container = Container()
-        app = container.app()
-
-        super.init()
+        shadowVim = container?.shadowVim()
+        shadowVim?.delegate = self
+        shadowVim?.didLaunch()
     }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
@@ -35,10 +35,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 //        let cmdline = CmdlineController(frame: NSRect(x: 0, y: 0, width: 480, height: 44))
 //        cmdline.show()
 
-        app.didLaunch()
+        startup()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        app.willTerminate()
+        shadowVim?.willTerminate()
+    }
+}
+
+extension AppDelegate: ShadowVimDelegate {
+    func shadowVimDidRequestRelaunch(_ shadowVim: ShadowVim) {
+        container?.logger?.i("Reset ShadowVim")
+        startup()
     }
 }

@@ -21,20 +21,40 @@ import NSLoggerAdapter
 import Toolkit
 
 final class Container {
-    private let logger: Logger?
+    let logger: Logger?
     private let mediator: MediatorContainer
 
     init() {
-        let logger: Logger? = Debug.isDebugging
-            ? NSLoggerLogger().filter(minimumLevel: .trace)
-            : nil
+        let logger = ReferenceLogger(logger:
+            Debug.isDebugging
+                ? NSLoggerLogger().filter(
+                    minimumLevel: .warning,
+                    domains: [
+                        "app",
+                        "ax",
+                        "mediator",
+                        "mediator.main",
+                        "mediator.app",
+                        "mediator.buffer",
+                        "nvim",
+                        "nvim.api",
+                        "!nvim.api.lock",
+                        "!nvim.rpc",
+                        "!nvim.events",
+                    ]
+                )
+                : nil
+        )
 
-        self.logger = logger?.domain("app")
-        mediator = MediatorContainer(logger: logger)
+        self.logger = logger.domain("app")
+        mediator = MediatorContainer(
+            logger: logger,
+            setVerboseLogger: { logger.set(NSLoggerLogger()) }
+        )
     }
 
-    func app() -> App {
-        App(
+    func shadowVim() -> ShadowVim {
+        ShadowVim(
             mediator: mediator.mainMediator(),
             logger: logger
         )

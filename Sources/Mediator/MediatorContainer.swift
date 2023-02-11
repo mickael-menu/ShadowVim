@@ -24,11 +24,14 @@ import Toolkit
 
 public final class MediatorContainer {
     let logger: Logger?
+    private let setVerboseLogger: () -> Void
     private let nvimContainer: NvimContainer
 
-    public init(logger: Logger?) {
+    public init(logger: Logger?, setVerboseLogger: @escaping () -> Void) {
         self.logger = logger?.domain("mediator")
-            .filter(minimumLevel: .debug)
+            .filter(minimumLevel: .trace)
+
+        self.setVerboseLogger = setVerboseLogger
 
         nvimContainer = NvimContainer(logger: logger)
 
@@ -43,6 +46,7 @@ public final class MediatorContainer {
                 // "com.google.android.studio",
             ],
             logger: logger?.domain("main"),
+            setVerboseLogger: setVerboseLogger,
             appMediatorFactory: appMediator
         )
     }
@@ -72,7 +76,8 @@ public final class MediatorContainer {
             nvimBuffer: nvimBuffer,
             uiElement: uiElement,
             nvimCursorPublisher: nvimCursorPublisher,
-            logger: logger?.domain("buffer")
+            logger: logger?.domain("buffer.\(nvimBuffer.handle)")
+                .with("path", to: nvimBuffer.name ?? "")
         )
     }
 }

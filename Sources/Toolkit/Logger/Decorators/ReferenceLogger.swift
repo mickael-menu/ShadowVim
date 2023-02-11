@@ -17,30 +17,19 @@
 
 import Foundation
 
-/// A decorator filtering incoming log entries satisfying the given predicate.
-public struct FilteredLogger: Logger {
-    private let logger: Logger
-    private let isLogged: (LogEntry) -> Bool
+/// Smart pointer to change a `Logger` implementation during runtime.
+public final class ReferenceLogger: Logger {
+    private var logger: Logger?
 
-    public init(logger: Logger, isLogged: @escaping (LogEntry) -> Bool) {
+    public init(logger: Logger? = nil) {
         self.logger = logger
-        self.isLogged = isLogged
     }
 
     public func log(_ entry: LogEntry) {
-        guard isLogged(entry) else {
-            return
-        }
-        logger.log(entry)
-    }
-}
-
-public extension Logger {
-    func filter(isLogged: @escaping (LogEntry) -> Bool) -> Logger {
-        FilteredLogger(logger: self, isLogged: isLogged)
+        logger?.log(entry)
     }
 
-    func filter(minimumLevel: LogLevel) -> Logger {
-        filter { $0.level >= minimumLevel }
+    public func set(_ logger: Logger?) {
+        self.logger = logger
     }
 }

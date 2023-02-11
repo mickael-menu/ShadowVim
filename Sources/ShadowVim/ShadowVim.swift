@@ -22,8 +22,14 @@ import Mediator
 import Nvim
 import Toolkit
 
-class App {
-    private let mediator: MainMediator
+protocol ShadowVimDelegate: AnyObject {
+    func shadowVimDidRequestRelaunch(_ shadowVim: ShadowVim)
+}
+
+class ShadowVim {
+    weak var delegate: ShadowVimDelegate?
+
+    private var mediator: MainMediator
     private let logger: Logger?
 
     init(mediator: MainMediator, logger: Logger?) {
@@ -33,8 +39,15 @@ class App {
         mediator.delegate = self
     }
 
+    deinit {
+        mediator.stop()
+    }
+
     func didLaunch() {
         do {
+            guard AX.isProcessTrusted(prompt: true) else {
+                throw UserError.a11yPermissionRequired
+            }
             try mediator.start()
             hide()
         } catch {
@@ -97,10 +110,10 @@ class App {
         switch style {
         case .warning:
             alert.addButton(withTitle: "Ignore")
-            alert.addButton(withTitle: "Reset")
+            alert.addButton(withTitle: "Relaunch")
             let response = alert.runModal()
             if response == .alertSecondButtonReturn {
-                mediator.reset()
+                delegate?.shadowVimDidRequestRelaunch(self)
             }
 
         case .critical:
@@ -133,14 +146,18 @@ class App {
     }
 
     func relaunch() {
-        if let bundleID = Bundle.main.bundleIdentifier {
-            Process.launchedProcess(launchPath: "/usr/bin/open", arguments: ["-b", bundleID])
-        }
-        quit()
+        precondition(Thread.isMainThread)
+        delegate?.shadowVimDidRequestRelaunch(self)
     }
 }
 
-extension App: MainMediatorDelegate {
+extension ShadowVim: MainMediatorDelegate {
+    func mainMediatorDidRequestRelaunch(_ mediator: MainMediator) {
+        DispatchQueue.main.async {
+            self.delegate?.shadowVimDidRequestRelaunch(self)
+        }
+    }
+
     func mainMediator(_ mediator: MainMediator, didFailWithError error: Error) {
         DispatchQueue.main.async {
             let userError = UserError(error: error)
@@ -153,18 +170,40 @@ extension App: MainMediatorDelegate {
 }
 
 enum UserError: LocalizedError {
-    case nvimClosed(status: Int)
+    case a11yPermissionRequired
+    case nvimNotExecutable
+    case nvimNotFound
+    case nvimTerminated(status: Int)
 
     var errorDescription: String? {
         switch self {
-        case let .nvimClosed(status: status):
-            return "Nvim closed with status \(status). Relaunch ShadowVim?"
+        case .a11yPermissionRequired:
+            return "ShadowVim needs the accessibility permission to work properly"
+        case .nvimNotExecutable:
+            return "Neovim failed to execute"
+        case .nvimNotFound:
+            return "Neovim not found"
+        case let .nvimTerminated(status: status):
+            return "Nvim closed with status \(status)"
+        }
+    }
+
+    var failureReason: String? {
+        switch self {
+        case .nvimNotExecutable:
+            return "Verify the nvim binary file permissions."
+        case .nvimNotFound:
+            return "Verify it is installed on your computer at the expected location."
+        case .nvimTerminated:
+            return "Relaunch ShadowVim?"
+        default:
+            return nil
         }
     }
 
     var critical: Bool {
         switch self {
-        case .nvimClosed:
+        case .a11yPermissionRequired, .nvimNotExecutable, .nvimNotFound, .nvimTerminated:
             return true
         }
     }
@@ -172,7 +211,19 @@ enum UserError: LocalizedError {
     init?(error: Error) {
         switch error {
         case let NvimError.processStopped(status: status):
-            self = .nvimClosed(status: status)
+            // man env
+            // > The env utility exits 0 on success, and >0 if an error occurs.
+            // > An exit status of 126 indicates that utility was found, but
+            // > could not be executed.  An exit status of 127 indicates that
+            // > utility could not be found.
+            switch status {
+            case 126:
+                self = .nvimNotExecutable
+            case 127:
+                self = .nvimNotFound
+            default:
+                self = .nvimTerminated(status: status)
+            }
         default:
             return nil
         }

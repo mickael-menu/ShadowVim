@@ -34,7 +34,7 @@ public protocol AppMediatorDelegate: AnyObject {
 
     /// Returns whether an Nvim buffer should be associated with this
     /// accessibility `element`.
-    func appMediator(_ mediator: AppMediator, shouldPlugInElement element: AXUIElement) -> Bool
+    func appMediator(_ mediator: AppMediator, shouldPlugInElement element: AXUIElement, name: String) -> Bool
 
     /// Returns the Nvim buffer name for the given accessibility `element`.
     func appMediator(_ mediator: AppMediator, nameForElement element: AXUIElement) -> String?
@@ -52,7 +52,7 @@ public extension AppMediatorDelegate {
     func appMediatorWillStart(_ mediator: AppMediator) {}
     func appMediatorDidStop(_ mediator: AppMediator) {}
 
-    func appMediator(_ mediator: AppMediator, shouldPlugInElement element: AXUIElement) -> Bool {
+    func appMediator(_ mediator: AppMediator, shouldPlugInElement element: AXUIElement, name: String) -> Bool {
         true
     }
 
@@ -83,7 +83,6 @@ public final class AppMediator {
 
     private var state: AppState = .stopped
     private var bufferMediators: [BufferName: BufferMediator] = [:]
-    private var focusedBufferMediator: BufferMediator?
     private var subscriptions: Set<AnyCancellable> = []
 
     public init(
@@ -101,8 +100,6 @@ public final class AppMediator {
         self.bufferMediatorFactory = bufferMediatorFactory
 
         nvim.delegate = self
-
-        setupFocusSync()
 
 //        nvim.api.uiAttach(
 //            width: 1000,
@@ -152,7 +149,7 @@ public final class AppMediator {
 
     private func on(_ event: AppState.Event) {
         precondition(Thread.isMainThread)
-        for action in state.on(event) {
+        for action in state.on(event, logger: logger) {
             perform(action)
         }
     }
@@ -160,13 +157,10 @@ public final class AppMediator {
     private func perform(_ action: AppState.Action) {
         switch action {
         case .start:
-
+            setupFocusSync()
             delegate?.appMediatorWillStart(self)
         case .stop:
             performStop()
-
-        case let .activateBuffer(buffer):
-            buffer.didFocus()
 
         case let .playSound(name: name):
             if let sound = NSSound(named: name) {
@@ -292,8 +286,8 @@ public final class AppMediator {
         guard
             element.isValid,
             (try? element.get(.role)) == AXRole.textArea,
-            shouldPlugInElement(element),
-            let name = nameForElement(element)
+            let name = nameForElement(element),
+            shouldPlugInElement(element, name: name)
         else {
             on(.unfocus)
             return
@@ -325,8 +319,7 @@ public final class AppMediator {
                     ))
                 }
                 mediator.delegate = self
-                mediator.uiElement = element
-                mediator.didFocus()
+                mediator.didFocus(element: element)
                 return mediator
             }
     }
@@ -360,11 +353,11 @@ public final class AppMediator {
 
     // MARK: - Delegate
 
-    private func shouldPlugInElement(_ element: AXUIElement) -> Bool {
+    private func shouldPlugInElement(_ element: AXUIElement, name: String) -> Bool {
         guard let delegate = delegate else {
             return true
         }
-        return delegate.appMediator(self, shouldPlugInElement: element)
+        return delegate.appMediator(self, shouldPlugInElement: element, name: name)
     }
 
     private func nameForElement(_ element: AXUIElement) -> String? {
@@ -399,7 +392,9 @@ extension AppMediator: NvimDelegate {
     public func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>? {
         switch method {
         case "SVRefresh":
-            focusedBufferMediator?.didRequestRefresh()
+            if case let .focused(buffer, _) = state {
+                buffer.didRequestRefresh()
+            }
             return .success(.bool(true))
         default:
             return nil
