@@ -113,7 +113,7 @@ class ShadowVim {
             alert.addButton(withTitle: "Relaunch")
             let response = alert.runModal()
             if response == .alertSecondButtonReturn {
-                delegate?.shadowVimDidRequestRelaunch(self) 
+                delegate?.shadowVimDidRequestRelaunch(self)
             }
 
         case .critical:

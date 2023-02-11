@@ -26,7 +26,22 @@ final class Container {
 
     init() {
         let logger: Logger? = Debug.isDebugging
-            ? NSLoggerLogger().filter(minimumLevel: .trace)
+            ? NSLoggerLogger().filter(
+                minimumLevel: .trace,
+                domains: [
+                    "app",
+                    "ax",
+                    "mediator",
+                    "mediator.main",
+                    "mediator.app",
+                    "mediator.buffer",
+                    "nvim",
+                    "nvim.api",
+                    "!nvim.api.lock",
+                    "!nvim.rpc",
+                    "!nvim.events",
+                ]
+            )
             : nil
 
         self.logger = logger?.domain("app")

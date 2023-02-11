@@ -28,7 +28,6 @@ public final class MediatorContainer {
 
     public init(logger: Logger?) {
         self.logger = logger?.domain("mediator")
-            .filter(minimumLevel: .trace)
 
         nvimContainer = NvimContainer(logger: logger)
 

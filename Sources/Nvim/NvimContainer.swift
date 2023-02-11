@@ -23,7 +23,6 @@ public final class NvimContainer {
 
     public init(logger: Logger?) {
         self.logger = logger?.domain("nvim")
-            .filter(minimumLevel: .trace)
     }
 
     public func nvim() throws -> Nvim {
