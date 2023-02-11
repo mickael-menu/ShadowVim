@@ -30,7 +30,7 @@ public final class MediatorContainer {
     public init(logger: Logger?, setVerboseLogger: @escaping () -> Void) {
         self.logger = logger?.domain("mediator")
             .filter(minimumLevel: .trace)
-            
+
         self.setVerboseLogger = setVerboseLogger
 
         nvimContainer = NvimContainer(logger: logger)

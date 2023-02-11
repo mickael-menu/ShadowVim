@@ -72,7 +72,6 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
             // will end with "MyProject.xcodeproj/". So we can safely ignore
             // folders.
             && !name.hasSuffix("/")
-            && !name.contains("/svim/")
     }
 
     public func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: CGEvent) -> Bool {
