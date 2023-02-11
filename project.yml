@@ -11,6 +11,7 @@ packages:
 settings:
   CODE_SIGN_STYLE: Automatic
   DEVELOPMENT_TEAM: ${SV_DEVELOPMENT_TEAM}
+  ENABLE_HARDENED_RUNTIME: YES
 
 targets:
   ShadowVim:
