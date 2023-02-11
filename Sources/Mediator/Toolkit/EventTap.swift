@@ -73,7 +73,7 @@ class EventTap {
         guard let tap = tap else {
             return event
         }
-        
+
         switch type {
         case .tapDisabledByTimeout:
             CGEvent.tapEnable(tap: tap, enable: true)

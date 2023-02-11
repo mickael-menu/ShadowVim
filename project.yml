@@ -7,8 +7,14 @@ options:
 packages:
   ShadowVim:
     path: .
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.0.0
 
 settings:
+  CURRENT_PROJECT_VERSION: 1
+  MARKETING_VERSION: 0.1.0
+  INFOPLIST_FILE: Sources/ShadowVim/ShadowVim-Info.plist
   CODE_SIGN_STYLE: Automatic
   DEVELOPMENT_TEAM: ${SV_DEVELOPMENT_TEAM}
   ENABLE_HARDENED_RUNTIME: YES
@@ -30,3 +36,5 @@ targets:
         product: Nvim
       - package: ShadowVim
         product: NSLoggerAdapter
+      - package: Sparkle
+        product: Sparkle
