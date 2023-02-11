@@ -42,6 +42,7 @@ public final class NvimProcess {
             "--headless",
             "--embed",
             "-n", // Ignore swap files.
+            "--cmd", "let g:svim = v:true", // Using `--cmd` instead of `-c` makes the variable available in the `init.vim`.
             "--clean", // Don't load default config and plugins.
             "-u", configURL().path,
         ]
