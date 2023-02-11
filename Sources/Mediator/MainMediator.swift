@@ -33,6 +33,7 @@ public final class MainMediator {
 
     private let bundleIDs: [BundleID]
     private let logger: Logger?
+    private let setVerboseLogger: () -> Void
     private let appMediatorFactory: AppMediator.Factory
     private var apps: [pid_t: AppMediator] = [:]
     private var subscriptions: Set<AnyCancellable> = []
@@ -45,10 +46,12 @@ public final class MainMediator {
     public init(
         bundleIDs: [String],
         logger: Logger?,
+        setVerboseLogger: @escaping () -> Void,
         appMediatorFactory: @escaping AppMediator.Factory
     ) {
         self.bundleIDs = bundleIDs
         self.logger = logger
+        self.setVerboseLogger = setVerboseLogger
         self.appMediatorFactory = appMediatorFactory
     }
 
@@ -139,6 +142,10 @@ extension MainMediator: EventTapDelegate {
             delegate?.mainMediatorDidRequestRelaunch(self)
             return nil
         }
+        if isVerboseLoggerEvent(event) {
+            setVerboseLogger()
+            return nil
+        }
 
         do {
             guard
@@ -158,7 +165,14 @@ extension MainMediator: EventTapDelegate {
     /// ⌃⌥⌘-Esc triggers a relaunch of ShadowVim.
     private func isRelaunchEvent(_ event: CGEvent) -> Bool {
         event.type == .keyDown
-            && event.flags.isSuperset(of: [.maskControl, .maskAlternate, .maskCommand])
+            && event.modifiers == [.control, .option, .command]
             && event.keyCode == .escape
+    }
+
+    /// ⌃⌥⌘/ enables the verbose logger.
+    private func isVerboseLoggerEvent(_ event: CGEvent) -> Bool {
+        event.type == .keyDown
+            && event.flags.isSuperset(of: [.maskControl, .maskAlternate, .maskCommand])
+            && event.character == "/"
     }
 }
