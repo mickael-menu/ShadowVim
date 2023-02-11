@@ -23,7 +23,7 @@ import Nvim
 import Toolkit
 
 protocol ShadowVimDelegate: AnyObject {
-    func shadowVimDidRequestRelaunch(_ shadowVim: ShadowVim)
+    func shadowVimDidRequestReset(_ shadowVim: ShadowVim)
 }
 
 class ShadowVim {
@@ -110,21 +110,21 @@ class ShadowVim {
         switch style {
         case .warning:
             alert.addButton(withTitle: "Ignore")
-            alert.addButton(withTitle: "Relaunch")
+            alert.addButton(withTitle: "Reset")
             let response = alert.runModal()
             if response == .alertSecondButtonReturn {
-                delegate?.shadowVimDidRequestRelaunch(self)
+                delegate?.shadowVimDidRequestReset(self)
             }
 
         case .critical:
-            alert.addButton(withTitle: "Relaunch")
+            alert.addButton(withTitle: "Reset")
             alert.addButton(withTitle: "Quit")
 
             activate()
 
             let response = alert.runModal()
             if response == .alertFirstButtonReturn {
-                relaunch()
+                reset()
             } else {
                 quit()
             }
@@ -145,16 +145,16 @@ class ShadowVim {
         NSApp.terminate(self)
     }
 
-    func relaunch() {
+    func reset() {
         precondition(Thread.isMainThread)
-        delegate?.shadowVimDidRequestRelaunch(self)
+        delegate?.shadowVimDidRequestReset(self)
     }
 }
 
 extension ShadowVim: MainMediatorDelegate {
-    func mainMediatorDidRequestRelaunch(_ mediator: MainMediator) {
+    func mainMediatorDidRequestReset(_ mediator: MainMediator) {
         DispatchQueue.main.async {
-            self.delegate?.shadowVimDidRequestRelaunch(self)
+            self.delegate?.shadowVimDidRequestReset(self)
         }
     }
 
@@ -195,7 +195,7 @@ enum UserError: LocalizedError {
         case .nvimNotFound:
             return "Verify it is installed on your computer at the expected location."
         case .nvimTerminated:
-            return "Relaunch ShadowVim?"
+            return "Reset ShadowVim?"
         default:
             return nil
         }

@@ -44,7 +44,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 extension AppDelegate: ShadowVimDelegate {
-    func shadowVimDidRequestRelaunch(_ shadowVim: ShadowVim) {
+    func shadowVimDidRequestReset(_ shadowVim: ShadowVim) {
         container?.logger?.i("Reset ShadowVim")
         startup()
     }

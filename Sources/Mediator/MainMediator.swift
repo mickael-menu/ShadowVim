@@ -23,7 +23,7 @@ import Toolkit
 
 public protocol MainMediatorDelegate: AnyObject {
     func mainMediator(_ mediator: MainMediator, didFailWithError error: Error)
-    func mainMediatorDidRequestRelaunch(_ mediator: MainMediator)
+    func mainMediatorDidRequestReset(_ mediator: MainMediator)
 }
 
 private typealias BundleID = String
@@ -138,8 +138,8 @@ extension MainMediator: AppMediatorDelegate {
 
 extension MainMediator: EventTapDelegate {
     func eventTap(_ tap: EventTap, didReceive event: CGEvent) -> CGEvent? {
-        if isRelaunchEvent(event) {
-            delegate?.mainMediatorDidRequestRelaunch(self)
+        if isResetEvent(event) {
+            delegate?.mainMediatorDidRequestReset(self)
             return nil
         }
         if isVerboseLoggerEvent(event) {
@@ -162,8 +162,8 @@ extension MainMediator: EventTapDelegate {
         }
     }
 
-    /// ⌃⌥⌘-Esc triggers a relaunch of ShadowVim.
-    private func isRelaunchEvent(_ event: CGEvent) -> Bool {
+    /// ⌃⌥⌘-Esc triggers a reset of ShadowVim.
+    private func isResetEvent(_ event: CGEvent) -> Bool {
         event.type == .keyDown
             && event.modifiers == [.control, .option, .command]
             && event.keyCode == .escape
