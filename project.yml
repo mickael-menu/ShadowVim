@@ -11,22 +11,22 @@ packages:
     url: https://github.com/sparkle-project/Sparkle
     from: 2.0.0
 
-settings:
-  CURRENT_PROJECT_VERSION: 1
-  MARKETING_VERSION: 0.1.0
-  INFOPLIST_FILE: Sources/ShadowVim/ShadowVim-Info.plist
-  CODE_SIGN_STYLE: Automatic
-  DEVELOPMENT_TEAM: ${SV_DEVELOPMENT_TEAM}
-  ENABLE_HARDENED_RUNTIME: YES
-
 targets:
   ShadowVim:
     type: application
     platform: macOS
-    deploymentTarget: "13.0"
+    deploymentTarget: 13.0
     sources: [Sources/ShadowVim]
     settings:
+      CURRENT_PROJECT_VERSION: 1
+      MARKETING_VERSION: 0.1.0
+      INFOPLIST_FILE: Sources/ShadowVim/ShadowVim-Info.plist
       GENERATE_INFOPLIST_FILE: YES
+      CODE_SIGN_STYLE: Automatic
+      CODE_SIGN_IDENTITY: Apple Development
+      DEVELOPMENT_TEAM: ${SV_DEVELOPMENT_TEAM}
+      ENABLE_HARDENED_RUNTIME: YES
+      DEAD_CODE_STRIPPING: YES
     dependencies:
       - package: ShadowVim
         product: AX
