@@ -21,6 +21,7 @@ import NSLoggerAdapter
 import Toolkit
 
 final class Container {
+    let shadowVim: ShadowVim
     let logger: Logger?
     private let mediator: MediatorContainer
 
@@ -46,17 +47,16 @@ final class Container {
                 : nil
         )
 
-        self.logger = logger.domain("app")
-        mediator = MediatorContainer(
-            logger: logger,
-            setVerboseLogger: { logger.set(NSLoggerLogger()) }
-        )
-    }
-
-    func shadowVim() -> ShadowVim {
-        ShadowVim(
-            mediator: mediator.mainMediator(),
+        let mediator = MediatorContainer(
             logger: logger
+        )
+
+        self.logger = logger.domain("app")
+        self.mediator = mediator
+        shadowVim = ShadowVim(
+            logger: logger,
+            setVerboseLogger: { logger.set(NSLoggerLogger()) },
+            mediatorFactory: mediator.mainMediator
         )
     }
 }

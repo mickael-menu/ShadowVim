@@ -17,10 +17,11 @@
 
 import Sparkle
 import SwiftUI
+import Toolkit
 
 @main
 struct ShadowVimApp: SwiftUI.App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @NSApplicationDelegateAdaptor var appDelegate: AppDelegate
 
     private let updaterController: SPUStandardUpdaterController
 
@@ -32,6 +33,10 @@ struct ShadowVimApp: SwiftUI.App {
         )
     }
 
+    var shadowVim: ShadowVim {
+        appDelegate.shadowVim
+    }
+
     var body: some Scene {
         Settings {}
             .commands {
@@ -39,5 +44,36 @@ struct ShadowVimApp: SwiftUI.App {
                     UpdaterButton(updater: updaterController.updater)
                 }
             }
+
+        MenuBarExtra("ShadowVim", systemImage: "n.square.fill") {
+            KeysPassthroughButton(shadowVim: shadowVim)
+
+            if Debug.isDebugging {
+                Button("Verbose logging") { shadowVim.setVerboseLogger() }
+                    .keyboardShortcut("/", modifiers: [.control, .option, .command])
+            }
+
+            Divider()
+
+            UpdaterButton(updater: updaterController.updater)
+                .keyboardShortcut("u")
+
+            Divider()
+
+            Button("Reset ShadowVim") { shadowVim.reset() }
+                .keyboardShortcut(.escape, modifiers: [.control, .option, .command])
+
+            Button("Quit ShadowVim") { shadowVim.quit() }
+                .keyboardShortcut("q")
+        }
+    }
+}
+
+struct KeysPassthroughButton: View {
+    @ObservedObject var shadowVim: ShadowVim
+
+    var body: some View {
+        Toggle("Keys Passthrough", isOn: $shadowVim.keysPassthrough)
+            .keyboardShortcut(".", modifiers: [.control, .option, .command])
     }
 }

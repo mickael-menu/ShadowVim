@@ -18,15 +18,9 @@
 import Cocoa
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    var container: Container?
-    var shadowVim: ShadowVim?
+    private let container = Container()
 
-    private func startup() {
-        container = Container()
-        shadowVim = container?.shadowVim()
-        shadowVim?.delegate = self
-        shadowVim?.didLaunch()
-    }
+    var shadowVim: ShadowVim { container.shadowVim }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Prevent showing the menu bar and dock icon.
@@ -35,17 +29,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 //        let cmdline = CmdlineController(frame: NSRect(x: 0, y: 0, width: 480, height: 44))
 //        cmdline.show()
 
-        startup()
+        shadowVim.didLaunch()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        shadowVim?.willTerminate()
-    }
-}
-
-extension AppDelegate: ShadowVimDelegate {
-    func shadowVimDidRequestRelaunch(_ shadowVim: ShadowVim) {
-        container?.logger?.i("Reset ShadowVim")
-        startup()
+        shadowVim.willTerminate()
     }
 }

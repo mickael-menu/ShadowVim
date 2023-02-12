@@ -23,7 +23,6 @@ import Toolkit
 
 public protocol MainMediatorDelegate: AnyObject {
     func mainMediator(_ mediator: MainMediator, didFailWithError error: Error)
-    func mainMediatorDidRequestRelaunch(_ mediator: MainMediator)
 }
 
 private typealias BundleID = String
@@ -33,11 +32,9 @@ public final class MainMediator {
 
     private let bundleIDs: [BundleID]
     private let logger: Logger?
-    private let setVerboseLogger: () -> Void
     private let appMediatorFactory: AppMediator.Factory
     private var apps: [pid_t: AppMediator] = [:]
     private var subscriptions: Set<AnyCancellable> = []
-    private let eventTap = EventTap()
 
     private lazy var appDelegates: [BundleID: AppMediatorDelegate] = [
         "com.apple.dt.Xcode": XcodeAppMediatorDelegate(delegate: self, logger: logger?.domain("xcode")),
@@ -46,20 +43,15 @@ public final class MainMediator {
     public init(
         bundleIDs: [String],
         logger: Logger?,
-        setVerboseLogger: @escaping () -> Void,
         appMediatorFactory: @escaping AppMediator.Factory
     ) {
         self.bundleIDs = bundleIDs
         self.logger = logger
-        self.setVerboseLogger = setVerboseLogger
         self.appMediatorFactory = appMediatorFactory
     }
 
     public func start() throws {
         precondition(Thread.isMainThread)
-
-        eventTap.delegate = self
-        try eventTap.run()
 
         if let app = NSWorkspace.shared.frontmostApplication {
             do {
@@ -102,6 +94,22 @@ public final class MainMediator {
         apps = [:]
     }
 
+    public func handle(_ event: CGEvent) -> CGEvent? {
+        do {
+            guard
+                let app = NSWorkspace.shared.frontmostApplication,
+                let mediator = try mediator(of: app)
+            else {
+                return event
+            }
+            return mediator.handle(event)
+
+        } catch {
+            delegate?.mainMediator(self, didFailWithError: error)
+            return event
+        }
+    }
+
     private func mediator(of app: NSRunningApplication) throws -> AppMediator? {
         precondition(Thread.isMainThread)
 
@@ -133,46 +141,5 @@ public final class MainMediator {
 extension MainMediator: AppMediatorDelegate {
     public func appMediator(_ mediator: AppMediator, didFailWithError error: Error) {
         delegate?.mainMediator(self, didFailWithError: error)
-    }
-}
-
-extension MainMediator: EventTapDelegate {
-    func eventTap(_ tap: EventTap, didReceive event: CGEvent) -> CGEvent? {
-        if isRelaunchEvent(event) {
-            delegate?.mainMediatorDidRequestRelaunch(self)
-            return nil
-        }
-        if isVerboseLoggerEvent(event) {
-            setVerboseLogger()
-            return nil
-        }
-
-        do {
-            guard
-                let app = NSWorkspace.shared.frontmostApplication,
-                let mediator = try mediator(of: app)
-            else {
-                return event
-            }
-            return mediator.handle(event)
-
-        } catch {
-            delegate?.mainMediator(self, didFailWithError: error)
-            return event
-        }
-    }
-
-    /// ⌃⌥⌘-Esc triggers a relaunch of ShadowVim.
-    private func isRelaunchEvent(_ event: CGEvent) -> Bool {
-        event.type == .keyDown
-            && event.modifiers == [.control, .option, .command]
-            && event.keyCode == .escape
-    }
-
-    /// ⌃⌥⌘/ enables the verbose logger.
-    private func isVerboseLoggerEvent(_ event: CGEvent) -> Bool {
-        event.type == .keyDown
-            && event.flags.isSuperset(of: [.maskControl, .maskAlternate, .maskCommand])
-            && event.character == "/"
     }
 }
