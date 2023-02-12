@@ -161,12 +161,6 @@ public final class AppMediator {
             delegate?.appMediatorWillStart(self)
         case .stop:
             performStop()
-
-        case let .playSound(name: name):
-            if let sound = NSSound(named: name) {
-                sound.stop()
-                sound.play()
-            }
         }
     }
 
@@ -186,7 +180,7 @@ public final class AppMediator {
             // Check that we're still the focused app. Useful when the Spotlight
             // modal is opened.
             isAppFocused,
-            case let .focused(buffer: buffer, passthrough: passthrough) = state,
+            case let .focused(buffer: buffer) = state,
             buffer.uiElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
             return event
@@ -198,17 +192,17 @@ public final class AppMediator {
 
         switch event.type {
         case .keyDown:
-            return handleKeyDown(event, in: buffer.nvimBuffer, passthrough: passthrough)
+            return handleKeyDown(event, in: buffer.nvimBuffer)
         default:
             return event
         }
     }
 
-    private func handleKeyDown(_ event: CGEvent, in buffer: NvimBuffer, passthrough: Bool) -> CGEvent? {
+    private func handleKeyDown(_ event: CGEvent, in buffer: NvimBuffer) -> CGEvent? {
         let modifiers = event.modifiers
 
         switch (modifiers, event.character) {
-        case ([.command], "z") where !passthrough:
+        case ([.command], "z"):
             nvim.api.transaction(in: buffer) { api in
                 api.command("undo")
             }
@@ -218,7 +212,7 @@ public final class AppMediator {
 
             return nil
 
-        case ([.command, .shift], "z") where !passthrough:
+        case ([.command, .shift], "z"):
             nvim.api.transaction(in: buffer) { api in
                 api.command("redo")
             }
@@ -228,11 +222,6 @@ public final class AppMediator {
 
             return nil
 
-        case ([.control, .option, .command], "."):
-            // ⌃⌥⌘. toggles passthrough mode.
-            on(.togglePassthrough)
-            return nil
-
         case ([.control], "\u{0F}"), ([.control], "\t"):
             // Passthrough for the navigation shortcuts.
             // They need to be set in the Xcode config.
@@ -240,7 +229,7 @@ public final class AppMediator {
 
         default:
             // Passthrough for ⌘-based keyboard shortcuts.
-            guard !passthrough, !event.flags.contains(.maskCommand) else {
+            guard !event.flags.contains(.maskCommand) else {
                 return event
             }
 
@@ -392,7 +381,7 @@ extension AppMediator: NvimDelegate {
     public func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>? {
         switch method {
         case "SVRefresh":
-            if case let .focused(buffer, _) = state {
+            if case let .focused(buffer) = state {
                 buffer.didRequestRefresh()
             }
             return .success(.bool(true))

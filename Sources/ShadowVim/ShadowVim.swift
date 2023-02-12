@@ -17,46 +17,70 @@
 
 import AppKit
 import AX
+import Combine
 import Foundation
 import Mediator
 import Nvim
 import Toolkit
 
-protocol ShadowVimDelegate: AnyObject {
-    func shadowVimDidRequestReset(_ shadowVim: ShadowVim)
-}
+class ShadowVim: ObservableObject {
+    @Published var keysPassthrough: Bool = false
 
-class ShadowVim {
-    weak var delegate: ShadowVimDelegate?
+    private var mediator: MainMediator?
+    private let eventTap = EventTap()
 
-    private var mediator: MainMediator
+    private let setVerboseLogger: () -> Void
+    private let mediatorFactory: () -> MainMediator
     private let logger: Logger?
 
-    init(mediator: MainMediator, logger: Logger?) {
-        self.mediator = mediator
+    init(
+        logger: Logger?,
+        setVerboseLogger: @escaping () -> Void,
+        mediatorFactory: @escaping () -> MainMediator
+    ) {
         self.logger = logger
+        self.setVerboseLogger = setVerboseLogger
+        self.mediatorFactory = mediatorFactory
 
-        mediator.delegate = self
-    }
-
-    deinit {
-        mediator.stop()
+        eventTap.delegate = self
     }
 
     func didLaunch() {
+        start()
+    }
+
+    func willTerminate() {
+        stop()
+    }
+
+    private func start() {
+        guard mediator == nil else {
+            return
+        }
+
         do {
             guard AX.isProcessTrusted(prompt: true) else {
                 throw UserError.a11yPermissionRequired
             }
+
+            try eventTap.start()
+
+            let mediator = mediatorFactory()
+            mediator.delegate = self
             try mediator.start()
+            self.mediator = mediator
             hide()
+
         } catch {
             presentAlert(error: error, style: .critical)
         }
     }
 
-    func willTerminate() {
-        mediator.stop()
+    private func stop() {
+        mediator?.stop()
+        mediator = nil
+
+        eventTap.stop()
     }
 
     enum AlertStyle {
@@ -113,7 +137,7 @@ class ShadowVim {
             alert.addButton(withTitle: "Reset")
             let response = alert.runModal()
             if response == .alertSecondButtonReturn {
-                delegate?.shadowVimDidRequestReset(self)
+                reset()
             }
 
         case .critical:
@@ -146,18 +170,56 @@ class ShadowVim {
     }
 
     func reset() {
+        logger?.i("Reset ShadowVim")
         precondition(Thread.isMainThread)
-        delegate?.shadowVimDidRequestReset(self)
+        stop()
+        start()
+    }
+
+    private func playSound(_ name: String) {
+        guard let sound = NSSound(named: name) else {
+            return
+        }
+        sound.stop()
+        sound.play()
+    }
+}
+
+extension ShadowVim: EventTapDelegate {
+    func eventTap(_ tap: EventTap, didReceive event: CGEvent) -> CGEvent? {
+        guard event.type == .keyDown else {
+            return event
+        }
+
+        if event.modifiers == [.control, .option, .command] {
+            switch event.keyCode {
+            case .escape:
+                reset()
+                return nil
+            case .period:
+                keysPassthrough.toggle()
+                playSound("Pop")
+                return nil
+            case .slash:
+                setVerboseLogger()
+                return nil
+            default:
+                break
+            }
+        }
+
+        guard
+            !keysPassthrough,
+            let mediator = mediator
+        else {
+            return event
+        }
+
+        return mediator.handle(event)
     }
 }
 
 extension ShadowVim: MainMediatorDelegate {
-    func mainMediatorDidRequestReset(_ mediator: MainMediator) {
-        DispatchQueue.main.async {
-            self.delegate?.shadowVimDidRequestReset(self)
-        }
-    }
-
     func mainMediator(_ mediator: MainMediator, didFailWithError error: Error) {
         DispatchQueue.main.async {
             let userError = UserError(error: error)
