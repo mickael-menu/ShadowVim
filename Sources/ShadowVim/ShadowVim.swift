@@ -29,7 +29,7 @@ class ShadowVim: ObservableObject {
     private var mediator: MainMediator?
     private let eventTap = EventTap()
 
-    private let setVerboseLogger: () -> Void
+    public let setVerboseLogger: () -> Void
     private let mediatorFactory: () -> MainMediator
     private let logger: Logger?
 
