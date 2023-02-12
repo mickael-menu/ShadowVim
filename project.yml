@@ -23,7 +23,6 @@ targets:
       INFOPLIST_FILE: Sources/ShadowVim/ShadowVim-Info.plist
       GENERATE_INFOPLIST_FILE: YES
       CODE_SIGN_STYLE: Automatic
-      CODE_SIGN_IDENTITY: Apple Development
       DEVELOPMENT_TEAM: ${SV_DEVELOPMENT_TEAM}
       ENABLE_HARDENED_RUNTIME: YES
       DEAD_CODE_STRIPPING: YES
