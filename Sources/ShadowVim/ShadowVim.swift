@@ -21,6 +21,7 @@ import Combine
 import Foundation
 import Mediator
 import Nvim
+import ServiceManagement
 import Toolkit
 
 class ShadowVim: ObservableObject {
@@ -29,15 +30,18 @@ class ShadowVim: ObservableObject {
     private var mediator: MainMediator?
     private let eventTap = EventTap()
 
+    private let preferences: Preferences
     public let setVerboseLogger: () -> Void
     private let mediatorFactory: () -> MainMediator
     private let logger: Logger?
 
     init(
+        preferences: Preferences,
         logger: Logger?,
         setVerboseLogger: @escaping () -> Void,
         mediatorFactory: @escaping () -> MainMediator
     ) {
+        self.preferences = preferences
         self.logger = logger
         self.setVerboseLogger = setVerboseLogger
         self.mediatorFactory = mediatorFactory
@@ -46,7 +50,21 @@ class ShadowVim: ObservableObject {
     }
 
     func didLaunch() {
+        addToLoginItems()
         start()
+    }
+
+    private func addToLoginItems() {
+        guard !preferences.isAddedToLoginItems else {
+            return
+        }
+        preferences.isAddedToLoginItems = true
+
+        do {
+            try SMAppService.mainApp.register()
+        } catch {
+            logger?.w(error)
+        }
     }
 
     func willTerminate() {
