@@ -22,10 +22,12 @@ import Toolkit
 
 final class Container {
     let shadowVim: ShadowVim
+    let preferences: Preferences
     let logger: Logger?
     private let mediator: MediatorContainer
 
     init() {
+        let preferences = UserDefaultsPreferences(defaults: .standard)
         let logger = ReferenceLogger(logger:
             Debug.isDebugging
                 ? NSLoggerLogger().filter(
@@ -52,8 +54,10 @@ final class Container {
         )
 
         self.logger = logger.domain("app")
+        self.preferences = preferences
         self.mediator = mediator
         shadowVim = ShadowVim(
+            preferences: preferences,
             logger: logger,
             setVerboseLogger: { logger.set(NSLoggerLogger()) },
             mediatorFactory: mediator.mainMediator
