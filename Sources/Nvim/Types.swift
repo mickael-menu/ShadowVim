@@ -37,6 +37,20 @@ public struct BufferPosition: Equatable {
         self.line = line
         self.column = column
     }
+
+    public func moving(line: LineIndex? = nil, column: ColumnIndex? = nil) -> BufferPosition {
+        BufferPosition(
+            line: self.line + (line ?? 0),
+            column: self.column + (column ?? 0)
+        )
+    }
+
+    public func copy(line: LineIndex? = nil, column: ColumnIndex? = nil) -> BufferPosition {
+        BufferPosition(
+            line: line ?? self.line,
+            column: column ?? self.column
+        )
+    }
 }
 
 public struct BufferSelection: Equatable {
@@ -46,6 +60,24 @@ public struct BufferSelection: Equatable {
     public init(start: BufferPosition = .init(), end: BufferPosition = .init()) {
         self.start = start
         self.end = end
+    }
+
+    public func copy(
+        startLine: LineIndex? = nil,
+        startColumn: ColumnIndex? = nil,
+        endLine: LineIndex? = nil,
+        endColumn: ColumnIndex? = nil
+    ) -> BufferSelection {
+        BufferSelection(
+            start: BufferPosition(
+                line: startLine ?? start.line,
+                column: startColumn ?? start.column
+            ),
+            end: BufferPosition(
+                line: endLine ?? end.line,
+                column: endColumn ?? end.column
+            )
+        )
     }
 }
 

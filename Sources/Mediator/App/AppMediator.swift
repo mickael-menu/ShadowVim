@@ -147,6 +147,12 @@ public final class AppMediator {
         on(.stop)
     }
 
+    public func didToggleKeysPassthrough(enabled: Bool) {
+        for (_, buffer) in bufferMediators {
+            buffer.didToggleKeysPassthrough(enabled: enabled)
+        }
+    }
+
     private func on(_ event: AppState.Event) {
         precondition(Thread.isMainThread)
         for action in state.on(event, logger: logger) {

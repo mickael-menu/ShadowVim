@@ -95,7 +95,13 @@ public final class BufferMediator {
 
     func didRequestRefresh() {
         DispatchQueue.main.async {
-            self.on(.userDidRequestRefresh(source: .nvim))
+            self.on(.didRequestRefresh(source: .nvim))
+        }
+    }
+
+    func didToggleKeysPassthrough(enabled: Bool) {
+        DispatchQueue.main.async {
+            self.on(.didToggleKeysPassthrough(enabled: enabled))
         }
     }
 

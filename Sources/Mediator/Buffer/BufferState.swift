@@ -34,14 +34,19 @@ struct BufferState: Equatable {
     /// State of the UI buffer.
     private(set) var ui: UIState
 
+    /// Indicates whether the keys passthrough is switched on.
+    private(set) var isKeysPassthroughEnabled: Bool
+
     init(
         token: EditionToken = .free,
         nvim: NvimState = NvimState(),
-        ui: UIState = UIState()
+        ui: UIState = UIState(),
+        isKeysPassthroughEnabled: Bool = false
     ) {
         self.token = token
         self.nvim = nvim
         self.ui = ui
+        self.isKeysPassthroughEnabled = isKeysPassthroughEnabled
     }
 
     /// The edition token indicates which buffer is the current source of truth
@@ -120,7 +125,7 @@ struct BufferState: Equatable {
 
         /// The user requested to resynchronize the buffers using the given
         /// `source` host for the source of truth of the content.
-        case userDidRequestRefresh(source: Host)
+        case didRequestRefresh(source: Host)
 
         /// The Nvim buffer changed and sent a `BufLinesEvent`.
         case nvimBufferDidChange(lines: [String], event: BufLinesEvent)
@@ -139,6 +144,9 @@ struct BufferState: Equatable {
 
         /// The UI selection changed.
         case uiSelectionDidChange(BufferSelection)
+
+        /// The keys passthrough was toggled.
+        case didToggleKeysPassthrough(enabled: Bool)
 
         /// An error occurred.
         case didFail(EquatableError)
@@ -195,7 +203,7 @@ struct BufferState: Equatable {
                 synchronize(source: owner)
             }
 
-        case let .userDidRequestRefresh(source: source):
+        case let .didRequestRefresh(source: source):
             switch token {
             case .synchronizing, .acquired:
                 logger?.w("Token busy, cannot refresh")
@@ -235,11 +243,31 @@ struct BufferState: Equatable {
             }
 
         case let .uiSelectionDidChange(selection):
-            ui.selection = selection
+            let adjustedSel = {
+                guard !isKeysPassthroughEnabled else {
+                    return selection
+                }
+                return selection.adjust(to: nvim.cursor.mode, lines: ui.lines)
+            }()
 
-            if tryEdition(from: .ui), nvim.cursor.position != selection.start {
-                perform(.updateNvimCursor(selection.start))
+            ui.selection = adjustedSel
+
+            if tryEdition(from: .ui) {
+                if selection != adjustedSel {
+                    perform(.updateUISelection(adjustedSel))
+                }
+                if nvim.cursor.position != adjustedSel.start {
+                    perform(.updateNvimCursor(adjustedSel.start))
+                }
             }
+
+        case let .didToggleKeysPassthrough(enabled: enabled):
+            isKeysPassthroughEnabled = enabled
+            let selection = ui.selection.adjust(
+                to: enabled ? .insert : nvim.cursor.mode,
+                lines: ui.lines
+            )
+            perform(.updateUISelection(selection))
 
         case let .didFail(error):
             perform(.alert(error))
@@ -316,6 +344,40 @@ struct BufferState: Equatable {
     }
 }
 
+extension BufferSelection {
+    /// Adjusts this `BufferSelection` to match the given Nvim `mode`.
+    func adjust(to mode: Mode, lines: [String]) -> BufferSelection {
+        guard
+            start.line == end.line,
+            (start.column ... start.column + 1).contains(end.column),
+            lines.indices.contains(start.line)
+        else {
+            return self
+        }
+
+        switch mode {
+        case .insert, .replace:
+            return BufferSelection(start: start, end: start)
+
+        default:
+            let line = lines[start.line]
+            if line.isEmpty {
+                return BufferSelection(
+                    start: start.copy(column: 0),
+                    end: start.copy(column: 1)
+                )
+            } else {
+                var start = start
+                start.column = min(start.column, line.count - 1)
+                return BufferSelection(
+                    start: start,
+                    end: start.moving(column: +1)
+                )
+            }
+        }
+    }
+}
+
 // MARK: - Logging
 
 extension BufferState.EditionToken: LogValueConvertible {
@@ -354,7 +416,7 @@ extension BufferState.Event: LogPayloadConvertible {
         switch self {
         case .tokenDidTimeout:
             return "tokenDidTimeout"
-        case .userDidRequestRefresh:
+        case .didRequestRefresh:
             return "userDidRequestRefresh"
         case .nvimBufferDidChange:
             return "nvimBufferDidChange"
@@ -366,6 +428,8 @@ extension BufferState.Event: LogPayloadConvertible {
             return "uiBufferDidChange"
         case .uiSelectionDidChange:
             return "uiSelectionDidChange"
+        case .didToggleKeysPassthrough:
+            return "didToggleKeysPassthrough"
         case .didFail:
             return "didFail"
         }
@@ -375,7 +439,7 @@ extension BufferState.Event: LogPayloadConvertible {
         switch self {
         case .tokenDidTimeout:
             return [.name: name]
-        case let .userDidRequestRefresh(source: source):
+        case let .didRequestRefresh(source: source):
             return [.name: name, "source": source.rawValue]
         case let .nvimBufferDidChange(lines: newLines, event: event):
             return [.name: name, "newLines": newLines, "event": event]
@@ -387,6 +451,8 @@ extension BufferState.Event: LogPayloadConvertible {
             return [.name: name, "lines": lines]
         case let .uiSelectionDidChange(selection):
             return [.name: name, "selection": selection]
+        case let .didToggleKeysPassthrough(enabled: enabled):
+            return [.name: name, "enabled": enabled]
         case let .didFail(error):
             return [.name: name, "error": error]
         }
