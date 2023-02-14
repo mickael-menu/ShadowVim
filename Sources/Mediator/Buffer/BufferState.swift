@@ -235,10 +235,16 @@ struct BufferState: Equatable {
             }
 
         case let .uiSelectionDidChange(selection):
-            ui.selection = selection
+            let adjustedSel = selection.adjust(to: nvim.cursor.mode, lines: ui.lines)
+            ui.selection = adjustedSel
 
-            if tryEdition(from: .ui), nvim.cursor.position != selection.start {
-                perform(.updateNvimCursor(selection.start))
+            if tryEdition(from: .ui) {
+                if selection != adjustedSel {
+                    perform(.updateUISelection(adjustedSel))
+                }
+                if nvim.cursor.position != adjustedSel.start {
+                    perform(.updateNvimCursor(adjustedSel.start))
+                }
             }
 
         case let .didFail(error):
@@ -313,6 +319,40 @@ struct BufferState: Equatable {
             "actions": actions,
         ])
         return actions
+    }
+}
+
+extension BufferSelection {
+    /// Adjusts this `BufferSelection` to match the given Nvim `mode`.
+    func adjust(to mode: Mode, lines: [String]) -> BufferSelection {
+        guard
+            start.line == end.line,
+            (start.column ... start.column + 1).contains(end.column),
+            lines.indices.contains(start.line)
+        else {
+            return self
+        }
+
+        switch mode {
+        case .insert, .replace:
+            return BufferSelection(start: start, end: start)
+
+        default:
+            let line = lines[start.line]
+            if line.isEmpty {
+                return BufferSelection(
+                    start: start.copy(column: 0),
+                    end: start.copy(column: 1)
+                )
+            } else {
+                var start = start
+                start.column = min(start.column, line.count - 1)
+                return BufferSelection(
+                    start: start,
+                    end: start.moving(column: +1)
+                )
+            }
+        }
     }
 }
 

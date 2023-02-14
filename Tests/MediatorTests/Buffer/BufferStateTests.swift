@@ -485,14 +485,20 @@ final class BufferStateTests: XCTestCase {
 
     // The token is acquired when free and the update sent to the Nvim buffer.
     func testUISelectionDidChangeWhileFree() {
-        let selection = uiSelection.copy(startLine: 42)
+        let selection = BufferSelection(
+            startLine: 1, col: 2,
+            endLine: 1, col: 3
+        )
 
         assert(
             initial: initialState.copy(token: .free),
             on: .uiSelectionDidChange(selection),
             expected: initialState.copy(
                 token: .acquired(owner: .ui),
-                uiSelection: selection
+                uiSelection: selection.copy(
+                    endLine: selection.start.line,
+                    endColumn: selection.start.column + 1
+                )
             ),
             actions: [
                 .startTokenTimeout,
@@ -503,7 +509,10 @@ final class BufferStateTests: XCTestCase {
 
     // The update is sent to the Nvim buffer when the token is already acquired by the UI.
     func testUISelectionDidChangeWhileAlreadyAcquired() {
-        let selection = uiSelection.copy(startLine: 42)
+        let selection = BufferSelection(
+            startLine: 1, col: 2,
+            endLine: 1, col: 3
+        )
 
         assert(
             initial: initialState.copy(token: .acquired(owner: .ui)),
@@ -521,7 +530,10 @@ final class BufferStateTests: XCTestCase {
 
     // Changes are not sent back to Nvim if the token is acquired by it.
     func testUISelectionDidChangeIgnoredWhileAcquiredByNvim() {
-        let selection = uiSelection.copy(startLine: 42)
+        let selection = BufferSelection(
+            startLine: 1, col: 2,
+            endLine: 1, col: 3
+        )
         let state = initialState.copy(token: .acquired(owner: .nvim))
 
         assert(
@@ -529,6 +541,30 @@ final class BufferStateTests: XCTestCase {
             on: .uiSelectionDidChange(selection),
             expected: state.copy(uiSelection: selection),
             actions: []
+        )
+    }
+
+    // Changes are ignored if identical with the Nvim cursor.
+    func testUISelectionDidChangeIgnoredWhenEqualToNvimCursor() {
+        let state = initialState.copy(
+            token: .free,
+            nvimCursor: Cursor(position: BufferPosition(line: 42, column: 32), mode: .normal)
+        )
+        let selection = BufferSelection(
+            startLine: 42, col: 32,
+            endLine: 42, col: 33
+        )
+
+        assert(
+            initial: state,
+            on: .uiSelectionDidChange(selection),
+            expected: state.copy(
+                token: .acquired(owner: .ui),
+                uiSelection: selection
+            ),
+            actions: [
+                .startTokenTimeout,
+            ]
         )
     }
 
@@ -556,11 +592,12 @@ final class BufferStateTests: XCTestCase {
         initial state: BufferState,
         on event: BufferState.Event,
         expected expectedState: BufferState,
-        actions expectedActions: [BufferState.Action]
+        actions expectedActions: [BufferState.Action],
+        file: StaticString = #file, line: UInt = #line
     ) {
         var state = state
-        XCTAssertEqual(state.on(event), expectedActions)
-        XCTAssertEqual(state, expectedState)
+        XCTAssertEqual(state.on(event), expectedActions, file: file, line: line)
+        XCTAssertEqual(state, expectedState, file: file, line: line)
     }
 }
 
@@ -582,35 +619,6 @@ extension BufferState {
                 selection: uiSelection ?? ui.selection,
                 lines: uiLines ?? ui.lines
             )
-        )
-    }
-}
-
-extension BufferSelection {
-    func copy(
-        startLine: LineIndex? = nil,
-        startColumn: ColumnIndex? = nil,
-        endLine: LineIndex? = nil,
-        endColumn: ColumnIndex? = nil
-    ) -> BufferSelection {
-        BufferSelection(
-            start: BufferPosition(
-                line: startLine ?? start.line,
-                column: startColumn ?? start.column
-            ),
-            end: BufferPosition(
-                line: endLine ?? end.line,
-                column: endColumn ?? end.column
-            )
-        )
-    }
-}
-
-extension BufferPosition {
-    func moving(line: LineIndex? = nil, column: ColumnIndex? = nil) -> BufferPosition {
-        BufferPosition(
-            line: self.line + (line ?? 0),
-            column: self.column + (column ?? 0)
         )
     }
 }
