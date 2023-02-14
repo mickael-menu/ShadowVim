@@ -71,6 +71,12 @@ class ShadowVim: ObservableObject {
         stop()
     }
 
+    func toggleKeysPassthrough() {
+        keysPassthrough.toggle()
+        playSound("Pop")
+        mediator?.didToggleKeysPassthrough(enabled: keysPassthrough)
+    }
+
     private func start() {
         guard mediator == nil else {
             return
@@ -215,8 +221,7 @@ extension ShadowVim: EventTapDelegate {
                 reset()
                 return nil
             case .period:
-                keysPassthrough.toggle()
-                playSound("Pop")
+                toggleKeysPassthrough()
                 return nil
             case .slash:
                 setVerboseLogger()

@@ -34,14 +34,19 @@ struct BufferState: Equatable {
     /// State of the UI buffer.
     private(set) var ui: UIState
 
+    /// Indicates whether the keys passthrough is switched on.
+    private(set) var isKeysPassthroughEnabled: Bool
+
     init(
         token: EditionToken = .free,
         nvim: NvimState = NvimState(),
-        ui: UIState = UIState()
+        ui: UIState = UIState(),
+        isKeysPassthroughEnabled: Bool = false
     ) {
         self.token = token
         self.nvim = nvim
         self.ui = ui
+        self.isKeysPassthroughEnabled = isKeysPassthroughEnabled
     }
 
     /// The edition token indicates which buffer is the current source of truth
@@ -120,7 +125,7 @@ struct BufferState: Equatable {
 
         /// The user requested to resynchronize the buffers using the given
         /// `source` host for the source of truth of the content.
-        case userDidRequestRefresh(source: Host)
+        case didRequestRefresh(source: Host)
 
         /// The Nvim buffer changed and sent a `BufLinesEvent`.
         case nvimBufferDidChange(lines: [String], event: BufLinesEvent)
@@ -139,6 +144,9 @@ struct BufferState: Equatable {
 
         /// The UI selection changed.
         case uiSelectionDidChange(BufferSelection)
+
+        /// The keys passthrough was toggled.
+        case didToggleKeysPassthrough(enabled: Bool)
 
         /// An error occurred.
         case didFail(EquatableError)
@@ -195,7 +203,7 @@ struct BufferState: Equatable {
                 synchronize(source: owner)
             }
 
-        case let .userDidRequestRefresh(source: source):
+        case let .didRequestRefresh(source: source):
             switch token {
             case .synchronizing, .acquired:
                 logger?.w("Token busy, cannot refresh")
@@ -235,7 +243,13 @@ struct BufferState: Equatable {
             }
 
         case let .uiSelectionDidChange(selection):
-            let adjustedSel = selection.adjust(to: nvim.cursor.mode, lines: ui.lines)
+            let adjustedSel = {
+                guard !isKeysPassthroughEnabled else {
+                    return selection
+                }
+                return selection.adjust(to: nvim.cursor.mode, lines: ui.lines)
+            }()
+
             ui.selection = adjustedSel
 
             if tryEdition(from: .ui) {
@@ -246,6 +260,14 @@ struct BufferState: Equatable {
                     perform(.updateNvimCursor(adjustedSel.start))
                 }
             }
+
+        case let .didToggleKeysPassthrough(enabled: enabled):
+            isKeysPassthroughEnabled = enabled
+            let selection = ui.selection.adjust(
+                to: enabled ? .insert : nvim.cursor.mode,
+                lines: ui.lines
+            )
+            perform(.updateUISelection(selection))
 
         case let .didFail(error):
             perform(.alert(error))
@@ -394,7 +416,7 @@ extension BufferState.Event: LogPayloadConvertible {
         switch self {
         case .tokenDidTimeout:
             return "tokenDidTimeout"
-        case .userDidRequestRefresh:
+        case .didRequestRefresh:
             return "userDidRequestRefresh"
         case .nvimBufferDidChange:
             return "nvimBufferDidChange"
@@ -406,6 +428,8 @@ extension BufferState.Event: LogPayloadConvertible {
             return "uiBufferDidChange"
         case .uiSelectionDidChange:
             return "uiSelectionDidChange"
+        case .didToggleKeysPassthrough:
+            return "didToggleKeysPassthrough"
         case .didFail:
             return "didFail"
         }
@@ -415,7 +439,7 @@ extension BufferState.Event: LogPayloadConvertible {
         switch self {
         case .tokenDidTimeout:
             return [.name: name]
-        case let .userDidRequestRefresh(source: source):
+        case let .didRequestRefresh(source: source):
             return [.name: name, "source": source.rawValue]
         case let .nvimBufferDidChange(lines: newLines, event: event):
             return [.name: name, "newLines": newLines, "event": event]
@@ -427,6 +451,8 @@ extension BufferState.Event: LogPayloadConvertible {
             return [.name: name, "lines": lines]
         case let .uiSelectionDidChange(selection):
             return [.name: name, "selection": selection]
+        case let .didToggleKeysPassthrough(enabled: enabled):
+            return [.name: name, "enabled": enabled]
         case let .didFail(error):
             return [.name: name, "error": error]
         }

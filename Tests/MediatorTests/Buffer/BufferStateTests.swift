@@ -149,7 +149,7 @@ final class BufferStateTests: XCTestCase {
     func testRefreshRequestWhileFree() {
         assert(
             initial: initialState,
-            on: .userDidRequestRefresh(source: .nvim),
+            on: .didRequestRefresh(source: .nvim),
             expected: initialState.copy(token: .synchronizing),
             actions: [
                 .updateUI(
@@ -166,7 +166,7 @@ final class BufferStateTests: XCTestCase {
 
         assert(
             initial: initialState,
-            on: .userDidRequestRefresh(source: .ui),
+            on: .didRequestRefresh(source: .ui),
             expected: initialState.copy(token: .synchronizing),
             actions: [
                 .updateNvim(
@@ -184,7 +184,7 @@ final class BufferStateTests: XCTestCase {
         let state = initialState.copy(token: .acquired(owner: .nvim))
         assert(
             initial: state,
-            on: .userDidRequestRefresh(source: .ui),
+            on: .didRequestRefresh(source: .ui),
             expected: state,
             actions: [.bell]
         )
@@ -195,7 +195,7 @@ final class BufferStateTests: XCTestCase {
         let state = initialState.copy(token: .synchronizing)
         assert(
             initial: state,
-            on: .userDidRequestRefresh(source: .ui),
+            on: .didRequestRefresh(source: .ui),
             expected: state,
             actions: [.bell]
         )
@@ -207,7 +207,7 @@ final class BufferStateTests: XCTestCase {
 
         assert(
             initial: state,
-            on: .userDidRequestRefresh(source: .nvim),
+            on: .didRequestRefresh(source: .nvim),
             expected: state,
             actions: []
         )
@@ -495,10 +495,7 @@ final class BufferStateTests: XCTestCase {
             on: .uiSelectionDidChange(selection),
             expected: initialState.copy(
                 token: .acquired(owner: .ui),
-                uiSelection: selection.copy(
-                    endLine: selection.start.line,
-                    endColumn: selection.start.column + 1
-                )
+                uiSelection: selection
             ),
             actions: [
                 .startTokenTimeout,
@@ -568,6 +565,100 @@ final class BufferStateTests: XCTestCase {
         )
     }
 
+    // The selection is adjusted to match the Nvim mode, when needed.
+    func testUISelectionDidChangeAdjustsToNvimMode() {
+        let selection = BufferSelection(
+            startLine: 1, col: 2,
+            endLine: 1, col: 2
+        )
+
+        assert(
+            initial: initialState.copy(token: .free),
+            on: .uiSelectionDidChange(selection),
+            expected: initialState.copy(
+                token: .acquired(owner: .ui),
+                uiSelection: selection.copy(endColumn: 3)
+            ),
+            actions: [
+                .startTokenTimeout,
+                .updateUISelection(selection.copy(endColumn: 3)),
+                .updateNvimCursor(selection.start),
+            ]
+        )
+    }
+
+    // The selection is NOT adjusted to match the Nvim mode, if the keys
+    // passthrough is enabled.
+    func testUISelectionDidChangeDontAdjustToNvimModeWhenKeysPassthrough() {
+        let selection = BufferSelection(
+            startLine: 1, col: 2,
+            endLine: 1, col: 2
+        )
+
+        let state = initialState.copy(token: .free, keysPassthrough: true)
+
+        assert(
+            initial: state,
+            on: .uiSelectionDidChange(selection),
+            expected: state.copy(
+                token: .acquired(owner: .ui),
+                uiSelection: selection
+            ),
+            actions: [
+                .startTokenTimeout,
+                .updateNvimCursor(selection.start),
+            ]
+        )
+    }
+
+    // MARK: - Toggle keys passthrough
+
+    func testDidToggleKeysPassthroughOn() {
+        let state = initialState.copy(
+            uiSelection: BufferSelection(
+                startLine: 1, col: 3,
+                endLine: 1, col: 4
+            ),
+            keysPassthrough: false
+        )
+
+        assert(
+            initial: state,
+            on: .didToggleKeysPassthrough(enabled: true),
+            expected: state.copy(keysPassthrough: true),
+            actions: [
+                .updateUISelection(BufferSelection(
+                    startLine: 1, col: 3,
+                    endLine: 1, col: 3
+                )
+                ),
+            ]
+        )
+    }
+
+    func testDidToggleKeysPassthroughOff() {
+        let state = initialState.copy(
+            uiSelection: BufferSelection(
+                startLine: 1, col: 3,
+                endLine: 1, col: 3
+            ),
+            keysPassthrough: true
+        )
+
+        assert(
+            initial: state,
+            on: .didToggleKeysPassthrough(enabled: false),
+            expected: state.copy(keysPassthrough: false),
+            actions: [
+                .updateUISelection(BufferSelection(
+                    startLine: 1, col: 3,
+                    endLine: 1, col: 4
+                )
+                ),
+            ]
+        )
+    }
+
     // MARK: - Failure
 
     enum Err: Error {
@@ -607,7 +698,8 @@ extension BufferState {
         nvimLines: [String]? = nil,
         nvimCursor: Cursor? = nil,
         uiLines: [String]? = nil,
-        uiSelection: BufferSelection? = nil
+        uiSelection: BufferSelection? = nil,
+        keysPassthrough: Bool? = nil
     ) -> BufferState {
         BufferState(
             token: token ?? self.token,
@@ -618,7 +710,8 @@ extension BufferState {
             ui: UIState(
                 selection: uiSelection ?? ui.selection,
                 lines: uiLines ?? ui.lines
-            )
+            ),
+            isKeysPassthroughEnabled: keysPassthrough ?? isKeysPassthroughEnabled
         )
     }
 }

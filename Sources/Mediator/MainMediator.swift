@@ -110,6 +110,12 @@ public final class MainMediator {
         }
     }
 
+    public func didToggleKeysPassthrough(enabled: Bool) {
+        for (_, app) in apps {
+            app.didToggleKeysPassthrough(enabled: enabled)
+        }
+    }
+
     private func mediator(of app: NSRunningApplication) throws -> AppMediator? {
         precondition(Thread.isMainThread)
 
