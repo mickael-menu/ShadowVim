@@ -263,15 +263,56 @@ public final class BufferMediator {
     private func updateUIPartialLines(with event: BufLinesEvent) throws {
         guard
             let uiElement = uiElement,
-            let uiContent: String = try uiElement.get(.value),
-            let (range, replacement) = event.changes(in: uiContent)
+            let uiContent: String = try uiElement.get(.value)
+        else {
+            return
+        }
+
+        if event.firstLine == event.lastLine - 1, event.lineData.count == 1 {
+            try updateUIOneLine(at: event.firstLine, in: uiElement, content: uiContent, replacement: event.lineData[0])
+        } else {
+            try updateUIMultipleLines(event: event, in: uiElement, content: uiContent)
+        }
+    }
+
+    private func updateUIMultipleLines(event: BufLinesEvent, in element: AXUIElement, content: String) throws {
+        guard let (range, replacement) = event.changes(in: content) else {
+            logger?.w("Failed to update partial lines")
+            return
+        }
+
+        try element.set(.selectedTextRange, value: range.cfRange(in: content))
+        try element.set(.selectedText, value: replacement)
+    }
+
+    // Optimizes changing only the tail of a line, to avoid refreshing the whole
+    // line which triggers selection artifacts.
+    private func updateUIOneLine(at lineIndex: LineIndex, in element: AXUIElement, content: String, replacement: String) throws {
+        let lines = content.lines
+        guard
+            var range: CFRange = try element.get(.rangeForLine, with: lineIndex),
+            lines.indices.contains(lineIndex)
         else {
             logger?.w("Failed to update partial lines")
             return
         }
 
-        try uiElement.set(.selectedTextRange, value: range.cfRange(in: uiContent))
-        try uiElement.set(.selectedText, value: replacement)
+        if lineIndex < lines.count - 1 {
+            range = CFRange(location: range.location, length: max(0, range.length - 1))
+        }
+        let line = content.lines[lineIndex]
+
+        var replacement = replacement
+        if replacement.hasPrefix(line) {
+            replacement.removeFirst(line.count)
+            range = CFRange(location: range.location + range.length, length: 0)
+        } else if line.hasPrefix(replacement) {
+            range = CFRange(location: range.location + replacement.count, length: line.count - replacement.count)
+            replacement = ""
+        }
+
+        try element.set(.selectedTextRange, value: range)
+        try element.set(.selectedText, value: replacement)
     }
 
     private func updateUISelection(_ selection: BufferSelection) throws {
