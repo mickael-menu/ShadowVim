@@ -98,7 +98,7 @@ public final class BufferMediator {
 
         tokenTimeoutSubject
             .receive(on: DispatchQueue.main)
-            .debounce(for: .seconds(0.3), scheduler: DispatchQueue.main)
+            .debounce(for: .seconds(0.2), scheduler: DispatchQueue.main)
             .sink { [weak self] in self?.on(.tokenDidTimeout) }
             .store(in: &subscriptions)
     }
