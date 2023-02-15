@@ -187,7 +187,7 @@ public final class AppMediator {
             // modal is opened.
             isAppFocused,
             case let .focused(buffer: buffer) = state,
-            buffer.uiElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
+            buffer.uiElement?.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
             return event
         }

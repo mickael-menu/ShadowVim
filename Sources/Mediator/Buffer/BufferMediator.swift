@@ -40,12 +40,22 @@ public final class BufferMediator {
     private var state: BufferState
     private let nvim: Nvim
     let nvimBuffer: NvimBuffer
-    private(set) var uiElement: AXUIElement
     private let logger: Logger?
     private let tokenTimeoutSubject = PassthroughSubject<Void, Never>()
 
     private var subscriptions: Set<AnyCancellable> = []
     private var uiSubscriptions: Set<AnyCancellable> = []
+
+    private(set) var uiElement: AXUIElement? {
+        didSet {
+            if oldValue != uiElement {
+                uiSubscriptions = []
+                if let uiElement = uiElement {
+                    subscribeToElementChanges(uiElement)
+                }
+            }
+        }
+    }
 
     public init(
         nvim: Nvim,
@@ -107,16 +117,15 @@ public final class BufferMediator {
 
     func didFocus(element: AXUIElement) {
         do {
-            if uiElement != element {
-                uiElement = element
-                subscribeToElementChanges(element)
-            }
+            uiElement = element
 
             on(.uiBufferDidChange(lines: try element.lines()))
 
             if let selection = try element.selection() {
                 on(.uiSelectionDidChange(selection))
             }
+        } catch AX.AXError.invalidUIElement {
+            uiElement = nil
         } catch {
             fail(error)
         }
@@ -176,6 +185,8 @@ public final class BufferMediator {
             case let .alert(error):
                 delegate?.bufferMediator(self, didFailWithError: error.error)
             }
+        } catch AX.AXError.invalidUIElement {
+            uiElement = nil
         } catch {
             fail(error)
         }
@@ -220,6 +231,10 @@ public final class BufferMediator {
     }
 
     private func updateUI(diff: CollectionDifference<String>, selection: BufferSelection) throws {
+        guard let uiElement = uiElement else {
+            return
+        }
+
         if !diff.isEmpty {
             for change in diff {
                 switch change {
@@ -247,6 +262,7 @@ public final class BufferMediator {
 
     private func updateUIPartialLines(with event: BufLinesEvent) throws {
         guard
+            let uiElement = uiElement,
             let uiContent: String = try uiElement.get(.value),
             let (range, replacement) = event.changes(in: uiContent)
         else {
@@ -260,6 +276,7 @@ public final class BufferMediator {
 
     private func updateUISelection(_ selection: BufferSelection) throws {
         guard
+            let uiElement = uiElement,
             let startLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.start.line),
             let endLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.end.line)
         else {
