@@ -48,15 +48,20 @@ public final class NvimProcess {
         ]
         process.standardInput = input
         process.standardOutput = output
-        process.environment = [
-            "PATH": "$PATH:$HOME/bin"
-                // MacPorts: https://guide.macports.org/#installing.shell.postflight
-                + ":/usr/local/bin"
-                // Homebrew: https://docs.brew.sh/FAQ#why-should-i-install-homebrew-in-the-default-location
-                + ":/opt/homebrew/bin:/opt/local/bin"
-                // XDG: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-                + ":$HOME/.local/bin",
-        ]
+
+        var env = ProcessInfo.processInfo.environment
+        let path = env["PATH"] ?? ""
+        let home = env["HOME"] ?? ""
+
+        env["PATH"] = "\(path):\(home)/bin"
+            // MacPorts: https://guide.macports.org/#installing.shell.postflight
+            + ":/usr/local/bin"
+            // Homebrew: https://docs.brew.sh/FAQ#why-should-i-install-homebrew-in-the-default-location
+            + ":/opt/homebrew/bin:/opt/local/bin"
+            // XDG: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+            + ":\(home)/.local/bin"
+        
+        process.environment = env
 
         try process.run()
 
