@@ -214,7 +214,7 @@ public final class BufferMediator {
                         .add(to: group)
                 }
 
-                api.winSetCursor(position: cursorPosition)
+                api.winSetCursor(position: cursorPosition, failOnInvalidPosition: false)
                     .eraseToAnyError()
                     .add(to: group)
             }
@@ -224,7 +224,7 @@ public final class BufferMediator {
 
     private func updateNvimCursor(position: BufferPosition) {
         nvim.api.transaction(in: nvimBuffer) { api in
-            api.winSetCursor(position: position)
+            api.winSetCursor(position: position, failOnInvalidPosition: false)
         }
         .discardResult()
         .get(onFailure: fail)
