@@ -41,6 +41,12 @@ public extension Publisher {
     }
 }
 
+public extension Publisher where Output: LogValueConvertible {
+    func logOutput(_ logger: Logger?, _ message: String) -> Publishers.HandleEvents<Self> {
+        handleEvents(receiveOutput: { logger?.d(message, ["output": $0]) })
+    }
+}
+
 public extension AnyPublisher {
     static func just(_ value: Output) -> Self {
         Just(value)

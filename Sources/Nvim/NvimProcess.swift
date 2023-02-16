@@ -61,7 +61,7 @@ public final class NvimProcess {
             + ":/opt/homebrew/bin:/opt/local/bin"
             // XDG: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
             + ":\(home)/.local/bin"
-        
+
         process.environment = env
 
         try process.run()

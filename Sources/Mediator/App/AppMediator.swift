@@ -234,8 +234,11 @@ public final class AppMediator {
             return event
 
         default:
-            // Passthrough for ⌘-based keyboard shortcuts.
-            guard !event.flags.contains(.maskCommand) else {
+            // Passthrough for ⌘ or ⌥-based keyboard shortcuts.
+            guard
+                !event.flags.contains(.maskCommand),
+                !event.flags.contains(.maskAlternate)
+            else {
                 return event
             }
 
