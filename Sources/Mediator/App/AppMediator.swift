@@ -187,7 +187,7 @@ public final class AppMediator {
             // modal is opened.
             isAppFocused,
             case let .focused(buffer: buffer) = state,
-            buffer.uiElement.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
+            buffer.uiElement?.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
             return event
         }
@@ -234,8 +234,11 @@ public final class AppMediator {
             return event
 
         default:
-            // Passthrough for ⌘-based keyboard shortcuts.
-            guard !event.flags.contains(.maskCommand) else {
+            // Passthrough for ⌘ or ⌥-based keyboard shortcuts.
+            guard
+                !event.flags.contains(.maskCommand),
+                !event.flags.contains(.maskAlternate)
+            else {
                 return event
             }
 

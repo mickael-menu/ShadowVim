@@ -206,7 +206,7 @@ public class API {
         request("nvim_win_get_cursor", with: Value.window(window))
     }
 
-    public func winSetCursor(_ window: WindowHandle = 0, position: BufferPosition) -> APIAsync<Void> {
+    public func winSetCursor(_ window: WindowHandle = 0, position: BufferPosition, failOnInvalidPosition: Bool = true) -> APIAsync<Void> {
         request("nvim_win_set_cursor", with: [
             Value.window(window),
             [
@@ -215,6 +215,13 @@ public class API {
             ],
         ])
         .discardResult()
+        .catch { error in
+            if !failOnInvalidPosition, case APIError.validation = error {
+                return .success(())
+            } else {
+                return .failure(error)
+            }
+        }
     }
 
     public func input(_ keys: String) -> APIAsync<Int> {

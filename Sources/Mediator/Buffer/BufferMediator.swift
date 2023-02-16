@@ -40,12 +40,22 @@ public final class BufferMediator {
     private var state: BufferState
     private let nvim: Nvim
     let nvimBuffer: NvimBuffer
-    private(set) var uiElement: AXUIElement
     private let logger: Logger?
     private let tokenTimeoutSubject = PassthroughSubject<Void, Never>()
 
     private var subscriptions: Set<AnyCancellable> = []
     private var uiSubscriptions: Set<AnyCancellable> = []
+
+    private(set) var uiElement: AXUIElement? {
+        didSet {
+            if oldValue != uiElement {
+                uiSubscriptions = []
+                if let uiElement = uiElement {
+                    subscribeToElementChanges(uiElement)
+                }
+            }
+        }
+    }
 
     public init(
         nvim: Nvim,
@@ -88,7 +98,7 @@ public final class BufferMediator {
 
         tokenTimeoutSubject
             .receive(on: DispatchQueue.main)
-            .debounce(for: .seconds(0.3), scheduler: DispatchQueue.main)
+            .debounce(for: .seconds(0.2), scheduler: DispatchQueue.main)
             .sink { [weak self] in self?.on(.tokenDidTimeout) }
             .store(in: &subscriptions)
     }
@@ -107,16 +117,15 @@ public final class BufferMediator {
 
     func didFocus(element: AXUIElement) {
         do {
-            if uiElement != element {
-                uiElement = element
-                subscribeToElementChanges(element)
-            }
+            uiElement = element
 
             on(.uiBufferDidChange(lines: try element.lines()))
 
             if let selection = try element.selection() {
                 on(.uiSelectionDidChange(selection))
             }
+        } catch AX.AXError.invalidUIElement {
+            uiElement = nil
         } catch {
             fail(error)
         }
@@ -176,6 +185,8 @@ public final class BufferMediator {
             case let .alert(error):
                 delegate?.bufferMediator(self, didFailWithError: error.error)
             }
+        } catch AX.AXError.invalidUIElement {
+            uiElement = nil
         } catch {
             fail(error)
         }
@@ -203,7 +214,7 @@ public final class BufferMediator {
                         .add(to: group)
                 }
 
-                api.winSetCursor(position: cursorPosition)
+                api.winSetCursor(position: cursorPosition, failOnInvalidPosition: false)
                     .eraseToAnyError()
                     .add(to: group)
             }
@@ -213,13 +224,17 @@ public final class BufferMediator {
 
     private func updateNvimCursor(position: BufferPosition) {
         nvim.api.transaction(in: nvimBuffer) { api in
-            api.winSetCursor(position: position)
+            api.winSetCursor(position: position, failOnInvalidPosition: false)
         }
         .discardResult()
         .get(onFailure: fail)
     }
 
     private func updateUI(diff: CollectionDifference<String>, selection: BufferSelection) throws {
+        guard let uiElement = uiElement else {
+            return
+        }
+
         if !diff.isEmpty {
             for change in diff {
                 switch change {
@@ -247,19 +262,62 @@ public final class BufferMediator {
 
     private func updateUIPartialLines(with event: BufLinesEvent) throws {
         guard
-            let uiContent: String = try uiElement.get(.value),
-            let (range, replacement) = event.changes(in: uiContent)
+            let uiElement = uiElement,
+            let uiContent: String = try uiElement.get(.value)
+        else {
+            return
+        }
+
+        if event.firstLine == event.lastLine - 1, event.lineData.count == 1 {
+            try updateUIOneLine(at: event.firstLine, in: uiElement, content: uiContent, replacement: event.lineData[0])
+        } else {
+            try updateUIMultipleLines(event: event, in: uiElement, content: uiContent)
+        }
+    }
+
+    private func updateUIMultipleLines(event: BufLinesEvent, in element: AXUIElement, content: String) throws {
+        guard let (range, replacement) = event.changes(in: content) else {
+            logger?.w("Failed to update partial lines")
+            return
+        }
+
+        try element.set(.selectedTextRange, value: range.cfRange(in: content))
+        try element.set(.selectedText, value: replacement)
+    }
+
+    // Optimizes changing only the tail of a line, to avoid refreshing the whole
+    // line which triggers selection artifacts.
+    private func updateUIOneLine(at lineIndex: LineIndex, in element: AXUIElement, content: String, replacement: String) throws {
+        let lines = content.lines
+        guard
+            var range: CFRange = try element.get(.rangeForLine, with: lineIndex),
+            lines.indices.contains(lineIndex)
         else {
             logger?.w("Failed to update partial lines")
             return
         }
 
-        try uiElement.set(.selectedTextRange, value: range.cfRange(in: uiContent))
-        try uiElement.set(.selectedText, value: replacement)
+        if lineIndex < lines.count - 1 {
+            range = CFRange(location: range.location, length: max(0, range.length - 1))
+        }
+        let line = content.lines[lineIndex]
+
+        var replacement = replacement
+        if replacement.hasPrefix(line) {
+            replacement.removeFirst(line.count)
+            range = CFRange(location: range.location + range.length, length: 0)
+        } else if line.hasPrefix(replacement) {
+            range = CFRange(location: range.location + replacement.count, length: line.count - replacement.count)
+            replacement = ""
+        }
+
+        try element.set(.selectedTextRange, value: range)
+        try element.set(.selectedText, value: replacement)
     }
 
     private func updateUISelection(_ selection: BufferSelection) throws {
         guard
+            let uiElement = uiElement,
             let startLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.start.line),
             let endLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.end.line)
         else {

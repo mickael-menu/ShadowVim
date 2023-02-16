@@ -43,20 +43,26 @@ public final class NvimProcess {
             "--embed",
             "-n", // Ignore swap files.
             "--cmd", "let g:svim = v:true", // Using `--cmd` instead of `-c` makes the variable available in the `init.vim`.
-            "--clean", // Don't load default config and plugins.
             "-u", configURL().path,
+            // This will prevent using packages.
+//            "--clean", // Don't load default config and plugins.
         ]
         process.standardInput = input
         process.standardOutput = output
-        process.environment = [
-            "PATH": "$PATH:$HOME/bin"
-                // MacPorts: https://guide.macports.org/#installing.shell.postflight
-                + ":/usr/local/bin"
-                // Homebrew: https://docs.brew.sh/FAQ#why-should-i-install-homebrew-in-the-default-location
-                + ":/opt/homebrew/bin:/opt/local/bin"
-                // XDG: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-                + ":$HOME/.local/bin",
-        ]
+
+        var env = ProcessInfo.processInfo.environment
+        let path = env["PATH"] ?? ""
+        let home = env["HOME"] ?? ""
+
+        env["PATH"] = "\(path):\(home)/bin"
+            // MacPorts: https://guide.macports.org/#installing.shell.postflight
+            + ":/usr/local/bin"
+            // Homebrew: https://docs.brew.sh/FAQ#why-should-i-install-homebrew-in-the-default-location
+            + ":/opt/homebrew/bin:/opt/local/bin"
+            // XDG: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+            + ":\(home)/.local/bin"
+
+        process.environment = env
 
         try process.run()
 
@@ -114,14 +120,6 @@ public final class NvimProcess {
         process.terminationHandler = { [self] _ in
             DispatchQueue.main.async { self.didTerminate() }
         }
-
-        // FIXME: To catch :q?
-//        DispatchQueue.global().async {
-//            process.waitUntilExit()
-//            nvim.stop()
-//            logger?.w("Nvim closed with status \(process.terminationStatus)")
-//            nvim.delegate?.nvim(nvim, didFailWithError: .processStopped(status: Int(process.terminationStatus)))
-//        }
     }
 
     deinit {
