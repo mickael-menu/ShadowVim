@@ -236,12 +236,15 @@ public final class AppMediator {
         default:
             // Passthrough for ⌘ or ⌥-based keyboard shortcuts.
             guard
-                !event.flags.contains(.maskCommand),
-                !event.flags.contains(.maskAlternate)
+                !event.flags.contains(.maskCommand)
+                // This causes issues when trying to insert a character with ⌥,
+                // because it is inserted from the UI and will get deleted when
+                // typing too fast.
+//                !event.flags.contains(.maskAlternate)
             else {
                 return event
             }
-
+            
             // FIXME: See `nvim.paste` "Faster than nvim_input()."
 
             nvim.api.transaction(in: buffer) { api in
