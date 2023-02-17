@@ -235,7 +235,7 @@ public final class AppMediator {
                 // be able to remap this keyboard shortcut in Nvim.
                 // Otherwise, we send the unicode character for this event.
                 // See Documentation/Research/Keyboard.md.
-                if mods.contains(.control) {
+                if mods.contains(.control) || !keystroke.key.isASCII {
                     return api.input(keystroke)
                 } else {
                     return api.input(event.character)

@@ -17,5 +17,5 @@ Eventually, ShadowVim should offer a way to customize for each keyboard shortcut
 In the meantime, this hard-coded strategy might be enough for most use cases:
 
 * If there's a command modifier, send to UI.
-* If there's a control modifier, send the keystroke to Nvim.
+* If there's a control modifier OR if it's a non printable character, send the keystroke to Nvim.
 * Otherwise, send the character to Nvim.
