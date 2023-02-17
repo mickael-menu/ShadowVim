@@ -57,7 +57,7 @@ private extension KeyOrASCII {
             self = .key(key)
         } else {
             guard
-                let char = event.character,
+                let char = event.key,
                 !char.isEmpty
             else {
                 return nil

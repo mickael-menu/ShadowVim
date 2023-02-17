@@ -82,7 +82,7 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
     // MARK: - Completion pop-up passthrough keys
 
     /// When Xcode's completion pop-up is visible, we want to let it handle
-    /// the following keys instead of forwarding them to Nvim.
+    /// the following keystrokes instead of forwarding them to Nvim.
     private let completionPopUpPassthrougKeystrokes: [Keystroke] = [
         Keystroke(key: .cr),
         Keystroke(key: .up),

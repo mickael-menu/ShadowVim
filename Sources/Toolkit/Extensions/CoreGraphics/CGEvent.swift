@@ -20,11 +20,20 @@ import Foundation
 import Sauce
 
 public extension CGEvent {
-    /// Returns the character for this event key.
-    var character: String? {
+    /// Returns the title for this event key.
+    var key: String? {
         Sauce.shared.character(
             for: Int(getIntegerValueField(.keyboardEventKeycode)),
             carbonModifiers: Int(flags.rawValue)
         )
+    }
+
+    /// Returns the unicode character for this event key.
+    var character: String {
+        let maxStringLength = 4
+        var actualStringLength = 0
+        var unicodeString = [UniChar](repeating: 0, count: Int(maxStringLength))
+        keyboardGetUnicodeString(maxStringLength: 1, actualStringLength: &actualStringLength, unicodeString: &unicodeString)
+        return String(utf16CodeUnits: &unicodeString, count: Int(actualStringLength))
     }
 }

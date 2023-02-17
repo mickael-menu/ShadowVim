@@ -178,7 +178,7 @@ public final class AppMediator {
 
     // MARK: - Input handling
 
-    public func handle(_ keystroke: Keystroke) -> Bool {
+    public func handle(event: CGEvent, keystroke: Keystroke) -> Bool {
         precondition(app.isActive)
 
         guard
@@ -196,13 +196,13 @@ public final class AppMediator {
             return true
         }
 
-        return handle(keystroke, in: buffer.nvimBuffer)
+        return handle(event: event, keystroke: keystroke, in: buffer.nvimBuffer)
     }
 
     private let cmdZ = Keystroke("z", modifiers: [.command])
     private let cmdShiftZ = Keystroke("z", modifiers: [.command, .shift])
 
-    private func handle(_ keystroke: Keystroke, in buffer: NvimBuffer) -> Bool {
+    private func handle(event: CGEvent, keystroke: Keystroke, in buffer: NvimBuffer) -> Bool {
         switch keystroke {
         case cmdZ:
             nvim.api.transaction(in: buffer) { api in
@@ -221,21 +221,25 @@ public final class AppMediator {
             .run()
 
         default:
-            // Passthrough for ⌘ or ⌥-based keyboard shortcuts.
+            let mods = keystroke.modifiers
+
+            // Passthrough for ⌘-based keyboard shortcuts.
             guard
-                !keystroke.modifiers.contains(.command)
-            // This causes issues when trying to insert a character with ⌥,
-            // because it is inserted from the UI and will get deleted when
-            // typing too fast.
-//                !keystroke.modifiers.contains(.option)
+                !mods.contains(.command)
             else {
                 return false
             }
 
-            // FIXME: See `nvim.paste` "Faster than nvim_input()."
-
             nvim.api.transaction(in: buffer) { api in
-                api.input(keystroke)
+                // If the user pressed control, we send the keystroke as is to
+                // be able to remap this keyboard shortcut in Nvim.
+                // Otherwise, we send the unicode character for this event.
+                // See Documentation/Research/Keyboard.md.
+                if mods.contains(.control) {
+                    return api.input(keystroke)
+                } else {
+                    return api.input(event.character)
+                }
             }
             .discardResult()
             .forwardErrorToDelegate(of: self)

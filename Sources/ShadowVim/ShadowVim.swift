@@ -237,7 +237,7 @@ extension ShadowVim: EventTapDelegate {
         guard
             !keysPassthrough,
             let mediator = mediator,
-            mediator.handle(keystroke)
+            mediator.handle(event: event, keystroke: keystroke)
         else {
             return event
         }
