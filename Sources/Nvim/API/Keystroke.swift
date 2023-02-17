@@ -18,7 +18,7 @@
 import Foundation
 
 /// Represents a keystroke which can be triggered in Nvim.
-public struct Keystroke: Hashable {
+public struct Keystroke: Hashable, CustomStringConvertible {
     /// Pressed key.
     public var key: KeyOrASCII
 
@@ -27,6 +27,16 @@ public struct Keystroke: Hashable {
 
     public init(_ key: KeyOrASCII, modifiers: KeyModifiers = .none) {
         self.key = key
+        self.modifiers = modifiers
+    }
+
+    public init(_ ascii: String, modifiers: KeyModifiers = .none) {
+        key = .ascii(ascii)
+        self.modifiers = modifiers
+    }
+
+    public init(key: Key, modifiers: KeyModifiers = .none) {
+        self.key = .key(key)
         self.modifiers = modifiers
     }
 
@@ -79,6 +89,8 @@ public struct Keystroke: Hashable {
     public var notation: String {
         modifiers.notation(with: key)
     }
+
+    public var description: String { notation }
 }
 
 public enum KeyOrASCII: Hashable {

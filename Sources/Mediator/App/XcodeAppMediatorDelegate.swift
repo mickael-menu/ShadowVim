@@ -20,6 +20,7 @@ import Cocoa
 import Combine
 import CoreGraphics
 import Foundation
+import Nvim
 import Toolkit
 
 /// Xcode-specific overrides for `AppMediator`.
@@ -74,44 +75,28 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
             && !name.hasSuffix("/")
     }
 
-    public func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: CGEvent) -> Bool {
-        shouldIgnoreEventForCompletionPopUp(event)
-    }
-
-    public func appMediator(_ mediator: AppMediator, willHandleEvent event: CGEvent) -> CGEvent? {
-        // We override the default Xcode "Stop" keyboard shortcut to quit
-        // manually the app. This way `AppDelegate.applicationWillTerminate()`
-        // will be called, allowing to revert the Vim bindings setting.
-        if event.modifiers == [.command], event.keyCode == .period {
-            NSApp.terminate(self)
-            return nil
-        }
-
-        return event
+    public func appMediator(_ mediator: AppMediator, shouldIgnoreKeystroke keystroke: Keystroke) -> Bool {
+        shouldIgnoreKeystrokeForCompletionPopUp(keystroke)
     }
 
     // MARK: - Completion pop-up passthrough keys
 
     /// When Xcode's completion pop-up is visible, we want to let it handle
     /// the following keys instead of forwarding them to Nvim.
-    private let completionPopUpPassthrougKeys: [String] = [
-        "<Enter>",
-        "<Up>",
-        "<Down>",
-        "\u{0E}", // ⌃N
-        "\u{10}", // ⌃P
+    private let completionPopUpPassthrougKeystrokes: [Keystroke] = [
+        Keystroke(key: .cr),
+        Keystroke(key: .up),
+        Keystroke(key: .down),
+        Keystroke("n", modifiers: .control),
+        Keystroke("p", modifiers: .control),
     ]
 
-    private func shouldIgnoreEventForCompletionPopUp(_ event: CGEvent) -> Bool {
-        guard
-            isCompletionPopUpVisible,
-            event.type == .keyDown
-        else {
+    private func shouldIgnoreKeystrokeForCompletionPopUp(_ keystroke: Keystroke) -> Bool {
+        guard isCompletionPopUpVisible else {
             return false
         }
 
-        let key = event.nvimKey
-        return completionPopUpPassthrougKeys.contains { $0 == key }
+        return completionPopUpPassthrougKeystrokes.contains(keystroke)
     }
 
     @Published private var isCompletionPopUpVisible = false

@@ -17,77 +17,14 @@
 
 import CoreGraphics
 import Foundation
-
-public struct KeyModifiers: OptionSet {
-    public static let none = KeyModifiers([])
-    public static let control = KeyModifiers(rawValue: 1 << 0)
-    public static let option = KeyModifiers(rawValue: 1 << 1)
-    public static let command = KeyModifiers(rawValue: 1 << 2)
-    public static let shift = KeyModifiers(rawValue: 1 << 3)
-    public static let capsLock = KeyModifiers(rawValue: 1 << 4)
-
-    public let rawValue: Int
-
-    public init(rawValue: Int) {
-        self.rawValue = rawValue
-    }
-
-    public init(flags: CGEventFlags) {
-        self = .none
-
-        if flags.contains(.maskControl) {
-            insert(.control)
-        }
-        if flags.contains(.maskAlternate) {
-            insert(.option)
-        }
-        if flags.contains(.maskCommand) {
-            insert(.command)
-        }
-        if flags.contains(.maskShift) {
-            insert(.shift)
-        }
-        if flags.contains(.maskAlphaShift) {
-            insert(.capsLock)
-        }
-    }
-}
-
-public enum KeyCode: Int64 {
-    case escape = 0x35
-    case backspace = 0x33
-    case enter = 0x24
-    case leftArrow = 0x7B
-    case rightArrow = 0x7C
-    case downArrow = 0x7D
-    case upArrow = 0x7E
-    case period = 0x2F
-    case slash = 0x2C
-}
+import Sauce
 
 public extension CGEvent {
-    /// Returns the keyboard key code for this keyboard event.
-    var keyCode: KeyCode? {
-        KeyCode(rawValue: getIntegerValueField(.keyboardEventKeycode))
-    }
-
-    /// Returns the keyboard modifiers for this event.
-    var modifiers: KeyModifiers {
-        KeyModifiers(flags: flags)
-    }
-
-    /// Returns the unicode character for this keyboard event.
-    var character: String {
-        let maxStringLength = 4
-        var actualStringLength = 0
-        var unicodeString = [UniChar](repeating: 0, count: Int(maxStringLength))
-        keyboardGetUnicodeString(maxStringLength: 1, actualStringLength: &actualStringLength, unicodeString: &unicodeString)
-        return String(utf16CodeUnits: &unicodeString, count: Int(actualStringLength))
-    }
-}
-
-public extension CGEventFlags {
-    static var none: CGEventFlags {
-        CGEventFlags()
+    /// Returns the character for this event key.
+    var character: String? {
+        Sauce.shared.character(
+            for: Int(getIntegerValueField(.keyboardEventKeycode)),
+            carbonModifiers: Int(flags.rawValue)
+        )
     }
 }

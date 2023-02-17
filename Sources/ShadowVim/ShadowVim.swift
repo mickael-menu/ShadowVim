@@ -211,19 +211,22 @@ class ShadowVim: ObservableObject {
 
 extension ShadowVim: EventTapDelegate {
     func eventTap(_ tap: EventTap, didReceive event: CGEvent) -> CGEvent? {
-        guard event.type == .keyDown else {
+        guard
+            event.type == .keyDown,
+            let keystroke = Keystroke(event: event)
+        else {
             return event
         }
 
-        if event.modifiers == [.control, .option, .command] {
-            switch event.keyCode {
-            case .escape:
+        if keystroke.modifiers == [.control, .option, .command] {
+            switch keystroke.key {
+            case .key(.esc):
                 reset()
                 return nil
-            case .period:
+            case .ascii("."):
                 toggleKeysPassthrough()
                 return nil
-            case .slash:
+            case .ascii("/"):
                 setVerboseLogger()
                 return nil
             default:
@@ -233,12 +236,13 @@ extension ShadowVim: EventTapDelegate {
 
         guard
             !keysPassthrough,
-            let mediator = mediator
+            let mediator = mediator,
+            mediator.handle(keystroke)
         else {
             return event
         }
 
-        return mediator.handle(event)
+        return nil
     }
 }
 

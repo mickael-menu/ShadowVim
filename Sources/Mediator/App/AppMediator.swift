@@ -39,13 +39,13 @@ public protocol AppMediatorDelegate: AnyObject {
     /// Returns the Nvim buffer name for the given accessibility `element`.
     func appMediator(_ mediator: AppMediator, nameForElement element: AXUIElement) -> String?
 
-    /// Indicates whether the given `event` should be ignored by the mediator.
-    func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: CGEvent) -> Bool
+    /// Indicates whether the given `keystroke` should be ignored by the mediator.
+    func appMediator(_ mediator: AppMediator, shouldIgnoreKeystroke keystroke: Keystroke) -> Bool
 
-    /// Filters `event` before it is processed by this `AppMediator`.
+    /// Filters `keystroke` before it is processed by this `AppMediator`.
     ///
-    /// Return `nil` if you handled the event in the delegate.
-    func appMediator(_ mediator: AppMediator, willHandleEvent event: CGEvent) -> CGEvent?
+    /// Return `nil` if you handled the keystroke in the delegate.
+    func appMediator(_ mediator: AppMediator, willHandleKeystroke keystroke: Keystroke) -> Keystroke?
 }
 
 public extension AppMediatorDelegate {
@@ -60,12 +60,12 @@ public extension AppMediatorDelegate {
         element.document()
     }
 
-    func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: CGEvent) -> Bool {
+    func appMediator(_ mediator: AppMediator, shouldIgnoreKeystroke keystroke: Keystroke) -> Bool {
         false
     }
 
-    func appMediator(_ mediator: AppMediator, willHandleEvent event: CGEvent) -> CGEvent? {
-        event
+    func appMediator(_ mediator: AppMediator, willHandleKeystroke keystroke: Keystroke) -> Keystroke? {
+        keystroke
     }
 }
 
@@ -178,37 +178,33 @@ public final class AppMediator {
 
     // MARK: - Input handling
 
-    public func handle(_ event: CGEvent) -> CGEvent? {
+    public func handle(_ keystroke: Keystroke) -> Bool {
         precondition(app.isActive)
 
         guard
-            !shouldIgnoreEvent(event),
+            !shouldIgnoreKeystroke(keystroke),
             // Check that we're still the focused app. Useful when the Spotlight
             // modal is opened.
             isAppFocused,
             case let .focused(buffer: buffer) = state,
             buffer.uiElement?.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
-            return event
+            return false
         }
 
-        guard let event = willHandleEvent(event) else {
-            return nil
+        guard let keystroke = willHandleKeystroke(keystroke) else {
+            return true
         }
 
-        switch event.type {
-        case .keyDown:
-            return handleKeyDown(event, in: buffer.nvimBuffer)
-        default:
-            return event
-        }
+        return handle(keystroke, in: buffer.nvimBuffer)
     }
 
-    private func handleKeyDown(_ event: CGEvent, in buffer: NvimBuffer) -> CGEvent? {
-        let modifiers = event.modifiers
+    private let cmdZ = Keystroke("z", modifiers: [.command])
+    private let cmdShiftZ = Keystroke("z", modifiers: [.command, .shift])
 
-        switch (modifiers, event.character) {
-        case ([.command], "z"):
+    private func handle(_ keystroke: Keystroke, in buffer: NvimBuffer) -> Bool {
+        switch keystroke {
+        case cmdZ:
             nvim.api.transaction(in: buffer) { api in
                 api.command("undo")
             }
@@ -216,9 +212,7 @@ public final class AppMediator {
             .forwardErrorToDelegate(of: self)
             .run()
 
-            return nil
-
-        case ([.command, .shift], "z"):
+        case cmdShiftZ:
             nvim.api.transaction(in: buffer) { api in
                 api.command("redo")
             }
@@ -226,36 +220,28 @@ public final class AppMediator {
             .forwardErrorToDelegate(of: self)
             .run()
 
-            return nil
-
-        case ([.control], "\u{0F}"), ([.control], "\t"):
-            // Passthrough for the navigation shortcuts.
-            // They need to be set in the Xcode config.
-            return event
-
         default:
             // Passthrough for ⌘ or ⌥-based keyboard shortcuts.
             guard
-                !event.flags.contains(.maskCommand)
-                // This causes issues when trying to insert a character with ⌥,
-                // because it is inserted from the UI and will get deleted when
-                // typing too fast.
-//                !event.flags.contains(.maskAlternate)
+                !keystroke.modifiers.contains(.command)
+            // This causes issues when trying to insert a character with ⌥,
+            // because it is inserted from the UI and will get deleted when
+            // typing too fast.
+//                !keystroke.modifiers.contains(.option)
             else {
-                return event
+                return false
             }
-            
+
             // FIXME: See `nvim.paste` "Faster than nvim_input()."
 
             nvim.api.transaction(in: buffer) { api in
-                api.input(event.nvimKey)
+                api.input(keystroke)
             }
             .discardResult()
             .forwardErrorToDelegate(of: self)
             .run()
-
-            return nil
         }
+        return true
     }
 
     private var isAppFocused: Bool {
@@ -368,18 +354,18 @@ public final class AppMediator {
         return delegate.appMediator(self, nameForElement: element)
     }
 
-    private func shouldIgnoreEvent(_ event: CGEvent) -> Bool {
+    private func shouldIgnoreKeystroke(_ keystroke: Keystroke) -> Bool {
         guard let delegate = delegate else {
             return false
         }
-        return delegate.appMediator(self, shouldIgnoreEvent: event)
+        return delegate.appMediator(self, shouldIgnoreKeystroke: keystroke)
     }
 
-    private func willHandleEvent(_ event: CGEvent) -> CGEvent? {
+    private func willHandleKeystroke(_ keystroke: Keystroke) -> Keystroke? {
         guard let delegate = delegate else {
-            return event
+            return keystroke
         }
-        return delegate.appMediator(self, willHandleEvent: event)
+        return delegate.appMediator(self, willHandleKeystroke: keystroke)
     }
 }
 
