@@ -224,8 +224,8 @@ public class API {
         }
     }
 
-    public func input(_ keystroke: Keystroke) -> APIAsync<Int> {
-        request("nvim_input", with: keystroke.notation)
+    public func input(_ keyCombo: KeyCombo) -> APIAsync<Int> {
+        request("nvim_input", with: keyCombo.nvimNotation)
             .checkedUnpacking { $0.intValue }
     }
 

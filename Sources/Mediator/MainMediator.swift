@@ -94,7 +94,7 @@ public final class MainMediator {
         apps = [:]
     }
 
-    public func handle(event: CGEvent, keystroke: Keystroke) -> Bool {
+    public func handle(_ event: KeyEvent) -> Bool {
         do {
             guard
                 let app = NSWorkspace.shared.frontmostApplication,
@@ -102,7 +102,7 @@ public final class MainMediator {
             else {
                 return false
             }
-            return mediator.handle(event: event, keystroke: keystroke)
+            return mediator.handle(event)
 
         } catch {
             delegate?.mainMediator(self, didFailWithError: error)

@@ -17,23 +17,17 @@
 
 import CoreGraphics
 import Foundation
-import Sauce
 
-public extension CGEvent {
-    /// Returns the title for this event key.
-    var key: String? {
-        Sauce.shared.character(
-            for: Int(getIntegerValueField(.keyboardEventKeycode)),
-            carbonModifiers: Int(flags.rawValue)
-        )
-    }
+public struct InputModifiers: OptionSet, Hashable {
+    public static let none = InputModifiers([])
+    public static let shift = InputModifiers(rawValue: 1 << 3)
+    public static let control = InputModifiers(rawValue: 1 << 0)
+    public static let option = InputModifiers(rawValue: 1 << 1)
+    public static let command = InputModifiers(rawValue: 1 << 2)
 
-    /// Returns the unicode character for this event key.
-    var character: String {
-        let maxStringLength = 4
-        var actualStringLength = 0
-        var unicodeString = [UniChar](repeating: 0, count: Int(maxStringLength))
-        keyboardGetUnicodeString(maxStringLength: 1, actualStringLength: &actualStringLength, unicodeString: &unicodeString)
-        return String(utf16CodeUnits: &unicodeString, count: Int(actualStringLength))
+    public let rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
     }
 }

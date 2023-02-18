@@ -33,15 +33,18 @@ class ShadowVim: ObservableObject {
     private let preferences: Preferences
     public let setVerboseLogger: () -> Void
     private let mediatorFactory: () -> MainMediator
+    private let keyResolver: CGKeyResolver
     private let logger: Logger?
 
     init(
         preferences: Preferences,
+        keyResolver: CGKeyResolver,
         logger: Logger?,
         setVerboseLogger: @escaping () -> Void,
         mediatorFactory: @escaping () -> MainMediator
     ) {
         self.preferences = preferences
+        self.keyResolver = keyResolver
         self.logger = logger
         self.setVerboseLogger = setVerboseLogger
         self.mediatorFactory = mediatorFactory
@@ -213,20 +216,21 @@ extension ShadowVim: EventTapDelegate {
     func eventTap(_ tap: EventTap, didReceive event: CGEvent) -> CGEvent? {
         guard
             event.type == .keyDown,
-            let keystroke = Keystroke(event: event)
+            let keyCombo = keyResolver.keyCombo(for: event),
+            let event = KeyEvent(event: event, keyCombo: keyCombo)
         else {
             return event
         }
 
-        if keystroke.modifiers == [.control, .option, .command] {
-            switch keystroke.key {
-            case .key(.esc):
+        if keyCombo.modifiers == [.control, .option, .command] {
+            switch keyCombo.key {
+            case .escape:
                 reset()
                 return nil
-            case .ascii("."):
+            case .period:
                 toggleKeysPassthrough()
                 return nil
-            case .ascii("/"):
+            case .slash:
                 setVerboseLogger()
                 return nil
             default:
@@ -237,9 +241,9 @@ extension ShadowVim: EventTapDelegate {
         guard
             !keysPassthrough,
             let mediator = mediator,
-            mediator.handle(event: event, keystroke: keystroke)
+            mediator.handle(event)
         else {
-            return event
+            return event.event
         }
 
         return nil

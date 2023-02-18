@@ -18,6 +18,7 @@
 import Foundation
 import Mediator
 import NSLoggerAdapter
+import SauceAdapter
 import Toolkit
 
 final class Container {
@@ -58,6 +59,7 @@ final class Container {
         self.mediator = mediator
         shadowVim = ShadowVim(
             preferences: preferences,
+            keyResolver: SauceCGKeyResolver(),
             logger: logger,
             setVerboseLogger: { logger.set(NSLoggerLogger()) },
             mediatorFactory: mediator.mainMediator

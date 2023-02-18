@@ -75,28 +75,28 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
             && !name.hasSuffix("/")
     }
 
-    public func appMediator(_ mediator: AppMediator, shouldIgnoreKeystroke keystroke: Keystroke) -> Bool {
-        shouldIgnoreKeystrokeForCompletionPopUp(keystroke)
+    public func appMediator(_ mediator: AppMediator, shouldIgnoreKeyEvent event: KeyEvent) -> Bool {
+        shouldIgnoreKeyEventForCompletionPopUp(event)
     }
 
     // MARK: - Completion pop-up passthrough keys
 
     /// When Xcode's completion pop-up is visible, we want to let it handle
-    /// the following keystrokes instead of forwarding them to Nvim.
-    private let completionPopUpPassthrougKeystrokes: [Keystroke] = [
-        Keystroke(key: .cr),
-        Keystroke(key: .up),
-        Keystroke(key: .down),
-        Keystroke("n", modifiers: .control),
-        Keystroke("p", modifiers: .control),
+    /// the following key combos instead of forwarding them to Nvim.
+    private let completionPopUpPassthrougKeyCombos: [KeyCombo] = [
+        KeyCombo(.return),
+        KeyCombo(.upArrow),
+        KeyCombo(.downArrow),
+        KeyCombo(.n, modifiers: .control),
+        KeyCombo(.p, modifiers: .control),
     ]
 
-    private func shouldIgnoreKeystrokeForCompletionPopUp(_ keystroke: Keystroke) -> Bool {
+    private func shouldIgnoreKeyEventForCompletionPopUp(_ event: KeyEvent) -> Bool {
         guard isCompletionPopUpVisible else {
             return false
         }
 
-        return completionPopUpPassthrougKeystrokes.contains(keystroke)
+        return completionPopUpPassthrougKeyCombos.contains(event.keyCombo)
     }
 
     @Published private var isCompletionPopUpVisible = false

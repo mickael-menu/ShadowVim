@@ -39,13 +39,13 @@ public protocol AppMediatorDelegate: AnyObject {
     /// Returns the Nvim buffer name for the given accessibility `element`.
     func appMediator(_ mediator: AppMediator, nameForElement element: AXUIElement) -> String?
 
-    /// Indicates whether the given `keystroke` should be ignored by the mediator.
-    func appMediator(_ mediator: AppMediator, shouldIgnoreKeystroke keystroke: Keystroke) -> Bool
+    /// Indicates whether the given `event` should be ignored by the mediator.
+    func appMediator(_ mediator: AppMediator, shouldIgnoreKeyEvent event: KeyEvent) -> Bool
 
-    /// Filters `keystroke` before it is processed by this `AppMediator`.
+    /// Filters `event` before it is processed by this `AppMediator`.
     ///
-    /// Return `nil` if you handled the keystroke in the delegate.
-    func appMediator(_ mediator: AppMediator, willHandleKeystroke keystroke: Keystroke) -> Keystroke?
+    /// Return `nil` if you handled the key combo in the delegate.
+    func appMediator(_ mediator: AppMediator, willHandleKeyEvent event: KeyEvent) -> KeyEvent?
 }
 
 public extension AppMediatorDelegate {
@@ -60,12 +60,12 @@ public extension AppMediatorDelegate {
         element.document()
     }
 
-    func appMediator(_ mediator: AppMediator, shouldIgnoreKeystroke keystroke: Keystroke) -> Bool {
+    func appMediator(_ mediator: AppMediator, shouldIgnoreKeyEvent event: KeyEvent) -> Bool {
         false
     }
 
-    func appMediator(_ mediator: AppMediator, willHandleKeystroke keystroke: Keystroke) -> Keystroke? {
-        keystroke
+    func appMediator(_ mediator: AppMediator, willHandleKeyEvent event: KeyEvent) -> KeyEvent? {
+        event
     }
 }
 
@@ -178,11 +178,11 @@ public final class AppMediator {
 
     // MARK: - Input handling
 
-    public func handle(event: CGEvent, keystroke: Keystroke) -> Bool {
+    public func handle(_ event: KeyEvent) -> Bool {
         precondition(app.isActive)
 
         guard
-            !shouldIgnoreKeystroke(keystroke),
+            !shouldIgnoreKeyEvent(event),
             // Check that we're still the focused app. Useful when the Spotlight
             // modal is opened.
             isAppFocused,
@@ -192,18 +192,18 @@ public final class AppMediator {
             return false
         }
 
-        guard let keystroke = willHandleKeystroke(keystroke) else {
+        guard let event = willHandleKeyEvent(event) else {
             return true
         }
 
-        return handle(event: event, keystroke: keystroke, in: buffer.nvimBuffer)
+        return handle(event, in: buffer.nvimBuffer)
     }
 
-    private let cmdZ = Keystroke("z", modifiers: [.command])
-    private let cmdShiftZ = Keystroke("z", modifiers: [.command, .shift])
+    private let cmdZ = KeyCombo(.z, modifiers: .command)
+    private let cmdShiftZ = KeyCombo(.z, modifiers: [.command, .shift])
 
-    private func handle(event: CGEvent, keystroke: Keystroke, in buffer: NvimBuffer) -> Bool {
-        switch keystroke {
+    private func handle(_ event: KeyEvent, in buffer: NvimBuffer) -> Bool {
+        switch event.keyCombo {
         case cmdZ:
             nvim.api.transaction(in: buffer) { api in
                 api.command("undo")
@@ -221,7 +221,7 @@ public final class AppMediator {
             .run()
 
         default:
-            let mods = keystroke.modifiers
+            let mods = event.keyCombo.modifiers
 
             // Passthrough for ⌘-based keyboard shortcuts.
             guard
@@ -231,14 +231,18 @@ public final class AppMediator {
             }
 
             nvim.api.transaction(in: buffer) { api in
-                // If the user pressed control, we send the keystroke as is to
+                // If the user pressed control, we send the key combo as is to
                 // be able to remap this keyboard shortcut in Nvim.
                 // Otherwise, we send the unicode character for this event.
                 // See Documentation/Research/Keyboard.md.
-                if mods.contains(.control) || !keystroke.key.isASCII {
-                    return api.input(keystroke)
+                if
+                    !mods.contains(.control),
+                    !event.keyCombo.key.isNonPrintableCharacter,
+                    let character = event.character
+                {
+                    return api.input(character)
                 } else {
-                    return api.input(event.character)
+                    return api.input(event.keyCombo)
                 }
             }
             .discardResult()
@@ -358,18 +362,18 @@ public final class AppMediator {
         return delegate.appMediator(self, nameForElement: element)
     }
 
-    private func shouldIgnoreKeystroke(_ keystroke: Keystroke) -> Bool {
+    private func shouldIgnoreKeyEvent(_ event: KeyEvent) -> Bool {
         guard let delegate = delegate else {
             return false
         }
-        return delegate.appMediator(self, shouldIgnoreKeystroke: keystroke)
+        return delegate.appMediator(self, shouldIgnoreKeyEvent: event)
     }
 
-    private func willHandleKeystroke(_ keystroke: Keystroke) -> Keystroke? {
+    private func willHandleKeyEvent(_ event: KeyEvent) -> KeyEvent? {
         guard let delegate = delegate else {
-            return keystroke
+            return event
         }
-        return delegate.appMediator(self, willHandleKeystroke: keystroke)
+        return delegate.appMediator(self, willHandleKeyEvent: event)
     }
 }
 

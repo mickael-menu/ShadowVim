@@ -35,5 +35,7 @@ targets:
         product: Nvim
       - package: ShadowVim
         product: NSLoggerAdapter
+      - package: ShadowVim
+        product: SauceAdapter
       - package: Sparkle
         product: Sparkle
