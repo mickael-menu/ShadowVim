@@ -40,7 +40,7 @@ public extension CGKeyResolver {
     }
 }
 
-private extension InputModifiers {
+extension InputModifiers {
     init(cgFlags: CGEventFlags) {
         self = .none
         if cgFlags.contains(.maskShift) {

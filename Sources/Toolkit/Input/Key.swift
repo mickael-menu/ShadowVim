@@ -175,7 +175,7 @@ public enum Key: Hashable {
     }
 
     private static let nonPrintableKeys: [Key] = [
-        .escape, .return, .tab, .space, .backspace, .forwardDelete,
+        .escape, .return, .backspace, .forwardDelete,
         .upArrow, .downArrow, .leftArrow, .rightArrow,
         .pageUp, .pageDown, .home, .end, .help,
         .f1, .f2, .f3, .f4, .f5, .f6, .f7, .f8, .f9, .f10, .f11, .f12,

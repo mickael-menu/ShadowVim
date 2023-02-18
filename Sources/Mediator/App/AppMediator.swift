@@ -78,6 +78,7 @@ public final class AppMediator {
     public let appElement: AXUIElement
     private let nvim: Nvim
     private let buffers: NvimBuffers
+    private let eventSource: EventSource
     private let logger: Logger?
     private let bufferMediatorFactory: BufferMediator.Factory
 
@@ -89,13 +90,15 @@ public final class AppMediator {
         app: NSRunningApplication,
         nvim: Nvim,
         buffers: NvimBuffers,
+        eventSource: EventSource,
         logger: Logger?,
         bufferMediatorFactory: @escaping BufferMediator.Factory
-    ) throws {
+    ) {
         self.app = app
         appElement = AXUIElement.app(app)
         self.nvim = nvim
         self.buffers = buffers
+        self.eventSource = eventSource
         self.logger = logger
         self.bufferMediatorFactory = bufferMediatorFactory
 
@@ -257,6 +260,25 @@ public final class AppMediator {
         return app.processIdentifier == focusedAppPid
     }
 
+    /// Simulates a key combo press in the app using a Nvim notation.
+    ///
+    /// If the brackets (<>) are missing around the notation, they are
+    /// automatically added. Only key combos with modifiers are supported.
+    private func pressKeys(notation: Notation) -> Bool {
+        var notation = notation
+        if notation.first != "<" {
+            notation = "<\(notation)>"
+        }
+        guard
+            let kc = KeyCombo(nvimNotation: notation),
+            kc.modifiers != .none
+        else {
+            return false
+        }
+
+        return eventSource.press(kc)
+    }
+
     // MARK: - Focus synchronization
 
     private func setupFocusSync() {
@@ -391,6 +413,16 @@ extension AppMediator: NvimDelegate {
                 buffer.didRequestRefresh()
             }
             return .success(.bool(true))
+
+        case "SVPressKeys":
+            guard
+                data.count == 1,
+                case let .string(notation) = data[0]
+            else {
+                return .success(.bool(false))
+            }
+            return .success(.bool(pressKeys(notation: notation)))
+
         default:
             return nil
         }

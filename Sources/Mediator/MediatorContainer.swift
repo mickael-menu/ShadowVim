@@ -23,10 +23,12 @@ import Nvim
 import Toolkit
 
 public final class MediatorContainer {
-    let logger: Logger?
+    private let keyResolver: CGKeyResolver
+    private let logger: Logger?
     private let nvimContainer: NvimContainer
 
-    public init(logger: Logger?) {
+    public init(keyResolver: CGKeyResolver, logger: Logger?) {
+        self.keyResolver = keyResolver
         self.logger = logger?.domain("mediator")
 
         nvimContainer = NvimContainer(logger: logger)
@@ -48,12 +50,16 @@ public final class MediatorContainer {
 
     func appMediator(app: NSRunningApplication) throws -> AppMediator {
         let nvim = try nvimContainer.nvim()
-        return try AppMediator(
+        return AppMediator(
             app: app,
             nvim: nvim,
             buffers: NvimBuffers(
                 events: nvim.events,
                 logger: logger?.domain("nvim-buffers")
+            ),
+            eventSource: try EventSource(
+                pid: app.processIdentifier,
+                keyResolver: keyResolver
             ),
             logger: logger?.domain("app"),
             bufferMediatorFactory: bufferMediator

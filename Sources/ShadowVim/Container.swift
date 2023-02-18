@@ -29,6 +29,7 @@ final class Container {
 
     init() {
         let preferences = UserDefaultsPreferences(defaults: .standard)
+        let keyResolver = SauceCGKeyResolver()
         let logger = ReferenceLogger(logger:
             Debug.isDebugging
                 ? NSLoggerLogger().filter(
@@ -51,6 +52,7 @@ final class Container {
         )
 
         let mediator = MediatorContainer(
+            keyResolver: keyResolver,
             logger: logger
         )
 
@@ -59,7 +61,7 @@ final class Container {
         self.mediator = mediator
         shadowVim = ShadowVim(
             preferences: preferences,
-            keyResolver: SauceCGKeyResolver(),
+            keyResolver: keyResolver,
             logger: logger,
             setVerboseLogger: { logger.set(NSLoggerLogger()) },
             mediatorFactory: mediator.mainMediator
