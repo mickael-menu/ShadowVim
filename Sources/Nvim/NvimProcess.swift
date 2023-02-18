@@ -42,11 +42,10 @@ public final class NvimProcess {
             "--headless",
             "--embed",
             "-n", // Ignore swap files.
-            "-u", configURL().path,
             // This will prevent using packages.
 //            "--clean", // Don't load default config and plugins.
             // Using `--cmd` instead of `-c` makes the statements available in the `init.vim`.
-            "--cmd", "let g:svim = v:true",
+            "--cmd", "let g:shadowvim = v:true",
             // Declare custom user commands for the supported RPC requests.
             // FIXME: To be moved into a dedicated script when implementing the Nvim UI protocol
             "--cmd", "command SVRefresh call rpcrequest(1, 'SVRefresh')",
@@ -77,30 +76,6 @@ public final class NvimProcess {
             output: output.fileHandleForReading,
             logger: logger
         )
-    }
-
-    /// Locates ShadowVim's default configuration file.
-    ///
-    /// Precedence:
-    ///   1. $XDG_CONFIG_HOME/svim/init.vim
-    ///   2. $XDG_CONFIG_HOME/svim/init.lua
-    ///   3. ~/.config/svim/init.vim
-    ///   4. ~/.config/svim/init.lua
-    ///
-    /// See https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-    private static func configURL() -> URL {
-        var configDir = ProcessInfo.processInfo
-            .environment["XDG_CONFIG_HOME"] ?? "~/.config"
-        configDir = NSString(string: configDir).expandingTildeInPath
-
-        let configBase = URL(fileURLWithPath: configDir, isDirectory: true)
-            .appendingPathComponent("svim/init", isDirectory: false)
-        let vimlConfig = configBase.appendingPathExtension("vim")
-        let luaConfig = configBase.appendingPathExtension("lua")
-
-        return ((try? vimlConfig.checkResourceIsReachable()) ?? false)
-            ? vimlConfig
-            : luaConfig
     }
 
     public let process: Process
