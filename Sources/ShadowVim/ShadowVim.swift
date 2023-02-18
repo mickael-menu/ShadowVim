@@ -134,52 +134,21 @@ class ShadowVim: ObservableObject {
 
         presentedError = description
 
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-
-        if let error = error as? LocalizedError {
-            alert.messageText = error.errorDescription ?? ""
-            alert.informativeText = error.failureReason ?? ""
-
-        } else {
-            switch style {
-            case .warning:
-                alert.messageText = "An error occurred"
-            case .critical:
-                alert.messageText = "A critical error occurred"
-            }
-
-            let rawCode = NSTextView(frame: .init(origin: .zero, size: .init(width: 350, height: 0)))
-            rawCode.string = String(reflecting: error)
-            rawCode.font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
-            rawCode.sizeToFit()
-            rawCode.isEditable = false
-            rawCode.isSelectable = true
-            alert.accessoryView = rawCode
-        }
+        var alert = Alert(error: error)
 
         switch style {
         case .warning:
-            alert.addButton(withTitle: "Ignore")
-            alert.addButton(withTitle: "Reset")
-            let response = alert.runModal()
-            if response == .alertSecondButtonReturn {
-                reset()
-            }
+            alert.addButton("Ignore") {}
+            alert.addButton("Reset", action: reset)
+            alert.addButton("Quit", action: quit)
 
         case .critical:
-            alert.addButton(withTitle: "Reset")
-            alert.addButton(withTitle: "Quit")
-
+            alert.addButton("Reset", action: reset)
+            alert.addButton("Quit", action: quit)
             activate()
-
-            let response = alert.runModal()
-            if response == .alertFirstButtonReturn {
-                reset()
-            } else {
-                quit()
-            }
         }
+
+        alert.showModal()
 
         presentedError = nil
     }
@@ -271,7 +240,7 @@ enum UserError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .a11yPermissionRequired:
-            return "ShadowVim needs the accessibility permission to work properly"
+            return "ShadowVim needs the accessibility permission to interact with Xcode"
         case .nvimNotExecutable:
             return "Neovim failed to execute"
         case .nvimNotFound:
