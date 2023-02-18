@@ -224,6 +224,11 @@ public class API {
         }
     }
 
+    public func input(_ keyCombo: KeyCombo) -> APIAsync<Int> {
+        request("nvim_input", with: keyCombo.nvimNotation)
+            .checkedUnpacking { $0.intValue }
+    }
+
     public func input(_ keys: String) -> APIAsync<Int> {
         var keys = keys
         // Note: keycodes like <CR> are translated, so "<" is special.

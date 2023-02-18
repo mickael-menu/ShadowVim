@@ -15,27 +15,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-import CoreGraphics
-import Foundation
+import Sauce
 
-extension CGEvent {
-    /// Returns the Nvim-compatible key code for this keyboard event.
-    var nvimKey: String {
-        switch keyCode {
-        case .escape:
-            return "<Esc>"
-        case .enter:
-            return "<Enter>"
-        case .leftArrow:
-            return "<Left>"
-        case .rightArrow:
-            return "<Right>"
-        case .downArrow:
-            return "<Down>"
-        case .upArrow:
-            return "<Up>"
-        default:
-            return character
-        }
-    }
-}
+// Necessary to avoid conflicts with Toolkit.Key. We can't use Sauce.Key without
+// using `moduleAliases`.
+typealias SauceKey = Key

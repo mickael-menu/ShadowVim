@@ -33,15 +33,18 @@ class ShadowVim: ObservableObject {
     private let preferences: Preferences
     public let setVerboseLogger: () -> Void
     private let mediatorFactory: () -> MainMediator
+    private let keyResolver: CGKeyResolver
     private let logger: Logger?
 
     init(
         preferences: Preferences,
+        keyResolver: CGKeyResolver,
         logger: Logger?,
         setVerboseLogger: @escaping () -> Void,
         mediatorFactory: @escaping () -> MainMediator
     ) {
         self.preferences = preferences
+        self.keyResolver = keyResolver
         self.logger = logger
         self.setVerboseLogger = setVerboseLogger
         self.mediatorFactory = mediatorFactory
@@ -211,12 +214,16 @@ class ShadowVim: ObservableObject {
 
 extension ShadowVim: EventTapDelegate {
     func eventTap(_ tap: EventTap, didReceive event: CGEvent) -> CGEvent? {
-        guard event.type == .keyDown else {
+        guard
+            event.type == .keyDown,
+            let keyCombo = keyResolver.keyCombo(for: event),
+            let event = KeyEvent(event: event, keyCombo: keyCombo)
+        else {
             return event
         }
 
-        if event.modifiers == [.control, .option, .command] {
-            switch event.keyCode {
+        if keyCombo.modifiers == [.control, .option, .command] {
+            switch keyCombo.key {
             case .escape:
                 reset()
                 return nil
@@ -233,12 +240,13 @@ extension ShadowVim: EventTapDelegate {
 
         guard
             !keysPassthrough,
-            let mediator = mediator
+            let mediator = mediator,
+            mediator.handle(event)
         else {
-            return event
+            return event.event
         }
 
-        return mediator.handle(event)
+        return nil
     }
 }
 

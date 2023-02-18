@@ -40,12 +40,12 @@ public protocol AppMediatorDelegate: AnyObject {
     func appMediator(_ mediator: AppMediator, nameForElement element: AXUIElement) -> String?
 
     /// Indicates whether the given `event` should be ignored by the mediator.
-    func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: CGEvent) -> Bool
+    func appMediator(_ mediator: AppMediator, shouldIgnoreKeyEvent event: KeyEvent) -> Bool
 
     /// Filters `event` before it is processed by this `AppMediator`.
     ///
-    /// Return `nil` if you handled the event in the delegate.
-    func appMediator(_ mediator: AppMediator, willHandleEvent event: CGEvent) -> CGEvent?
+    /// Return `nil` if you handled the key combo in the delegate.
+    func appMediator(_ mediator: AppMediator, willHandleKeyEvent event: KeyEvent) -> KeyEvent?
 }
 
 public extension AppMediatorDelegate {
@@ -60,11 +60,11 @@ public extension AppMediatorDelegate {
         element.document()
     }
 
-    func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: CGEvent) -> Bool {
+    func appMediator(_ mediator: AppMediator, shouldIgnoreKeyEvent event: KeyEvent) -> Bool {
         false
     }
 
-    func appMediator(_ mediator: AppMediator, willHandleEvent event: CGEvent) -> CGEvent? {
+    func appMediator(_ mediator: AppMediator, willHandleKeyEvent event: KeyEvent) -> KeyEvent? {
         event
     }
 }
@@ -78,6 +78,7 @@ public final class AppMediator {
     public let appElement: AXUIElement
     private let nvim: Nvim
     private let buffers: NvimBuffers
+    private let eventSource: EventSource
     private let logger: Logger?
     private let bufferMediatorFactory: BufferMediator.Factory
 
@@ -89,13 +90,15 @@ public final class AppMediator {
         app: NSRunningApplication,
         nvim: Nvim,
         buffers: NvimBuffers,
+        eventSource: EventSource,
         logger: Logger?,
         bufferMediatorFactory: @escaping BufferMediator.Factory
-    ) throws {
+    ) {
         self.app = app
         appElement = AXUIElement.app(app)
         self.nvim = nvim
         self.buffers = buffers
+        self.eventSource = eventSource
         self.logger = logger
         self.bufferMediatorFactory = bufferMediatorFactory
 
@@ -178,37 +181,33 @@ public final class AppMediator {
 
     // MARK: - Input handling
 
-    public func handle(_ event: CGEvent) -> CGEvent? {
+    public func handle(_ event: KeyEvent) -> Bool {
         precondition(app.isActive)
 
         guard
-            !shouldIgnoreEvent(event),
+            !shouldIgnoreKeyEvent(event),
             // Check that we're still the focused app. Useful when the Spotlight
             // modal is opened.
             isAppFocused,
             case let .focused(buffer: buffer) = state,
             buffer.uiElement?.hashValue == (appElement[.focusedUIElement] as AXUIElement?)?.hashValue
         else {
-            return event
+            return false
         }
 
-        guard let event = willHandleEvent(event) else {
-            return nil
+        guard let event = willHandleKeyEvent(event) else {
+            return true
         }
 
-        switch event.type {
-        case .keyDown:
-            return handleKeyDown(event, in: buffer.nvimBuffer)
-        default:
-            return event
-        }
+        return handle(event, in: buffer.nvimBuffer)
     }
 
-    private func handleKeyDown(_ event: CGEvent, in buffer: NvimBuffer) -> CGEvent? {
-        let modifiers = event.modifiers
+    private let cmdZ = KeyCombo(.z, modifiers: .command)
+    private let cmdShiftZ = KeyCombo(.z, modifiers: [.command, .shift])
 
-        switch (modifiers, event.character) {
-        case ([.command], "z"):
+    private func handle(_ event: KeyEvent, in buffer: NvimBuffer) -> Bool {
+        switch event.keyCombo {
+        case cmdZ:
             nvim.api.transaction(in: buffer) { api in
                 api.command("undo")
             }
@@ -216,9 +215,7 @@ public final class AppMediator {
             .forwardErrorToDelegate(of: self)
             .run()
 
-            return nil
-
-        case ([.command, .shift], "z"):
+        case cmdShiftZ:
             nvim.api.transaction(in: buffer) { api in
                 api.command("redo")
             }
@@ -226,38 +223,60 @@ public final class AppMediator {
             .forwardErrorToDelegate(of: self)
             .run()
 
-            return nil
-
-        case ([.control], "\u{0F}"), ([.control], "\t"):
-            // Passthrough for the navigation shortcuts.
-            // They need to be set in the Xcode config.
-            return event
-
         default:
-            // Passthrough for ⌘ or ⌥-based keyboard shortcuts.
+            let mods = event.keyCombo.modifiers
+
+            // Passthrough for ⌘-based keyboard shortcuts.
             guard
-                !event.flags.contains(.maskCommand),
-                !event.flags.contains(.maskAlternate)
+                !mods.contains(.command)
             else {
-                return event
+                return false
             }
 
-            // FIXME: See `nvim.paste` "Faster than nvim_input()."
-
             nvim.api.transaction(in: buffer) { api in
-                api.input(event.nvimKey)
+                // If the user pressed control, we send the key combo as is to
+                // be able to remap this keyboard shortcut in Nvim.
+                // Otherwise, we send the unicode character for this event.
+                // See Documentation/Research/Keyboard.md.
+                if
+                    !mods.contains(.control),
+                    !event.keyCombo.key.isNonPrintableCharacter,
+                    let character = event.character
+                {
+                    return api.input(character)
+                } else {
+                    return api.input(event.keyCombo)
+                }
             }
             .discardResult()
             .forwardErrorToDelegate(of: self)
             .run()
-
-            return nil
         }
+        return true
     }
 
     private var isAppFocused: Bool {
         let focusedAppPid = try? AXUIElement.systemWide.focusedApplication()?.pid()
         return app.processIdentifier == focusedAppPid
+    }
+
+    /// Simulates a key combo press in the app using a Nvim notation.
+    ///
+    /// If the brackets (<>) are missing around the notation, they are
+    /// automatically added. Only key combos with modifiers are supported.
+    private func pressKeys(notation: Notation) -> Bool {
+        var notation = notation
+        if notation.first != "<" {
+            notation = "<\(notation)>"
+        }
+        guard
+            let kc = KeyCombo(nvimNotation: notation),
+            kc.modifiers != .none
+        else {
+            return false
+        }
+
+        return eventSource.press(kc)
     }
 
     // MARK: - Focus synchronization
@@ -365,18 +384,18 @@ public final class AppMediator {
         return delegate.appMediator(self, nameForElement: element)
     }
 
-    private func shouldIgnoreEvent(_ event: CGEvent) -> Bool {
+    private func shouldIgnoreKeyEvent(_ event: KeyEvent) -> Bool {
         guard let delegate = delegate else {
             return false
         }
-        return delegate.appMediator(self, shouldIgnoreEvent: event)
+        return delegate.appMediator(self, shouldIgnoreKeyEvent: event)
     }
 
-    private func willHandleEvent(_ event: CGEvent) -> CGEvent? {
+    private func willHandleKeyEvent(_ event: KeyEvent) -> KeyEvent? {
         guard let delegate = delegate else {
             return event
         }
-        return delegate.appMediator(self, willHandleEvent: event)
+        return delegate.appMediator(self, willHandleKeyEvent: event)
     }
 }
 
@@ -394,6 +413,16 @@ extension AppMediator: NvimDelegate {
                 buffer.didRequestRefresh()
             }
             return .success(.bool(true))
+
+        case "SVPressKeys":
+            guard
+                data.count == 1,
+                case let .string(notation) = data[0]
+            else {
+                return .success(.bool(false))
+            }
+            return .success(.bool(pressKeys(notation: notation)))
+
         default:
             return nil
         }

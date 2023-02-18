@@ -15,10 +15,12 @@ let package = Package(
         .library(name: "Toolkit", targets: ["Toolkit"]),
 
         .library(name: "NSLoggerAdapter", targets: ["NSLoggerAdapter"]),
+        .library(name: "SauceAdapter", targets: ["SauceAdapter"]),
     ],
     dependencies: [
         .package(url: "https://github.com/a2/MessagePack.swift.git", from: "4.0.0"),
         .package(url: "https://github.com/fpillet/NSLogger.git", branch: "master"),
+        .package(url: "https://github.com/Clipy/Sauce.git", from: "2.3.0"),
     ],
     targets: [
         .target(
@@ -55,12 +57,24 @@ let package = Package(
             ]
         ),
         .target(
-            name: "Toolkit"
+            name: "Toolkit",
+            dependencies: []
         ),
         .target(
             name: "NSLoggerAdapter",
-            dependencies: ["Toolkit", .product(name: "NSLogger", package: "NSLogger")],
+            dependencies: [
+                "Toolkit",
+                .product(name: "NSLogger", package: "NSLogger"),
+            ],
             path: "Sources/Adapters/NSLogger"
+        ),
+        .target(
+            name: "SauceAdapter",
+            dependencies: [
+                "Toolkit",
+                .product(name: "Sauce", package: "Sauce"),
+            ],
+            path: "Sources/Adapters/Sauce"
         ),
     ]
 )
