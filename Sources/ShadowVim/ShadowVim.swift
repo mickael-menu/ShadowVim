@@ -172,6 +172,13 @@ class ShadowVim: ObservableObject {
         start()
     }
 
+    func copyDebugInfo() {
+        Task.detached {
+            let info = await Debug.info()
+            NSPasteboard.set(info)
+        }
+    }
+
     private func playSound(_ name: String) {
         guard let sound = NSSound(named: name) else {
             return
