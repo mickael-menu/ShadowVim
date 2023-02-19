@@ -1,0 +1,13 @@
+name: User support
+description: You need help?
+body:
+  - type: markdown
+    attributes:
+      value: |
+        :warning: Unfortunately, my time is limited and I can't offer reliable user support. I might help you out if you catch me on a slow day, or someone else might.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: If you need help, create a discussion instead of an issue
+      options:
+        - label: I understand and will [create a new Q&A discussion](https://github.com/mickael-menu/ShadowVim/discussions/new?category=q-a).
