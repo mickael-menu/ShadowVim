@@ -37,4 +37,39 @@ public enum Debug {
     public static func printCallStack() {
         Thread.callStackSymbols.forEach { print($0) }
     }
+
+    /// Returns information about the OS and ShadowVim version.
+    public static func info() async -> String {
+        var info = ""
+
+        let bundleInfo = Bundle.main.infoDictionary ?? [:]
+        let releaseVersion = (bundleInfo["CFBundleShortVersionString"] as? String) ?? ""
+        let buildVersion = (bundleInfo["CFBundleVersion"] as? String) ?? ""
+
+        info += "ShadowVim \(releaseVersion) (\(buildVersion))\n\n"
+
+        func run(_ args: String...) {
+            info += "$ " + args.joined(separator: " ") + "\n"
+
+            let (status, output) = Process.launchAndWait(args)
+            info += output?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+            if status != 0 {
+                info += "exit status: \(status)"
+            }
+
+            info += "\n\n"
+        }
+
+        // macOS version
+        run("sw_vers", "-productVersion")
+        // Platform
+        run("uname", "-m")
+        // Xcode version
+        run("xcodebuild", "-version")
+        // Neovim version
+        run("nvim", "--version")
+
+        return info
+    }
 }

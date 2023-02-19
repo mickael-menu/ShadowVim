@@ -55,6 +55,8 @@ struct ShadowVimApp: SwiftUI.App {
 
             Divider()
 
+            Button("Copy Debug Info") { shadowVim.copyDebugInfo() }
+
             UpdaterButton(updater: updaterController.updater)
                 .keyboardShortcut("u")
 
