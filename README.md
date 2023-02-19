@@ -13,7 +13,7 @@ ShadowVim provides a Vim mode within Xcode powered by a background Neovim instan
 
 ### Highlights
 
-* This not a Vim emulation, but real Neovim with macros, `.` and Ex commands, etc.
+* This is not a Vim emulation, but real Neovim with macros, `.`, Ex commands, etc.
 * Vim plugins (without UI) work out of the box. Hello [`vim-surround`](https://github.com/tpope/vim-surround), [`argtextobj.vim`](https://github.com/vim-scripts/argtextobj.vim) and whatnot.
 * Add key mappings to trigger native Xcode features from Neovim (e.g. "Jump to Definition" on `gd`).
 
@@ -58,11 +58,11 @@ defaults import -app Xcode ~/Downloads/Xcode.plist
 
 ### Neovim configuration
 
-:point_up: The default Neovim indent files for Swift are not great. It's highly recommended that you install [`keith/swift.vim`](https://github.com/keith/swift.vim) with your Neovim packages manager of choice.
+:point_up: The default Neovim indent files for Swift are not great. For a better alternative, install [`keith/swift.vim`](https://github.com/keith/swift.vim) with your Neovim package manager.
 
 Since many Vim plugins can cause issues with ShadowVim, it is recommended to start from an empty `init.vim`.
 
-To determine if Neovim is running in Xcode, add to your `init.vim`:
+To determine if Neovim is running in ShadowVim, add to your `init.vim`:
 
 ```vim
 if exists('g:shadowvim')
@@ -88,8 +88,8 @@ Only <kbd>⌃</kbd>/<kbd>C-</kbd>-based keyboard shortcuts can be customized in 
 The `SVPressKeys` user command triggers a keyboard shortcut in Xcode. This is convenient to bind Neovim commands to Xcode features, such as:
 
 ```viml
-" Jump to Definition
-nmap gd <Cmd>SVPressKeys C-D-J<CR>
+" Jump to Definition (⌃⌘J)
+nmap gd <Cmd>SVPressKeys C-D-j<CR>
 ```
 
 :point_up: With Vim, <kbd>D-</kbd> stands for <kbd>⌘</kbd> and <kbd>M-</kbd> for <kbd>⌥</kbd>.
