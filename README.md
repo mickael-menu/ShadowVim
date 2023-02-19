@@ -3,25 +3,29 @@
 <h4>Neovim <em>inside</em> Xcode, for real.</h4>
 
 <img width="800" src="https://user-images.githubusercontent.com/58686775/219877113-367a0880-de31-46e3-b6a7-bf305077ec8c.gif"/>
-
-<p>:warning: Experimental: Keep a backup of your files before editing them with ShadowVim</p>
 </div>
 
 ## Description
 
-ShadowVim gives the illusion of using Neovim inside Xcode by:
+ShadowVim provides a Vim mode within Xcode powered by a background Neovim instance.
 
-1. intercepting key events in Xcode's source editors
-2. forwarding them to a background Neovim instance
-3. applying the changes back to Xcode
+:warning: **Still experimental.** Keep a backup of your files before editing them with ShadowVim.
 
 ### Highlights
 
-* This not a Vim emulation, but real Neovim!
+* This not a Vim emulation, but real Neovim with macros, `.` and Ex commands, etc.
 * Vim plugins (without UI) work out of the box. Hello [`vim-surround`](https://github.com/tpope/vim-surround), [`argtextobj.vim`](https://github.com/vim-scripts/argtextobj.vim) and whatnot.
-* Add key mappings to trigger native Xcode features from Nvim (e.g. "Jump to Definition" on `gd`).
+* Add key mappings to trigger native Xcode features from Neovim (e.g. "Jump to Definition" on `gd`).
 
 [See the changelog](CHANGELOG.md) for the list of upcoming features waiting to be released.
+
+### How does it work?
+
+ShadowVim uses macOS's Accessibility API to keep Xcode and Neovim synchronized. It works by:
+
+1. intercepting key and focus events in Xcode
+2. forwarding them to a background Neovim instance
+3. applying the changes back to Xcode's source editors
 
 ## Install
 
@@ -54,7 +58,7 @@ defaults import -app Xcode ~/Downloads/Xcode.plist
 
 ### Neovim configuration
 
-:point_up: The default Nvim indent files for Swift are not great. It's highly recommended that you install [`keith/swift.vim`](https://github.com/keith/swift.vim) with your Nvim packages manager of choice.
+:point_up: The default Neovim indent files for Swift are not great. It's highly recommended that you install [`keith/swift.vim`](https://github.com/keith/swift.vim) with your Neovim packages manager of choice.
 
 Since many Vim plugins can cause issues with ShadowVim, it is recommended to start from an empty `init.vim`.
 
@@ -123,7 +127,7 @@ Thanks to [kindaVim](https://kindavim.app/) and [SketchyVim](https://github.com/
 
 * [Neovim](https://github.com/neovim/neovim), duh.
 * [Sparkle](https://sparkle-project.org/) provides the auto-updater.
-* [MessagePack.swift](https://github.com/a2/MessagePack.swift) is used to communicate with Nvim using MessagePack-RPC.
+* [MessagePack.swift](https://github.com/a2/MessagePack.swift) is used to communicate with Neovim using MessagePack-RPC.
 * [Sauce](https://github.com/Clipy/Sauce) helps supporting virtual keyboard layouts.
 * [NSLogger](https://github.com/fpillet/NSLogger) for keeping me sane while debugging.
 * [XcodeGen](https://github.com/yonaskolb/XcodeGen) generates the project, because `.xcodeproj` is meh.
