@@ -57,7 +57,8 @@ final class Container {
         mediator = MediatorContainer(
             keyResolver: keyResolver,
             logger: logger,
-            enableKeysPassthrough: { [unowned self] in enableKeysPassthrough() }
+            enableKeysPassthrough: { [unowned self] in enableKeysPassthrough() },
+            resetShadowVim: { [unowned self] in resetShadowVim() }
         )
 
         shadowVim = ShadowVim(
@@ -72,6 +73,12 @@ final class Container {
     private func enableKeysPassthrough() {
         DispatchQueue.main.async { [self] in
             shadowVim.setKeysPassthrough(true)
+        }
+    }
+
+    private func resetShadowVim() {
+        DispatchQueue.main.async { [self] in
+            shadowVim.reset()
         }
     }
 }

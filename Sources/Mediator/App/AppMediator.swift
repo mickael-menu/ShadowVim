@@ -82,6 +82,7 @@ public final class AppMediator {
     private let logger: Logger?
     private let bufferMediatorFactory: BufferMediator.Factory
     private let enableKeysPassthrough: () -> Void
+    private let resetShadowVim: () -> Void
 
     private var state: AppState = .stopped
     private var bufferMediators: [BufferName: BufferMediator] = [:]
@@ -94,7 +95,8 @@ public final class AppMediator {
         eventSource: EventSource,
         logger: Logger?,
         bufferMediatorFactory: @escaping BufferMediator.Factory,
-        enableKeysPassthrough: @escaping () -> Void
+        enableKeysPassthrough: @escaping () -> Void,
+        resetShadowVim: @escaping () -> Void
     ) {
         self.app = app
         appElement = AXUIElement.app(app)
@@ -104,6 +106,7 @@ public final class AppMediator {
         self.logger = logger
         self.bufferMediatorFactory = bufferMediatorFactory
         self.enableKeysPassthrough = enableKeysPassthrough
+        self.resetShadowVim = resetShadowVim
 
         nvim.delegate = self
 
@@ -173,6 +176,13 @@ public final class AppMediator {
 
         nvim.add(command: "SVEnableKeysPassthrough") { [weak self] _ in
             self?.enableKeysPassthrough()
+            return .nil
+        }
+        .forwardErrorToDelegate(of: self)
+        .run()
+
+        nvim.add(command: "SVReset") { [weak self] _ in
+            self?.resetShadowVim()
             return .nil
         }
         .forwardErrorToDelegate(of: self)
