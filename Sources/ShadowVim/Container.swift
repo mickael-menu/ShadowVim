@@ -22,14 +22,12 @@ import SauceAdapter
 import Toolkit
 
 final class Container {
-    let shadowVim: ShadowVim
     let preferences: Preferences
     let logger: Logger?
-    private let mediator: MediatorContainer
+    private(set) var shadowVim: ShadowVim!
+    private var mediator: MediatorContainer!
 
     init() {
-        let preferences = UserDefaultsPreferences(defaults: .standard)
-        let keyResolver = SauceCGKeyResolver()
         let logger = ReferenceLogger(logger:
             Debug.isDebugging
                 ? NSLoggerLogger().filter(
@@ -50,15 +48,19 @@ final class Container {
                 )
                 : nil
         )
+        self.logger = logger.domain("app")
 
-        let mediator = MediatorContainer(
+        preferences = UserDefaultsPreferences(defaults: .standard)
+
+        let keyResolver = SauceCGKeyResolver()
+
+        mediator = MediatorContainer(
             keyResolver: keyResolver,
-            logger: logger
+            logger: logger,
+            enableKeysPassthrough: { [unowned self] in enableKeysPassthrough() },
+            resetShadowVim: { [unowned self] in resetShadowVim() }
         )
 
-        self.logger = logger.domain("app")
-        self.preferences = preferences
-        self.mediator = mediator
         shadowVim = ShadowVim(
             preferences: preferences,
             keyResolver: keyResolver,
@@ -66,5 +68,17 @@ final class Container {
             setVerboseLogger: { logger.set(NSLoggerLogger()) },
             mediatorFactory: mediator.mainMediator
         )
+    }
+
+    private func enableKeysPassthrough() {
+        DispatchQueue.main.async { [self] in
+            shadowVim.setKeysPassthrough(true)
+        }
+    }
+
+    private func resetShadowVim() {
+        DispatchQueue.main.async { [self] in
+            shadowVim.reset()
+        }
     }
 }

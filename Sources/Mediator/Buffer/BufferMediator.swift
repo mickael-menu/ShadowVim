@@ -103,7 +103,7 @@ public final class BufferMediator {
             .store(in: &subscriptions)
     }
 
-    func didRequestRefresh() {
+    func synchronize(source: BufferState.Host) {
         DispatchQueue.main.async {
             self.on(.didRequestRefresh(source: .nvim))
         }

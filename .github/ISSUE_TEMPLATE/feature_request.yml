@@ -4,7 +4,7 @@ body:
   - type: checkboxes
     id: checks
     attributes:
-      label: If you have an idea, create a discussion
+      label: If you have an idea, open a discussion
       options:
-        - label: I understand and will [create a new discussion](https://github.com/mickael-menu/ShadowVim/discussions/new?category=ideas) instead of an issue.
+        - label: I will [create a new discussion](https://github.com/mickael-menu/ShadowVim/discussions/new?category=ideas) instead of an issue.
 

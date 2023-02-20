@@ -74,10 +74,13 @@ class ShadowVim: ObservableObject {
         stop()
     }
 
+    func setKeysPassthrough(_ enabled: Bool) {
+        keysPassthrough = enabled
+        mediator?.didToggleKeysPassthrough(enabled: enabled)
+    }
+
     func toggleKeysPassthrough() {
-        keysPassthrough.toggle()
-        playSound("Pop")
-        mediator?.didToggleKeysPassthrough(enabled: keysPassthrough)
+        setKeysPassthrough(!keysPassthrough)
     }
 
     private func start() {
@@ -212,6 +215,10 @@ extension ShadowVim: EventTapDelegate {
             default:
                 break
             }
+        }
+
+        if keysPassthrough, keyCombo == KeyCombo(.escape) {
+            setKeysPassthrough(false)
         }
 
         guard

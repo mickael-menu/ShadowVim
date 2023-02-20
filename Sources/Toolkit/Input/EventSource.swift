@@ -48,11 +48,13 @@ public final class EventSource {
             return false
         }
 
-        let flags = kc.modifiers.cgFlags
-        downEvent.flags = flags
-        upEvent.flags = flags
-        downEvent.postToPid(pid)
-        upEvent.postToPid(pid)
+        DispatchQueue.main.async { [self] in
+            let flags = kc.modifiers.cgFlags
+            downEvent.flags = flags
+            upEvent.flags = flags
+            downEvent.postToPid(pid)
+            upEvent.postToPid(pid)
+        }
 
         return true
     }
