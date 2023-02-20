@@ -118,8 +118,39 @@ As `SVPressKeys` is not recursive, this is fine.
 
 ShadowVim adds a new menu bar icon (🅽) with a couple of useful features which can also be triggered with global hotkeys:
 
-* **Keys Passthrough** (<kbd>⌃⌥⌘.</kbd>) disables temporarily the Neovim synchronization. You **must** use this when renaming a symbol with Xcode's refactor tools, otherwise the buffer will get messed up.
-* **Reset ShadowVim** (<kbd>⌃⌥⌘⎋</kbd>) kills Neovim and restarts the synchronization. This might be useful if you get stuck.
+* **Keys Passthrough** (<kbd>⌃⌥⌘.</kbd>) lets Xcode handle key events until you press <kbd>⎋</kbd>. You **must** use this when renaming a symbol with Xcode's refactor tools, otherwise the buffer will get messed up.
+* **Reset ShadowVim** (<kbd>⌃⌥⌘⎋</kbd>) kills Neovim and resets the synchronization. This might be useful if you get stuck.
+
+### Neovim user commands
+
+The following commands are available in your bindings when Neovim is run by ShadowVim.
+
+* `SVPressKeys` triggers a keyboard shortcut in Xcode. The syntax is the same as Neovim's key bindings, e.g. `SVPressKeys D-s` to save the current file.
+* `SVEnableKeysPassthrough` switches on the Keys Passthrough mode, which lets Xcode handle key events until you press <kbd>⎋</kbd>.
+* `SVReset` kills Neovim and resets the synchronization. This might be useful if you get stuck.
+* `SVSynchronizeUI` requests Xcode to reset the current file to the state of the Neovim buffer. You should not need to call this manually.
+* `SVSynchronizeNvim` requests Neovim to reset the current buffer to the state of the Xcode file. You should not need to call this manually.
+
+## Tips and tricks
+
+### Don't use `:w`
+
+Neovim is in read-only mode, so `:w` won't do anything. Use the usual <kbd>⌘S</kbd> to save your files.
+
+### Triggering Xcode's completion
+
+Xcode's completion generally works with ShadowVim. But there are some cases where the pop-up completion does not appear automatically.
+
+As the default Xcode shortcut to trigger the completion (<kbd>⎋</kbd>) is already used in Neovim to go back to the normal mode, you might want to set a different one in Xcode's **Key Bindings** preferences. <kbd>⌘P</kbd> is a good candidate, who needs to print their code anyway?
+
+### Completion placeholders
+
+You cannot jump between placeholders in a completion snippet using <kbd>tab</kbd>, as it is handled by Neovim. As a workaround, you can use these custom Neovim key bindings to select or modify the next placeholder:
+
+```viml
+nmap gp /<LT>#.\{-}#><CR>gn
+nmap cap /<LT>#.\{-}#><CR>cgn
+```
 
 ## Attributions
 
