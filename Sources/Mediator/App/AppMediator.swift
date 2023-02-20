@@ -81,6 +81,7 @@ public final class AppMediator {
     private let eventSource: EventSource
     private let logger: Logger?
     private let bufferMediatorFactory: BufferMediator.Factory
+    private let enableKeysPassthrough: () -> Void
 
     private var state: AppState = .stopped
     private var bufferMediators: [BufferName: BufferMediator] = [:]
@@ -92,7 +93,8 @@ public final class AppMediator {
         buffers: NvimBuffers,
         eventSource: EventSource,
         logger: Logger?,
-        bufferMediatorFactory: @escaping BufferMediator.Factory
+        bufferMediatorFactory: @escaping BufferMediator.Factory,
+        enableKeysPassthrough: @escaping () -> Void
     ) {
         self.app = app
         appElement = AXUIElement.app(app)
@@ -101,41 +103,80 @@ public final class AppMediator {
         self.eventSource = eventSource
         self.logger = logger
         self.bufferMediatorFactory = bufferMediatorFactory
+        self.enableKeysPassthrough = enableKeysPassthrough
 
         nvim.delegate = self
 
-//        nvim.api.uiAttach(
-//            width: 1000,
-//            height: 100,
-//            options: API.UIOptions(
-//                extCmdline: true,
-//                extHlState: true,
-//                extLineGrid: true,
-//                extMessages: true,
-//                extMultigrid: true,
-//                extPopupMenu: true,
-//                extTabline: true,
-//                extTermColors: true
-//            )
-//        )
-//        .assertNoFailure()
-//        .run()
-//
-//        nvim.events.publisher(for: "redraw")
-//            .assertNoFailure()
-//            .sink { params in
-//                for v in params {
-//                    guard
-//                        let a = v.arrayValue,
-//                        let k = a.first?.stringValue,
-//                        k.hasPrefix("msg_")
-//                    else {
-//                        continue
-//                    }
-//                    print(a)
-//                }
-//            }
-//            .store(in: &subscriptions)
+        setupUserCommands()
+
+        // nvim.api.uiAttach(
+        //     width: 1000,
+        //     height: 100,
+        //     options: API.UIOptions(
+        //         extCmdline: true,
+        //         extHlState: true,
+        //         extLineGrid: true,
+        //         extMessages: true,
+        //         extMultigrid: true,
+        //         extPopupMenu: true,
+        //         extTabline: true,
+        //         extTermColors: true
+        //     )
+        // )
+        // .forwardErrorToDelegate(of: self)
+        // .run()
+
+        // nvim.events.publisher(for: "redraw")
+        //     .assertNoFailure()
+        //     .sink { params in
+        //         for v in params {
+        //             guard
+        //             let a = v.arrayValue,
+        //             let k = a.first?.stringValue,
+        //             k.hasPrefix("msg_")
+        //             else {
+        //                 continue
+        //             }
+        //             print(a)
+        //         }
+        //     }
+        //     .store(in: &subscriptions)
+    }
+
+    private func setupUserCommands() {
+        nvim.add(command: "SVSynchronizeUI") { [weak self] _ in
+            self?.synchronizeFocusedBuffer(source: .nvim)
+            return .nil
+        }
+        .forwardErrorToDelegate(of: self)
+        .run()
+
+        nvim.add(command: "SVSynchronizeNvim") { [weak self] _ in
+            self?.synchronizeFocusedBuffer(source: .ui)
+            return .nil
+        }
+        .forwardErrorToDelegate(of: self)
+        .run()
+
+        nvim.add(command: "SVPressKeys", args: .one) { [weak self] params in
+            guard
+                let self,
+                params.count == 1,
+                case let .string(notation) = params[0]
+            else {
+                return .bool(false)
+            }
+            return .bool(self.pressKeys(notation: notation))
+        }
+        .forwardErrorToDelegate(of: self)
+        .run()
+
+        nvim.add(command: "SVEnableKeysPassthrough") { [weak self] _ in
+            self?.enableKeysPassthrough()
+            return .nil
+        }
+        .forwardErrorToDelegate(of: self)
+        .run()
     }
 
     deinit {
@@ -177,6 +218,12 @@ public final class AppMediator {
         nvim.stop()
         subscriptions.removeAll()
         delegate?.appMediatorDidStop(self)
+    }
+
+    private func synchronizeFocusedBuffer(source: BufferState.Host) {
+        if case let .focused(buffer) = state {
+            buffer.synchronize(source: source)
+        }
     }
 
     // MARK: - Input handling
@@ -407,25 +454,8 @@ extension AppMediator: BufferMediatorDelegate {
 
 extension AppMediator: NvimDelegate {
     public func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>? {
-        switch method {
-        case "SVRefresh":
-            if case let .focused(buffer) = state {
-                buffer.didRequestRefresh()
-            }
-            return .success(.bool(true))
-
-        case "SVPressKeys":
-            guard
-                data.count == 1,
-                case let .string(notation) = data[0]
-            else {
-                return .success(.bool(false))
-            }
-            return .success(.bool(pressKeys(notation: notation)))
-
-        default:
-            return nil
-        }
+        logger?.w("Received unknown RPC request", ["method": method, "data": data])
+        return nil
     }
 
     public func nvim(_ nvim: Nvim, didFailWithError error: NvimError) {

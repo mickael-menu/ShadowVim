@@ -39,6 +39,7 @@ public final class Nvim {
     private let process: NvimProcess
     private let session: RPCSession
     private let logger: Logger?
+    private var userCommands: [String: ([Value]) throws -> Value] = [:]
     private var subscriptions: Set<AnyCancellable> = []
 
     init(
@@ -66,6 +67,36 @@ public final class Nvim {
     public func stop() {
         process.stop()
     }
+
+    /// Adds a new user command executing the given action.
+    public func add(
+        command: String,
+        args: ArgsCardinality = .none,
+        action: @escaping ([Value]) throws -> Value
+    ) -> APIAsync<Void> {
+        precondition(userCommands[command] == nil)
+        userCommands[command] = action
+        return api
+            .command("command! -nargs=\(args.rawValue) \(command) call rpcrequest(1, '\(command)', <f-args>)")
+            .discardResult()
+    }
+}
+
+public enum ArgsCardinality: String {
+    /// No arguments are allowed (the default).
+    case none = "0"
+
+    /// Exactly one argument is required, it includes spaces.
+    case one = "1"
+
+    /// Any number of arguments are allowed (0, 1, or many), separated by white space.
+    case any = "*"
+
+    /// 0 or 1 arguments are allowed.
+    case noneOrOne = "?"
+
+    /// Arguments must be supplied, but any number are allowed.
+    case moreThanOne = "+"
 }
 
 extension Nvim: NvimProcessDelegate {
@@ -89,6 +120,14 @@ extension Nvim: RPCSessionDelegate {
     }
 
     func session(_ session: RPCSession, didReceiveRequest method: String, with params: [Value]) -> Result<Value, Error>? {
-        delegate?.nvim(self, didRequest: method, with: params)
+        guard let command = userCommands[method] else {
+            return delegate?.nvim(self, didRequest: method, with: params)
+        }
+
+        do {
+            return try .success(command(params))
+        } catch {
+            return .failure(error)
+        }
     }
 }

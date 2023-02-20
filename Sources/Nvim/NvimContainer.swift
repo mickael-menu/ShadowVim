@@ -26,7 +26,9 @@ public final class NvimContainer {
     }
 
     public func nvim() throws -> Nvim {
-        let process = try NvimProcess.start(logger: logger?.domain("process"))
+        let process = try NvimProcess.start(
+            logger: logger?.domain("process")
+        )
 
         let session = RPCSession(
             logger: logger?.domain("rpc"),

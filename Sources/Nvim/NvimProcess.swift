@@ -37,6 +37,7 @@ public final class NvimProcess {
         let output = Pipe()
         let process = Process()
         process.executableURL = executableURL
+
         process.arguments = [
             "nvim",
             "--headless",
@@ -46,11 +47,8 @@ public final class NvimProcess {
 //            "--clean", // Don't load default config and plugins.
             // Using `--cmd` instead of `-c` makes the statements available in the `init.vim`.
             "--cmd", "let g:shadowvim = v:true",
-            // Declare custom user commands for the supported RPC requests.
-            // FIXME: To be moved into a dedicated script when implementing the Nvim UI protocol
-            "--cmd", "command SVRefresh call rpcrequest(1, 'SVRefresh')",
-            "--cmd", "command -nargs=1 SVPressKeys call rpcrequest(1, 'SVPressKeys', '<args>')",
         ]
+
         process.standardInput = input
         process.standardOutput = output
         process.loadEnvironment()

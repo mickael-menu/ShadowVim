@@ -25,11 +25,17 @@ import Toolkit
 public final class MediatorContainer {
     private let keyResolver: CGKeyResolver
     private let logger: Logger?
+    private let enableKeysPassthrough: () -> Void
     private let nvimContainer: NvimContainer
 
-    public init(keyResolver: CGKeyResolver, logger: Logger?) {
+    public init(
+        keyResolver: CGKeyResolver,
+        logger: Logger?,
+        enableKeysPassthrough: @escaping () -> Void
+    ) {
         self.keyResolver = keyResolver
         self.logger = logger?.domain("mediator")
+        self.enableKeysPassthrough = enableKeysPassthrough
 
         nvimContainer = NvimContainer(logger: logger)
 
@@ -62,7 +68,8 @@ public final class MediatorContainer {
                 keyResolver: keyResolver
             ),
             logger: logger?.domain("app"),
-            bufferMediatorFactory: bufferMediator
+            bufferMediatorFactory: bufferMediator,
+            enableKeysPassthrough: enableKeysPassthrough
         )
     }
 
