@@ -1,11 +1,11 @@
-title: "[Support] "
+title: "[Help] "
 body:
   - type: checkboxes
     id: checks
     attributes:
-      label: Check if applicable
+      label: Verify
       options:
-        - label: I have searched the existing discussions for help (**required**)
+        - label: I searched the existing discussions for help
           required: true
   - type: textarea
     id: help
@@ -16,4 +16,4 @@ body:
   - type: markdown
     attributes:
       value: |
-        :warning: Unfortunately, my time is limited and I can't offer reliable user support. I might help you out if you catch me on a slow day, or someone else will.
+        :warning: Unfortunately, my time is limited and I can't offer reliable user support. I might answer if you catch me on a slow day, or hopefully someone else will.

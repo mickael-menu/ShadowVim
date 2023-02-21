@@ -4,7 +4,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        :warning: Unfortunately, my time is limited and I can't offer reliable user support. I might help you out if you catch me on a slow day, or someone else might.
+        :warning: Unfortunately, my time is limited and I can't offer reliable user support. I might answer if you catch me on a slow day, or hopefully someone else will.
   - type: checkboxes
     id: checks
     attributes:

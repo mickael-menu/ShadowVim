@@ -92,25 +92,12 @@ The `SVPressKeys` user command triggers a keyboard shortcut in Xcode. This is co
 nmap gd <Cmd>SVPressKeys C-D-j<CR>
 ```
 
-:point_up: With Vim, <kbd>D-</kbd> stands for <kbd>⌘</kbd> and <kbd>M-</kbd> for <kbd>⌥</kbd>.
-
-##### Navigation keybindings
-
-Cross-buffers navigation is not yet supported with ShadowVim. Therefore, it is recommended to override the <kbd>C-o</kbd> and <kbd>C-i</kbd> mappings to use Xcode's navigation instead.
-
-```viml
-nmap <C-o> <Cmd>SVPressKeys C-D-Left<CR>
-nmap <C-i> <Cmd>SVPressKeys C-D-Right<CR>
-```
-
-Unfortunately, this won't work in read-only source editors. As a workaround, you can rebind **Go back** to <kbd>⌃O</kbd> and **Go forward** to <kbd>⌃I</kbd> in Xcode's Key Bindings preferences, then in Neovim:
-
-```viml
-nmap <C-o> <Cmd>SVPressKeys C-o<CR>
-nmap <C-i> <Cmd>SVPressKeys C-i<CR>
-```
-
-As `SVPressKeys` is not recursive, this is fine.
+| Modifier | macOS        | Nvim                           |
+|----------|--------------|--------------------------------|
+| control  | <kbd>⌃</kbd> | <kbd>C-</kbd>                  |
+| option   | <kbd>⌥</kbd> | <kbd>M-</kbd> or <kbd>A-</kbd> |
+| shift    | <kbd>⇧</kbd> | <kbd>S-</kbd>                  |
+| command  | <kbd>⌘</kbd> | <kbd>D-</kbd>                  |
 
 ## Usage
 
@@ -137,6 +124,24 @@ The following commands are available in your bindings when Neovim is run by Shad
 
 Neovim is in read-only mode, so `:w` won't do anything. Use the usual <kbd>⌘S</kbd> to save your files.
 
+### Navigation with <kbd>C-o</kbd> and <kbd>C-i</kbd>
+
+Cross-buffers navigation is not yet supported with ShadowVim. Therefore, it is recommended to override the <kbd>C-o</kbd> and <kbd>C-i</kbd> mappings to use Xcode's navigation instead.
+
+```viml
+nmap <C-o> <Cmd>SVPressKeys C-D-Left<CR>
+nmap <C-i> <Cmd>SVPressKeys C-D-Right<CR>
+```
+
+Unfortunately, this won't work in read-only source editors. As a workaround, you can rebind **Go back** to <kbd>⌃O</kbd> and **Go forward** to <kbd>⌃I</kbd> in Xcode's **Key Bindings** preferences, then in Neovim:
+
+```viml
+nmap <C-o> <Cmd>SVPressKeys C-o<CR>
+nmap <C-i> <Cmd>SVPressKeys C-i<CR>
+```
+
+As `SVPressKeys` is not recursive, this will perform the native Xcode navigation.
+
 ### Triggering Xcode's completion
 
 Xcode's completion generally works with ShadowVim. But there are some cases where the pop-up completion does not appear automatically.
@@ -150,6 +155,21 @@ You cannot jump between placeholders in a completion snippet using <kbd>tab</kbd
 ```viml
 nmap gp /<LT>#.\{-}#><CR>gn
 nmap cap /<LT>#.\{-}#><CR>cgn
+```
+
+### Window management
+
+Use the following bindings to manage Xcode's source editor with the usual <kbd>C-w</kbd>-based keyboard shortcuts.
+
+```viml
+map <C-w>v <Cmd>SVPressKeys C-D-t<CR>
+map <C-w>s <Cmd>SVPressKeys C-M-D-t<CR>
+map <C-w>o <Cmd>SVPressKeys C-S-M-D-w<CR>
+map <C-w>w <Cmd>SVPressKeys C-`<CR>
+
+" Closing the current editor in Xcode 14 doesn't focus the previous one...
+" As a workaround, ⌃C is triggered to focus the first one.
+map <C-w>c <Cmd>SVPressKeys C-S-D-w<CR><Cmd>SVPressKeys C-`<CR>
 ```
 
 ## Attributions
