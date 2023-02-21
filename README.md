@@ -81,7 +81,7 @@ end
 To conditionally activate plugins, `vim-plug` has a
 [few solutions](https://github.com/junegunn/vim-plug/wiki/tips#conditional-activation).
 
-#### Adding keybindings
+#### Adding key bindings
 
 Only <kbd>⌃</kbd>/<kbd>C-</kbd>-based keyboard shortcuts can be customized in Neovim. <kbd>⌘</kbd>-based hotkeys are handled directly by Xcode.
 
@@ -89,8 +89,10 @@ The `SVPressKeys` user command triggers a keyboard shortcut in Xcode. This is co
 
 ```viml
 " Jump to Definition (⌃⌘J)
-nmap gd <Cmd>SVPressKeys C-D-j<CR>
+nmap gd <Cmd>SVPressKeys <LT>C-D-j><CR>
 ```
+
+:warning: The first `<` needs to be escaped as `<LT>` when calling `SVPressKeys` from a key binding.
 
 | Modifier | macOS        | Nvim                           |
 |----------|--------------|--------------------------------|
@@ -98,6 +100,8 @@ nmap gd <Cmd>SVPressKeys C-D-j<CR>
 | option   | <kbd>⌥</kbd> | <kbd>M-</kbd> or <kbd>A-</kbd> |
 | shift    | <kbd>⇧</kbd> | <kbd>S-</kbd>                  |
 | command  | <kbd>⌘</kbd> | <kbd>D-</kbd>                  |
+
+Take a look at the [Tips and tricks](#tips-and-tricks) section for a collection of useful bindings.
 
 ## Usage
 
@@ -112,7 +116,7 @@ ShadowVim adds a new menu bar icon (🅽) with a couple of useful features which
 
 The following commands are available in your bindings when Neovim is run by ShadowVim.
 
-* `SVPressKeys` triggers a keyboard shortcut in Xcode. The syntax is the same as Neovim's key bindings, e.g. `SVPressKeys D-s` to save the current file.
+* `SVPressKeys` triggers a keyboard shortcut in Xcode. The syntax is the same as Neovim's key bindings, e.g. `SVPressKeys <D-s>` to save the current file.
 * `SVEnableKeysPassthrough` switches on the Keys Passthrough mode, which lets Xcode handle key events until you press <kbd>⎋</kbd>.
 * `SVReset` kills Neovim and resets the synchronization. This might be useful if you get stuck.
 * `SVSynchronizeUI` requests Xcode to reset the current file to the state of the Neovim buffer. You should not need to call this manually.
@@ -129,15 +133,15 @@ Neovim is in read-only mode, so `:w` won't do anything. Use the usual <kbd>⌘S<
 Cross-buffers navigation is not yet supported with ShadowVim. Therefore, it is recommended to override the <kbd>C-o</kbd> and <kbd>C-i</kbd> mappings to use Xcode's navigation instead.
 
 ```viml
-nmap <C-o> <Cmd>SVPressKeys C-D-Left<CR>
-nmap <C-i> <Cmd>SVPressKeys C-D-Right<CR>
+nmap <C-o> <Cmd>SVPressKeys <LT>C-D-Left><CR>
+nmap <C-i> <Cmd>SVPressKeys <LT>C-D-Right><CR>
 ```
 
 Unfortunately, this won't work in read-only source editors. As a workaround, you can rebind **Go back** to <kbd>⌃O</kbd> and **Go forward** to <kbd>⌃I</kbd> in Xcode's **Key Bindings** preferences, then in Neovim:
 
 ```viml
-nmap <C-o> <Cmd>SVPressKeys C-o<CR>
-nmap <C-i> <Cmd>SVPressKeys C-i<CR>
+nmap <C-o> <Cmd>SVPressKeys <LT>C-o><CR>
+nmap <C-i> <Cmd>SVPressKeys <LT>C-i><CR>
 ```
 
 As `SVPressKeys` is not recursive, this will perform the native Xcode navigation.
@@ -162,14 +166,38 @@ nmap cap /<LT>#.\{-}#><CR>cgn
 Use the following bindings to manage Xcode's source editor with the usual <kbd>C-w</kbd>-based keyboard shortcuts.
 
 ```viml
-map <C-w>v <Cmd>SVPressKeys C-D-t<CR>
-map <C-w>s <Cmd>SVPressKeys C-M-D-t<CR>
-map <C-w>o <Cmd>SVPressKeys C-S-M-D-w<CR>
-map <C-w>w <Cmd>SVPressKeys C-`<CR>
+" Split vertically.
+map <C-w>v <Cmd>SVPressKeys <LT>C-D-t><CR>
+" Split horizontally.
+map <C-w>s <Cmd>SVPressKeys <LT>C-M-D-t><CR>
 
-" Closing the current editor in Xcode 14 doesn't focus the previous one...
-" As a workaround, ⌃C is triggered to focus the first one.
-map <C-w>c <Cmd>SVPressKeys C-S-D-w<CR><Cmd>SVPressKeys C-`<CR>
+" Close the focused editor.
+" Note: Xcode 14 doesn't focus the previous one... As a workaround, ⌃C is triggered to focus the first one.
+map <C-w>c <Cmd>SVPressKeys <LT>C-S-D-w><CR><Cmd>SVPressKeys <LT>C-`><CR>
+" Close all other source editors.
+map <C-w>o <Cmd>SVPressKeys <LT>C-S-M-D-w><CR>
+
+" Focus the editor on the left.
+map <C-w>h <Cmd>SVPressKeys <LT>D-j><CR><Cmd>SVPressKeys h<CR><Cmd>SVPressKeys <LT>CR><CR>
+" Focus the editor below.
+map <C-w>j <Cmd>SVPressKeys <LT>D-j><CR><Cmd>SVPressKeys j<CR><Cmd>SVPressKeys <LT>CR><CR>
+" Focus the editor above.
+map <C-w>k <Cmd>SVPressKeys <LT>D-j><CR><Cmd>SVPressKeys k<CR><Cmd>SVPressKeys <LT>CR><CR>
+" Focus the editor on the right.
+map <C-w>l <Cmd>SVPressKeys <LT>D-j><CR><Cmd>SVPressKeys l<CR><Cmd>SVPressKeys <LT>CR><CR>
+" Rotate the source editors.
+map <C-w>w <Cmd>SVPressKeys <LT>C-`><CR>
+```
+
+### Folds
+
+Xcode's folding capabilities are limited, but you get the basics with these bindings:
+
+```viml
+nmap zc <Cmd>SVPressKeys <LT>M-D-Left><CR>
+nmap zo <Cmd>SVPressKeys <LT>M-D-Right><CR>
+" This one requires a custom Xcode key binding for "Unfold All"
+nmap zR <Cmd>SVPressKeys <LT>C-M-S-D-Right><CR>
 ```
 
 ## Attributions

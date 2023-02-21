@@ -322,14 +322,7 @@ public final class AppMediator {
     /// If the brackets (<>) are missing around the notation, they are
     /// automatically added. Only key combos with modifiers are supported.
     private func pressKeys(notation: Notation) -> Bool {
-        var notation = notation
-        if notation.first != "<" {
-            notation = "<\(notation)>"
-        }
-        guard
-            let kc = KeyCombo(nvimNotation: notation),
-            kc.modifiers != .none
-        else {
+        guard let kc = KeyCombo(nvimNotation: notation) else {
             return false
         }
 
