@@ -31,6 +31,12 @@ ShadowVim uses macOS's Accessibility API to keep Xcode and Neovim synchronized. 
 
 [Check out the latest release](https://github.com/mickael-menu/ShadowVim/releases) for pre-built binaries for macOS.
 
+### Minimum Requirements
+
+| ShadowVim | macOS | Xcode | Neovim |
+|------------|-------|-------|--------|
+| latest     | 13.0  | 14    | 0.8    |
+
 ## Setup
 
 ### Xcode settings
@@ -196,8 +202,8 @@ Xcode's folding capabilities are limited, but you get the basics with these bind
 ```viml
 nmap zc <Cmd>SVPressKeys <LT>M-D-Left><CR>
 nmap zo <Cmd>SVPressKeys <LT>M-D-Right><CR>
-" This one requires a custom Xcode key binding for "Unfold All"
-nmap zR <Cmd>SVPressKeys <LT>C-M-S-D-Right><CR>
+nmap zM <Cmd>SVPressKeys <LT>M-S-D-Left><CR>
+nmap zR <Cmd>SVPressKeys <LT>M-S-D-Right><CR>
 ```
 
 ## Attributions
