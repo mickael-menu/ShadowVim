@@ -206,6 +206,14 @@ nmap zM <Cmd>SVPressKeys <LT>M-S-D-Left><CR>
 nmap zR <Cmd>SVPressKeys <LT>M-S-D-Right><CR>
 ```
 
+### Opening third-party applications
+
+You can get pretty creative with key bindings. Here's one opening [Sourcetree](https://www.sourcetreeapp.com/) with <kbd>&lt;leader>st</kbd> for the current Git repository, using `!` to execute a shell command and `%` to get the path of the edited file.
+
+```viml
+nmap <leader>st <Cmd>!stree %<CR>
+```
+
 ## Attributions
 
 Thanks to [kindaVim](https://kindavim.app/) and [SketchyVim](https://github.com/FelixKratz/SketchyVim) for showing me this was possible.
