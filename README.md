@@ -31,6 +31,12 @@ ShadowVim uses macOS's Accessibility API to keep Xcode and Neovim synchronized. 
 
 [Check out the latest release](https://github.com/mickael-menu/ShadowVim/releases) for pre-built binaries for macOS.
 
+### Minimum Requirements
+
+| ShadowVim | macOS | Xcode | Neovim |
+|------------|-------|-------|--------|
+| latest     | 13.0  | 14    | 0.8    |
+
 ## Setup
 
 ### Xcode settings
@@ -81,7 +87,7 @@ end
 To conditionally activate plugins, `vim-plug` has a
 [few solutions](https://github.com/junegunn/vim-plug/wiki/tips#conditional-activation).
 
-#### Adding keybindings
+#### Adding key bindings
 
 Only <kbd>⌃</kbd>/<kbd>C-</kbd>-based keyboard shortcuts can be customized in Neovim. <kbd>⌘</kbd>-based hotkeys are handled directly by Xcode.
 
@@ -89,28 +95,19 @@ The `SVPressKeys` user command triggers a keyboard shortcut in Xcode. This is co
 
 ```viml
 " Jump to Definition (⌃⌘J)
-nmap gd <Cmd>SVPressKeys C-D-j<CR>
+nmap gd <Cmd>SVPressKeys <LT>C-D-j><CR>
 ```
 
-:point_up: With Vim, <kbd>D-</kbd> stands for <kbd>⌘</kbd> and <kbd>M-</kbd> for <kbd>⌥</kbd>.
+:warning: The first `<` needs to be escaped as `<LT>` when calling `SVPressKeys` from a key binding.
 
-##### Navigation keybindings
+| Modifier | macOS        | Nvim                           |
+|----------|--------------|--------------------------------|
+| control  | <kbd>⌃</kbd> | <kbd>C-</kbd>                  |
+| option   | <kbd>⌥</kbd> | <kbd>M-</kbd> or <kbd>A-</kbd> |
+| shift    | <kbd>⇧</kbd> | <kbd>S-</kbd>                  |
+| command  | <kbd>⌘</kbd> | <kbd>D-</kbd>                  |
 
-Cross-buffers navigation is not yet supported with ShadowVim. Therefore, it is recommended to override the <kbd>C-o</kbd> and <kbd>C-i</kbd> mappings to use Xcode's navigation instead.
-
-```viml
-nmap <C-o> <Cmd>SVPressKeys C-D-Left<CR>
-nmap <C-i> <Cmd>SVPressKeys C-D-Right<CR>
-```
-
-Unfortunately, this won't work in read-only source editors. As a workaround, you can rebind **Go back** to <kbd>⌃O</kbd> and **Go forward** to <kbd>⌃I</kbd> in Xcode's Key Bindings preferences, then in Neovim:
-
-```viml
-nmap <C-o> <Cmd>SVPressKeys C-o<CR>
-nmap <C-i> <Cmd>SVPressKeys C-i<CR>
-```
-
-As `SVPressKeys` is not recursive, this is fine.
+Take a look at the [Tips and tricks](#tips-and-tricks) section for a collection of useful bindings.
 
 ## Usage
 
@@ -125,7 +122,7 @@ ShadowVim adds a new menu bar icon (🅽) with a couple of useful features which
 
 The following commands are available in your bindings when Neovim is run by ShadowVim.
 
-* `SVPressKeys` triggers a keyboard shortcut in Xcode. The syntax is the same as Neovim's key bindings, e.g. `SVPressKeys D-s` to save the current file.
+* `SVPressKeys` triggers a keyboard shortcut in Xcode. The syntax is the same as Neovim's key bindings, e.g. `SVPressKeys <D-s>` to save the current file.
 * `SVEnableKeysPassthrough` switches on the Keys Passthrough mode, which lets Xcode handle key events until you press <kbd>⎋</kbd>.
 * `SVReset` kills Neovim and resets the synchronization. This might be useful if you get stuck.
 * `SVSynchronizeUI` requests Xcode to reset the current file to the state of the Neovim buffer. You should not need to call this manually.
@@ -136,6 +133,24 @@ The following commands are available in your bindings when Neovim is run by Shad
 ### Don't use `:w`
 
 Neovim is in read-only mode, so `:w` won't do anything. Use the usual <kbd>⌘S</kbd> to save your files.
+
+### Navigation with <kbd>C-o</kbd> and <kbd>C-i</kbd>
+
+Cross-buffers navigation is not yet supported with ShadowVim. Therefore, it is recommended to override the <kbd>C-o</kbd> and <kbd>C-i</kbd> mappings to use Xcode's navigation instead.
+
+```viml
+nmap <C-o> <Cmd>SVPressKeys <LT>C-D-Left><CR>
+nmap <C-i> <Cmd>SVPressKeys <LT>C-D-Right><CR>
+```
+
+Unfortunately, this won't work in read-only source editors. As a workaround, you can rebind **Go back** to <kbd>⌃O</kbd> and **Go forward** to <kbd>⌃I</kbd> in Xcode's **Key Bindings** preferences, then in Neovim:
+
+```viml
+nmap <C-o> <Cmd>SVPressKeys <LT>C-o><CR>
+nmap <C-i> <Cmd>SVPressKeys <LT>C-i><CR>
+```
+
+As `SVPressKeys` is not recursive, this will perform the native Xcode navigation.
 
 ### Triggering Xcode's completion
 
@@ -150,6 +165,53 @@ You cannot jump between placeholders in a completion snippet using <kbd>tab</kbd
 ```viml
 nmap gp /<LT>#.\{-}#><CR>gn
 nmap cap /<LT>#.\{-}#><CR>cgn
+```
+
+### Window management
+
+Use the following bindings to manage Xcode's source editor with the usual <kbd>C-w</kbd>-based keyboard shortcuts.
+
+```viml
+" Split vertically.
+map <C-w>v <Cmd>SVPressKeys <LT>C-D-t><CR>
+" Split horizontally.
+map <C-w>s <Cmd>SVPressKeys <LT>C-M-D-t><CR>
+
+" Close the focused editor.
+" Note: Xcode 14 doesn't focus the previous one... As a workaround, ⌃C is triggered to focus the first one.
+map <C-w>c <Cmd>SVPressKeys <LT>C-S-D-w><CR><Cmd>SVPressKeys <LT>C-`><CR>
+" Close all other source editors.
+map <C-w>o <Cmd>SVPressKeys <LT>C-S-M-D-w><CR>
+
+" Focus the editor on the left.
+map <C-w>h <Cmd>SVPressKeys <LT>D-j><CR><Cmd>SVPressKeys h<CR><Cmd>SVPressKeys <LT>CR><CR>
+" Focus the editor below.
+map <C-w>j <Cmd>SVPressKeys <LT>D-j><CR><Cmd>SVPressKeys j<CR><Cmd>SVPressKeys <LT>CR><CR>
+" Focus the editor above.
+map <C-w>k <Cmd>SVPressKeys <LT>D-j><CR><Cmd>SVPressKeys k<CR><Cmd>SVPressKeys <LT>CR><CR>
+" Focus the editor on the right.
+map <C-w>l <Cmd>SVPressKeys <LT>D-j><CR><Cmd>SVPressKeys l<CR><Cmd>SVPressKeys <LT>CR><CR>
+" Rotate the source editors.
+map <C-w>w <Cmd>SVPressKeys <LT>C-`><CR>
+```
+
+### Folds
+
+Xcode's folding capabilities are limited, but you get the basics with these bindings:
+
+```viml
+nmap zc <Cmd>SVPressKeys <LT>M-D-Left><CR>
+nmap zo <Cmd>SVPressKeys <LT>M-D-Right><CR>
+nmap zM <Cmd>SVPressKeys <LT>M-S-D-Left><CR>
+nmap zR <Cmd>SVPressKeys <LT>M-S-D-Right><CR>
+```
+
+### Opening third-party applications
+
+You can get pretty creative with key bindings. Here's one opening [Sourcetree](https://www.sourcetreeapp.com/) with <kbd>&lt;leader>st</kbd> for the current Git repository, using `!` to execute a shell command and `%` to get the path of the edited file.
+
+```viml
+nmap <leader>st <Cmd>!stree %<CR>
 ```
 
 ## Attributions

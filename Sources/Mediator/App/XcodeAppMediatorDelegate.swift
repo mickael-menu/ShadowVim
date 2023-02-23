@@ -84,6 +84,7 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
     /// When Xcode's completion pop-up is visible, we want to let it handle
     /// the following key combos instead of forwarding them to Nvim.
     private let completionPopUpPassthrougKeyCombos: [KeyCombo] = [
+        KeyCombo(.escape),
         KeyCombo(.return),
         KeyCombo(.upArrow),
         KeyCombo(.downArrow),
