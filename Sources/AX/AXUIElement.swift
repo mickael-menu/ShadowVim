@@ -43,8 +43,8 @@ public extension AXUIElement {
 
     var isValid: Bool {
         do {
-            _ = try get(.role) as String?
-        } catch AXError.invalidUIElement {
+            _ = try get(.role, logErrors: false) as String?
+        } catch AXError.invalidUIElement, AXError.cannotComplete {
             return false
         } catch {}
         return true
@@ -54,6 +54,7 @@ public extension AXUIElement {
         var names: CFArray?
         let result = AXUIElementCopyAttributeNames(self, &names)
         if let error = AXError(code: result) {
+            axLogger?.e(error, "attributes()")
             throw error
         }
 
@@ -64,7 +65,9 @@ public extension AXUIElement {
         let attributes = try attributes()
         let values = try get(attributes)
         guard attributes.count == values.count else {
-            throw AXError.unexpectedValueCount(values)
+            let error = AXError.unexpectedValueCount(values)
+            axLogger?.e(error, "attributeValues()")
+            throw error
         }
         return Dictionary(zip(attributes, values), uniquingKeysWith: { _, b in b })
     }
@@ -73,6 +76,7 @@ public extension AXUIElement {
         var names: CFArray?
         let result = AXUIElementCopyParameterizedAttributeNames(self, &names)
         if let error = AXError(code: result) {
+            axLogger?.e(error, "parameterizedAttributes()")
             throw error
         }
 
@@ -83,46 +87,34 @@ public extension AXUIElement {
         var count = 0
         let code = AXUIElementGetAttributeValueCount(self, attribute.rawValue as CFString, &count)
         if let error = AXError(code: code) {
+            axLogger?.e(error, "count() of `\(attribute)`")
             throw error
         }
         return count
     }
 
     subscript<Value>(_ attribute: AXAttribute) -> Value? {
-        get {
-            try? get(attribute)
-        }
-        set(value) {
-            try? set(attribute, value: value)
-        }
+        get { try? get(attribute) }
+        set(value) { try? set(attribute, value: value) }
     }
 
     subscript<Value: RawRepresentable>(_ attribute: AXAttribute) -> Value? {
-        get {
-            do {
-                return try get(attribute)
-            } catch {
-                print(error) // FIXME:
-                return nil
-            }
-        }
-        set(value) {
-            do {
-                try set(attribute, value: value)
-            } catch {
-                print(error) // FIXME:
-            }
-        }
+        get { try? get(attribute) }
+        set(value) { try? set(attribute, value: value) }
     }
 
-    func get<Value>(_ attribute: AXAttribute) throws -> Value? {
+    func get<Value>(_ attribute: AXAttribute, logErrors: Bool = true) throws -> Value? {
         precondition(Thread.isMainThread)
         var value: AnyObject?
         let code = AXUIElementCopyAttributeValue(self, attribute.rawValue as CFString, &value)
         if let error = AXError(code: code) {
-            if case .noValue = error {
+            switch error {
+            case .attributeUnsupported, .noValue, .cannotComplete:
                 return nil
-            } else {
+            default:
+                if logErrors {
+                    axLogger?.e(error, "get(\(attribute))")
+                }
                 throw error
             }
         }
@@ -138,7 +130,9 @@ public extension AXUIElement {
         precondition(Thread.isMainThread)
         let values = try get([attribute1, attribute2])
         guard values.count == 2 else {
-            throw AXError.unexpectedValueCount(values)
+            let error = AXError.unexpectedValueCount(values)
+            axLogger?.e(error, "get(\(attribute1), \(attribute2))")
+            throw error
         }
         return (values[0] as? V1, values[1] as? V2)
     }
@@ -147,7 +141,9 @@ public extension AXUIElement {
         precondition(Thread.isMainThread)
         let values = try get([attribute1, attribute2, attribute3])
         guard values.count == 3 else {
-            throw AXError.unexpectedValueCount(values)
+            let error = AXError.unexpectedValueCount(values)
+            axLogger?.e(error, "get(\(attribute1), \(attribute2), \(attribute3))")
+            throw error
         }
         return (values[0] as? V1, values[1] as? V2, values[2] as? V3)
     }
@@ -158,9 +154,11 @@ public extension AXUIElement {
         var value: AnyObject?
         let code = AXUIElementCopyParameterizedAttributeValue(self, attribute.rawValue as CFString, param as AnyObject, &value)
         if let error = AXError(code: code) {
-            if case .noValue = error {
+            switch error {
+            case .attributeUnsupported, .parameterizedAttributeUnsupported, .noValue, .cannotComplete:
                 return nil
-            } else {
+            default:
+                axLogger?.e(error, "(parameterized) get(\(attribute))", ["parameter": String(reflecting: param)])
                 throw error
             }
         }
@@ -169,10 +167,11 @@ public extension AXUIElement {
 
     func get(_ attributes: [AXAttribute]) throws -> [Any] {
         precondition(Thread.isMainThread)
-        let attributes = attributes.map(\.rawValue) as CFArray
+        let cfAttributes = attributes.map(\.rawValue) as CFArray
         var values: CFArray?
-        let code = AXUIElementCopyMultipleAttributeValues(self, attributes, AXCopyMultipleAttributeOptions(), &values)
+        let code = AXUIElementCopyMultipleAttributeValues(self, cfAttributes, AXCopyMultipleAttributeOptions(), &values)
         if let error = AXError(code: code) {
+            axLogger?.e(error, "get(\(attributes))")
             throw error
         }
         return try (values! as [AnyObject]).map(unpack)
@@ -231,6 +230,7 @@ public extension AXUIElement {
         var settable: DarwinBoolean = false
         let code = AXUIElementIsAttributeSettable(self, attribute.rawValue as CFString, &settable)
         if let error = AXError(code: code) {
+            axLogger?.e(error, "isSettable(\(attribute))")
             throw error
         }
         return settable.boolValue
@@ -240,11 +240,14 @@ public extension AXUIElement {
         precondition(Thread.isMainThread)
 
         guard let value = pack(value) else {
-            throw AXError.packFailure(value)
+            let error = AXError.packFailure(value)
+            axLogger?.e(error, "set(\(attribute)): pack failure", ["value": String(reflecting: value)])
+            throw error
         }
 
         let result = AXUIElementSetAttributeValue(self, attribute.rawValue as CFString, value)
         if let error = AXError(code: result) {
+            axLogger?.e(error, "set(\(attribute))", ["value": String(reflecting: value)])
             throw error
         }
     }
@@ -279,6 +282,11 @@ public extension AXUIElement {
         do {
             return try AXNotificationObserver.shared(for: pid())
                 .publisher(for: notification, element: self)
+                .handleEvents(receiveCompletion: { completion in
+                    if case .failure(let error) = completion {
+                        axLogger?.e(error, "publisher(for: \(notification))")
+                    }
+                })
                 .eraseToAnyPublisher()
         } catch {
             return Fail<AXUIElement, Error>(error: error)
@@ -293,6 +301,7 @@ public extension AXUIElement {
         var pid: pid_t = -1
         let result = AXUIElementGetPid(self, &pid)
         if let error = AXError(code: result) {
+            axLogger?.e(error, "pid()")
             throw error
         }
         guard pid > 0 else {
