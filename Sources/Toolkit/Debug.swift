@@ -52,7 +52,9 @@ public enum Debug {
             info += "$ " + args.joined(separator: " ") + "\n"
 
             let (status, output) = Process.launchAndWait(args)
-            info += output?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            info += String(data: output, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                ?? ""
 
             if status != 0 {
                 info += "exit status: \(status)"

@@ -64,10 +64,6 @@ public struct Version: Equatable, Comparable, RawRepresentable {
         self.patch = patch
     }
 
-    public var description: String {
-        "\(major).\(minor).\(patch)"
-    }
-
     public static func < (lhs: Version, rhs: Version) -> Bool {
         if lhs.major != rhs.major {
             return lhs.major < rhs.major
@@ -80,6 +76,16 @@ public struct Version: Equatable, Comparable, RawRepresentable {
         }
         return false
     }
+}
+
+extension Version: ExpressibleByStringLiteral {
+    public init(stringLiteral value: StringLiteralType) {
+        self.init(rawValue: value)!
+    }
+}
+
+extension Version: CustomStringConvertible {
+    public var description: String { rawValue }
 }
 
 private func format(major: Int, minor: Int, patch: Int) -> String {

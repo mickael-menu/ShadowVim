@@ -18,7 +18,7 @@
 import Foundation
 
 public extension Process {
-    typealias Result = (status: Int, output: String?)
+    typealias Result = (status: Int, output: Data)
 
     static func launch(_ args: String...) -> Async<Result, Never> {
         Async { completion in
@@ -45,7 +45,7 @@ public extension Process {
 
         return (
             status: Int(task.terminationStatus),
-            output: String(data: data, encoding: .utf8)
+            output: data
         )
     }
 

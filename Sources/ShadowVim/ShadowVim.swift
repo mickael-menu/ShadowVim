@@ -55,6 +55,7 @@ class ShadowVim: ObservableObject {
     func didLaunch() {
         addToLoginItems()
         start()
+        try! NvimProcess.apiInfo(logger: logger)
     }
 
     private func addToLoginItems() {
@@ -89,10 +90,7 @@ class ShadowVim: ObservableObject {
         }
 
         do {
-            guard AX.isProcessTrusted(prompt: true) else {
-                throw UserError.a11yPermissionRequired
-            }
-
+            try checkRequirements()
             try eventTap.start()
 
             let mediator = mediatorFactory()
@@ -103,6 +101,22 @@ class ShadowVim: ObservableObject {
 
         } catch {
             presentAlert(error: error, style: .critical)
+        }
+    }
+
+    private func checkRequirements() throws {
+        guard AX.isProcessTrusted(prompt: true) else {
+            throw UserError.a11yPermissionRequired
+        }
+
+        try checkNvimVersion()
+    }
+
+    private func checkNvimVersion() throws {
+        let expectedVersion: Version = "0.8"
+        let currentVersion = try? NvimProcess.apiInfo(logger: logger).version
+        guard let currentVersion = currentVersion, expectedVersion <= currentVersion else {
+            throw UserError.nvimVersion(current: currentVersion, expected: expectedVersion)
         }
     }
 
@@ -249,6 +263,7 @@ enum UserError: LocalizedError {
     case a11yPermissionRequired
     case nvimNotExecutable
     case nvimNotFound
+    case nvimVersion(current: Version?, expected: Version)
     case nvimTerminated(status: Int)
 
     var errorDescription: String? {
@@ -259,6 +274,8 @@ enum UserError: LocalizedError {
             return "Neovim failed to execute"
         case .nvimNotFound:
             return "Neovim not found"
+        case .nvimVersion:
+            return "Please upgrade Neovim"
         case let .nvimTerminated(status: status):
             return "Nvim closed with status \(status)"
         }
@@ -270,6 +287,13 @@ enum UserError: LocalizedError {
             return "Verify the nvim binary file permissions."
         case .nvimNotFound:
             return "Verify it is installed on your computer at the expected location."
+        case let .nvimVersion(current: current, expected: expected):
+            var message = "ShadowVim requires Neovim \(expected)"
+            if let current = current {
+                message += ", but \(current) was found"
+            }
+            message += "."
+            return message
         case .nvimTerminated:
             return "Reset ShadowVim?"
         default:
@@ -279,7 +303,7 @@ enum UserError: LocalizedError {
 
     var critical: Bool {
         switch self {
-        case .a11yPermissionRequired, .nvimNotExecutable, .nvimNotFound, .nvimTerminated:
+        case .a11yPermissionRequired, .nvimNotExecutable, .nvimNotFound, .nvimVersion, .nvimTerminated:
             return true
         }
     }
