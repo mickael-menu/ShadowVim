@@ -17,18 +17,41 @@
 
 import Combine
 import Foundation
+import MessagePack
 import Toolkit
 
 public protocol NvimProcessDelegate: AnyObject {
     func nvimProcess(_ nvimProcess: NvimProcess, didTerminateWithStatus status: Int)
 }
 
+public enum NvimProcessError: Error {
+    case failedToReadAPIInfo
+}
+
 public final class NvimProcess {
+    /// Returns the API metadata for the available Nvim process.
+    ///
+    /// This is used to check the Nvim version.
+    public static func apiInfo(logger: Logger?) throws -> APIMetadata {
+        do {
+            let (status, output) = Process.launchAndWait("nvim", "--api-info")
+            guard
+                status == 0,
+                let rawMetadata = try MessagePack.unpackAll(output).first,
+                let metadata = APIMetadata(messagePackValue: rawMetadata)
+            else {
+                throw NvimProcessError.failedToReadAPIInfo
+            }
+
+            return metadata
+        } catch {
+            logger?.e(error)
+            throw NvimProcessError.failedToReadAPIInfo
+        }
+    }
+
     /// Starts a new Nvim process.
-    public static func start(
-        executableURL: URL = URL(fileURLWithPath: "/usr/bin/env"),
-        logger: Logger?
-    ) throws -> NvimProcess {
+    public static func start(logger: Logger?) throws -> NvimProcess {
         // Prevent crashes when reading/writing pipes in the `RPCSession` when
         // the nvim process is terminated.
         signal(SIGPIPE, SIG_IGN)
@@ -36,7 +59,7 @@ public final class NvimProcess {
         let input = Pipe()
         let output = Pipe()
         let process = Process()
-        process.executableURL = executableURL
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
 
         process.arguments = [
             "nvim",

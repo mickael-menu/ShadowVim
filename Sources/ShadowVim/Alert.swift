@@ -62,15 +62,17 @@ struct Alert {
 
     func showModal() {
         let response = alert().runModal()
-        switch response {
-        case .alertFirstButtonReturn:
-            buttons[0].action()
-        case .alertSecondButtonReturn:
-            buttons[0].action()
-        case .alertThirdButtonReturn:
-            buttons[0].action()
-        default:
-            return
+        DispatchQueue.main.async {
+            switch response {
+            case .alertFirstButtonReturn:
+                buttons[0].action()
+            case .alertSecondButtonReturn:
+                buttons[1].action()
+            case .alertThirdButtonReturn:
+                buttons[2].action()
+            default:
+                return
+            }
         }
     }
 

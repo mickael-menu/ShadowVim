@@ -2,7 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-<!--## [Unreleased]-->
+## [Unreleased]
+
+### Fixed
+
+* Fix **Quit** and **Reset** buttons in the error dialogs.
 
 ## [0.1]
 

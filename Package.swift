@@ -60,6 +60,12 @@ let package = Package(
             name: "Toolkit",
             dependencies: []
         ),
+        .testTarget(
+            name: "ToolkitTests",
+            dependencies: [
+                "Toolkit",
+            ]
+        ),
         .target(
             name: "NSLoggerAdapter",
             dependencies: [
