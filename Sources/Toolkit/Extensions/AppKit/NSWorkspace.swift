@@ -29,6 +29,15 @@ public extension NSWorkspace {
             .eraseToAnyPublisher()
     }
 
+    var didLaunchApplicationPublisher: AnyPublisher<NSRunningApplication, Never> {
+        notificationCenter
+            .publisher(for: NSWorkspace.didLaunchApplicationNotification)
+            .map { $0.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication }
+            .replaceError(with: nil)
+            .compactMap { $0 }
+            .eraseToAnyPublisher()
+    }
+
     var didTerminateApplicationPublisher: AnyPublisher<NSRunningApplication, Never> {
         notificationCenter
             .publisher(for: NSWorkspace.didTerminateApplicationNotification)

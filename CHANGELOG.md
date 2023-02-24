@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 * Fix **Quit** and **Reset** buttons in the error dialogs.
+* Fix synchronizing buffers with extra newlines at the end.
+* Fix activating ShadowVim when restarting Xcode.
+* Improve handling of some AX errors.
 
 ## [0.1]
 

@@ -17,6 +17,7 @@
 
 import ApplicationServices
 import Foundation
+import Toolkit
 
 /// Error codes returned by accessibility functions (`AXError.h`).
 public enum AXError: Error {
@@ -122,5 +123,11 @@ public enum AXError: Error {
         @unknown default:
             self = .unknown(code)
         }
+    }
+}
+
+extension AXError: LogValueConvertible {
+    public var logValue: LogValue {
+        .string(String(reflecting: self))
     }
 }

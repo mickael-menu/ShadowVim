@@ -47,21 +47,22 @@ public extension Logger {
         log(level: .error, file: file, line: line, function: function, message: message, payload: payload)
     }
 
-    func w(_ error: Error, _ message: String? = nil, file: String = #file, line: Int = #line, function: String = #function) {
-        log(error: error, level: .warning, file: file, line: line, message: message, function: function)
+    func w(_ error: Error, _ message: String? = nil, _ payload: @autoclosure @escaping () -> LogPayloadConvertible = [:], file: String = #file, line: Int = #line, function: String = #function) {
+        log(error: error, message: message, payload: payload, level: .warning, file: file, line: line, function: function)
     }
 
-    func e(_ error: Error, _ message: String? = nil, file: String = #file, line: Int = #line, function: String = #function) {
-        log(error: error, level: .error, file: file, line: line, message: message, function: function)
+    func e(_ error: Error, _ message: String? = nil, _ payload: @autoclosure @escaping () -> LogPayloadConvertible = [:], file: String = #file, line: Int = #line, function: String = #function) {
+        log(error: error, message: message, payload: payload, level: .error, file: file, line: line, function: function)
     }
 
-    private func log(error: Error, level: LogLevel, file: String, line: Int, message: String?, function: String) {
-        let message = message?.appending("\n") ?? "" + "Error: \(String(reflecting: error))"
+    private func log(error: Error, message: String?, payload: @escaping () -> LogPayloadConvertible, level: LogLevel, file: String, line: Int, function: String) {
+        let callStackSymbols = Thread.callStackSymbols
+        let message = (message?.appending("\n") ?? "") + "Error: \(String(reflecting: error))"
         log(level: level, file: file, line: line, function: function, message: message) {
-            var payload: [LogKey: any LogValueConvertible] = [
-                .message: "Error: \(String(reflecting: error))",
-                .callStack: Thread.callStackSymbols,
-            ]
+            var payload = payload().logPayload()
+            payload[.message] = "Error: \(String(reflecting: error))"
+            payload[.callStack] = callStackSymbols
+
             if let error = error as? LocalizedError {
                 if let desc = error.errorDescription {
                     payload["errorDescription"] = desc

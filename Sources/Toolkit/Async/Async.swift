@@ -453,12 +453,11 @@ public extension Async {
     }
 
     /// Logs and discards any error.
-    func logFailure() -> Async<Success, Never> {
+    func logFailure(with logger: Logger?, message: String? = nil) -> Async<Success, Never> {
         map(
             success: { val, compl in compl(.success(val)) },
             failure: { error, _ in
-                print("Unexpected failure: \(error)")
-                Debug.printCallStack()
+                logger?.e(error, message)
             }
         )
     }

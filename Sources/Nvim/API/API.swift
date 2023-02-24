@@ -378,6 +378,10 @@ public class API {
 
     @discardableResult
     public func request(_ method: String, with params: [ValueConvertible]) -> APIAsync<Value> {
+        guard !session.isClosed else {
+            return .failure(.rpcSessionClosed)
+        }
+
         logger?.t("Call Nvim API", [.method: method, .params: params.map(\.nvimValue)])
 
         let requestCallbacks: RPCRequestCallbacks = {
@@ -408,6 +412,8 @@ public enum APIError: Error {
     case unexpectedNotificationPayload(event: String, payload: [Value])
     // A low-level RPC failure occurred.
     case rpcFailure(RPCError)
+    // The RPC session is closed.
+    case rpcSessionClosed
 
     init(from error: RPCError) {
         switch error {

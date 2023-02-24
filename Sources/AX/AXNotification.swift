@@ -175,3 +175,7 @@ public struct AXNotification: Hashable, RawRepresentable {
     /// Notification to request an announcement to be spoken.
     public static let announcementRequested = AXNotification(rawValue: kAXAnnouncementRequestedNotification)
 }
+
+extension AXNotification: CustomStringConvertible {
+    public var description: String { rawValue }
+}
