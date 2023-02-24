@@ -283,7 +283,7 @@ public extension AXUIElement {
             return try AXNotificationObserver.shared(for: pid())
                 .publisher(for: notification, element: self)
                 .handleEvents(receiveCompletion: { completion in
-                    if case .failure(let error) = completion {
+                    if case let .failure(error) = completion {
                         axLogger?.e(error, "publisher(for: \(notification))")
                     }
                 })
@@ -297,11 +297,13 @@ public extension AXUIElement {
     // MARK: Metadata
 
     /// Returns the process ID associated with this accessibility object.
-    func pid() throws -> pid_t {
+    func pid(logErrors: Bool = true) throws -> pid_t {
         var pid: pid_t = -1
         let result = AXUIElementGetPid(self, &pid)
         if let error = AXError(code: result) {
-            axLogger?.e(error, "pid()")
+            if logErrors {
+                axLogger?.e(error, "pid()")
+            }
             throw error
         }
         guard pid > 0 else {
@@ -327,7 +329,7 @@ public extension AXUIElement {
     }
 
     func children() -> [AXUIElement] {
-        (try? get(.children)) ?? []
+        (try? get(.children, logErrors: false)) ?? []
     }
 
     func document() -> String? {
@@ -357,9 +359,9 @@ extension AXUIElement: LogPayloadConvertible {
     public func logPayload() -> [LogKey: any LogValueConvertible] {
         [
             "hash": hashValue,
-            "pid": (try? Int(pid())) ?? 0,
-            "role": (try? get(.role) as String?) ?? "",
-            "description": (try? get(.description) as String?) ?? "",
+            "pid": (try? Int(pid(logErrors: false))) ?? 0,
+            "role": (try? get(.role, logErrors: false) as String?) ?? "",
+            "description": (try? get(.description, logErrors: false) as String?) ?? "",
         ]
     }
 }

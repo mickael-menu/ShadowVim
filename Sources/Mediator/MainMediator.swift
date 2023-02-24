@@ -53,7 +53,7 @@ public final class MainMediator {
     public func start() throws {
         precondition(Thread.isMainThread)
 
-        if let app = NSWorkspace.shared.frontmostApplication {
+        if let app = NSWorkspace.shared.frontmostApplication, app.isFinishedLaunching {
             do {
                 _ = try mediator(of: app)
             } catch {
@@ -62,15 +62,18 @@ public final class MainMediator {
         }
 
         NSWorkspace.shared
+            .didLaunchApplicationPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                self?.didActivateApp($0)
+            }
+            .store(in: &subscriptions)
+
+        NSWorkspace.shared
             .didActivateApplicationPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in
-                guard let self else { return }
-                do {
-                    _ = try self.mediator(of: $0)
-                } catch {
-                    self.delegate?.mainMediator(self, didFailWithError: error)
-                }
+                self?.didActivateApp($0)
             }
             .store(in: &subscriptions)
 
@@ -116,10 +119,19 @@ public final class MainMediator {
         }
     }
 
+    private func didActivateApp(_ app: NSRunningApplication) {
+        do {
+            _ = try mediator(of: app)
+        } catch {
+            delegate?.mainMediator(self, didFailWithError: error)
+        }
+    }
+
     private func mediator(of app: NSRunningApplication) throws -> AppMediator? {
         precondition(Thread.isMainThread)
 
         guard
+            app.isFinishedLaunching,
             let id = app.bundleIdentifier,
             bundleIDs.contains(id)
         else {

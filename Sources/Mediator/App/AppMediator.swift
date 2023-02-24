@@ -98,6 +98,8 @@ public final class AppMediator {
         enableKeysPassthrough: @escaping () -> Void,
         resetShadowVim: @escaping () -> Void
     ) {
+        precondition(app.isFinishedLaunching)
+
         self.app = app
         appElement = AXUIElement.app(app)
         self.nvim = nvim
