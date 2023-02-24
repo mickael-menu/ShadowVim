@@ -71,7 +71,7 @@ final class RPCSession {
     private var receiveTask: Task<Void, Never>?
 
     weak var delegate: RPCSessionDelegate?
-    @Atomic private var isClosed: Bool = false
+    @Atomic private(set) var isClosed: Bool = false
 
     init(
         logger: Logger?,

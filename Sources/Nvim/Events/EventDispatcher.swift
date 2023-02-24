@@ -169,7 +169,7 @@ private class EventMediator {
             if $0.isEmpty {
                 api.subscribe(to: event)
                     .flatMap(onSetup)
-                    .logFailure()
+                    .logFailure(with: logger, message: "subscribe(\(event))")
                     .run()
             }
 
@@ -185,7 +185,7 @@ private class EventMediator {
             if $0.isEmpty {
                 api.unsubscribe(from: event)
                     .flatMap(onTeardown)
-                    .logFailure()
+                    .logFailure(with: logger, message: "unsubscribe(\(event))")
                     .run()
             }
         }
