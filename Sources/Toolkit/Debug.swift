@@ -63,14 +63,28 @@ public enum Debug {
             info += "\n\n"
         }
 
+        func defaults(_ key: String) {
+            run("defaults", "read", "-app", "Xcode", key)
+        }
+
         // macOS version
         run("sw_vers", "-productVersion")
         // Platform
         run("uname", "-m")
-        // Xcode version
-        run("xcodebuild", "-version")
+        // Neovim path
+        run("whereis", "nvim")
         // Neovim version
         run("nvim", "--version")
+        // Xcode version
+        run("xcodebuild", "-version")
+        // Xcode settings
+        defaults("KeyBindingsMode")
+        defaults("DVTTextAutoCloseBlockComment")
+        defaults("DVTTextAutoInsertCloseBrace")
+        defaults("DVTTextEditorTrimTrailingWhitespace")
+        defaults("DVTTextEnableTypeOverCompletions")
+        defaults("DVTTextIndentCaseInC")
+        defaults("DVTTextUsesSyntaxAwareIndenting")
 
         return info
     }
