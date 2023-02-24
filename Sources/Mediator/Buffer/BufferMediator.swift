@@ -238,7 +238,7 @@ public final class BufferMediator {
         if !diff.isEmpty {
             for change in diff {
                 let eof = (try uiElement.get(.numberOfCharacters) as Int?) ?? 0
-                
+
                 switch change {
                 case .insert(offset: let offset, element: var element, _):
                     guard let range: CFRange = try uiElement.get(.rangeForLine, with: offset) else {
