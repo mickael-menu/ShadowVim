@@ -237,19 +237,32 @@ public final class BufferMediator {
 
         if !diff.isEmpty {
             for change in diff {
+                let eof = (try uiElement.get(.numberOfCharacters) as Int?) ?? 0
+                
                 switch change {
-                case let .insert(offset: offset, element: element, _):
+                case .insert(offset: let offset, element: var element, _):
                     guard let range: CFRange = try uiElement.get(.rangeForLine, with: offset) else {
                         logger?.w("Failed to insert line at \(offset)")
                         return
                     }
+                    // If the line is not inserted at the end of the file, then
+                    // we append a newline to separate it from the next line.
+                    if range.location + range.length < eof {
+                        element += "\n"
+                    }
                     try uiElement.set(.selectedTextRange, value: CFRange(location: range.location, length: 0))
-                    try uiElement.set(.selectedText, value: element + "\n")
+                    try uiElement.set(.selectedText, value: element)
 
                 case let .remove(offset: offset, _, _):
-                    guard let range: CFRange = try uiElement.get(.rangeForLine, with: offset) else {
+                    guard var range: CFRange = try uiElement.get(.rangeForLine, with: offset) else {
                         logger?.w("Failed to remove line at \(offset)")
                         return
+                    }
+                    // If we're removing the last line, then the previous
+                    // newline is also removed to avoid keeping an empty
+                    // ghost line.
+                    if range.location + range.length == eof, range.location > 0 {
+                        range = CFRange(location: range.location - 1, length: range.length + 1)
                     }
                     try uiElement.set(.selectedTextRange, value: range)
                     try uiElement.set(.selectedText, value: "")

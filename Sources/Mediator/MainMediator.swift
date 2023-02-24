@@ -132,6 +132,7 @@ public final class MainMediator {
 
         guard
             app.isFinishedLaunching,
+//            app.bundleURL?.path.contains("Xcode-beta") == true,
             let id = app.bundleIdentifier,
             bundleIDs.contains(id)
         else {
