@@ -60,6 +60,47 @@ public class API {
         .checkedUnpacking { $0.stringValue }
     }
 
+    /// Calls a VimL function with the given arguments.
+    /// https://neovim.io/doc/user/api.html#nvim_call_function()
+    public func callFunction<UnpackedValue>(
+        _ fn: String,
+        with args: ValueConvertible...,
+        unpack: @escaping (Value) -> UnpackedValue? = { $0 }
+    ) -> Async<UnpackedValue, NvimError> {
+        callFunction(fn, args: args, unpack: unpack)
+    }
+
+    /// Calls a VimL function with the given arguments.
+    /// https://neovim.io/doc/user/api.html#nvim_call_function()
+    public func callFunction<UnpackedValue>(
+        _ fn: String,
+        args: [ValueConvertible],
+        unpack: @escaping (Value) -> UnpackedValue? = { $0 }
+    ) -> Async<UnpackedValue, NvimError> {
+        request("nvim_call_function", with: [fn, args.map(\.nvimValue)])
+            .flatMap { payload in
+                guard let value = unpack(payload) else {
+                    return .failure(.unexpectedResult(payload: payload))
+                }
+                return .success(value)
+            }
+    }
+
+    /// Evaluates a VimL expression.
+    /// https://neovim.io/doc/user/api.html#nvim_eval()
+    public func eval<UnpackedValue>(
+        _ expr: String,
+        unpack: @escaping (Value) -> UnpackedValue? = { $0 }
+    ) -> Async<UnpackedValue, NvimError> {
+        request("nvim_eval", with: expr)
+            .flatMap { payload in
+                guard let value = unpack(payload) else {
+                    return .failure(.unexpectedResult(payload: payload))
+                }
+                return .success(value)
+            }
+    }
+
     public func getCurrentBuf() -> Async<BufferHandle, NvimError> {
         request("nvim_get_current_buf")
             .checkedUnpacking { $0.bufferValue }

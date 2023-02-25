@@ -81,14 +81,14 @@ public final class NvimBuffer {
 
 extension Vim {
     func transaction<Result>(in buffer: NvimBuffer, block: @escaping (Vim) -> Async<Result, NvimError>) -> Async<Result, NvimError> {
-        transaction { vim in
+        atomic { vim in
             buffer.activate(with: vim)
                 .flatMap { block(vim) }
         }
     }
 
     func transaction<Result>(in buffer: NvimBuffer, block: @escaping (Vim) throws -> Async<Result, Error>) -> Async<Result, Error> {
-        transaction { vim in
+        atomic { vim in
             buffer.activate(with: vim)
                 .tryFlatMap { try block(vim) }
         }

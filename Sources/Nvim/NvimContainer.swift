@@ -62,21 +62,24 @@ public final class NvimContainer {
     }
 
     private func vim(session: RPCSession, lock: AsyncLock?) -> Vim {
-        Vim(
-            api: API(
-                logger: logger?.domain("api"),
-                sendRequest: { request in
-                    session.request(
-                        request,
-                        callbacks: lock.map {
-                            RPCRequestCallbacks(
-                                prepare: $0.acquire,
-                                onSent: $0.release
-                            )
-                        } ?? .none
-                    )
-                }
-            ),
+        let api = API(
+            logger: logger?.domain("api"),
+            sendRequest: { request in
+                session.request(
+                    request,
+                    callbacks: lock.map {
+                        RPCRequestCallbacks(
+                            prepare: $0.acquire,
+                            onSent: $0.release
+                        )
+                    } ?? .none
+                )
+            }
+        )
+
+        return Vim(
+            api: api,
+            fn: BuiltinFunctions(api: api),
             logger: logger,
             startTransaction: { [self] in
                 let child = vim(session: session, lock: nil)

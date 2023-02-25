@@ -35,6 +35,8 @@ public enum NvimError: Error {
 
     // Nvim sent a notification with an unexpected payload.
     case unexpectedNotificationPayload(event: String, payload: [Value])
+    // Nvim sent an unexpected result payload.
+    case unexpectedResult(payload: Value)
 
     case failedToReadAPIInfo
 }

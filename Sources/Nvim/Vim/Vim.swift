@@ -21,10 +21,16 @@ import Foundation
 import Toolkit
 
 /// Entry-point to the Neovim APIs.
+///
+/// It is highly inspired by the Lua APIs described in https://neovim.io/doc/user/lua-guide.html
 public final class Vim {
     /// The "Neovim API" written in C for use in remote plugins and GUIs.
     /// See https://neovim.io/doc/user/api.html
     public let api: API
+
+    /// Vim builtin-functions.
+    /// See https://neovim.io/doc/user/builtin.html
+    public let fn: BuiltinFunctions
 
     private let logger: Logger?
     private let startTransaction: () -> Async<Vim, Never>
@@ -32,11 +38,13 @@ public final class Vim {
 
     init(
         api: API,
+        fn: BuiltinFunctions,
         logger: Logger?,
         startTransaction: @escaping () -> Async<Vim, Never>,
         endTransaction: @escaping () -> Void
     ) {
         self.api = api
+        self.fn = fn
         self.logger = logger
         self.startTransaction = startTransaction
         self.endTransaction = endTransaction
@@ -46,7 +54,7 @@ public final class Vim {
     ///
     /// You must return an `Async` object completed when the transaction is
     /// done.
-    public func transaction<Value, Failure>(
+    public func atomic<Value, Failure>(
         _ block: @escaping (Vim) -> Async<Value, Failure>
     ) -> Async<Value, Failure> {
         startTransaction()

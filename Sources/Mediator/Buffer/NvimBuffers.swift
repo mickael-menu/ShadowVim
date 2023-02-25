@@ -59,7 +59,7 @@ public final class NvimBuffers {
         var buffer: NvimBuffer!
         let lines = contents.lines.map { String($0) }
 
-        return vim.transaction { vim in
+        return vim.atomic { vim in
             vim.editNoWrite(name: name)
                 .flatMap { [self] handle in
                     precondition(Thread.isMainThread)
@@ -114,7 +114,7 @@ extension NvimBuffers: BufferDelegate {
 
 private extension Vim {
     func editNoWrite(name: String) -> Async<BufferHandle, NvimError> {
-        transaction { vim in
+        atomic { vim in
             vim.api.exec(
                 """
                 edit \(name)
