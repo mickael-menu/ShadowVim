@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+* Xcode's settings are automatically updated to prevent conflicts when running ShadowVim.
+    * The user is prompted with a bunch of terminal commands reverting the changes.
+
 ### Fixed
 
 * Fix **Quit** and **Reset** buttons in the error dialogs.
