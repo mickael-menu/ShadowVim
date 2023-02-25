@@ -20,6 +20,7 @@ import MessagePack
 import Toolkit
 
 public enum RPCError: Error {
+    case sessionClosed
     case unexpectedMessage(Value)
     case unexpectedMessagePackValue(MessagePackValue)
     case unknownRequestId(UInt64)
@@ -29,6 +30,7 @@ public enum RPCError: Error {
     case noHandlerForRequest(method: String)
 }
 
+public typealias RPCRequest = (method: String, params: [ValueConvertible])
 public typealias RPCMessageID = UInt64
 
 enum RPCType: Int {
@@ -50,9 +52,10 @@ protocol RPCSessionDelegate: AnyObject {
 }
 
 struct RPCRequestCallbacks {
+    static let none = RPCRequestCallbacks()
+
     var prepare: () -> Async<Void, Never> = { .success(()) }
     var onSent: () -> Void = {}
-    var onAnswered: () -> Void = {}
 }
 
 /// Represents a MessagePack-RPC on-going session.
@@ -148,6 +151,10 @@ final class RPCSession {
     }
 
     func respond(to requestID: RPCMessageID, with result: Result<Value, Error>) -> Result<Void, RPCError> {
+        guard !isClosed else {
+            return .failure(.sessionClosed)
+        }
+
         let response = MessagePackValue([
             RPCType.response.value, // message type
             .uint(requestID), // request ID
@@ -253,25 +260,34 @@ final class RPCSession {
     /// Note: This is not an async method, because we need to guarantee that
     /// every request is sent in order.
     func request(
-        method: String,
-        params: [ValueConvertible],
+        _ request: RPCRequest,
         callbacks: RPCRequestCallbacks
     ) -> Async<Value, RPCError> {
-        callbacks.prepare().setFailureType(to: RPCError.self)
+        callbacks.prepare()
+            .setFailureType(to: RPCError.self)
             .asyncMap(on: sendQueue) { [self] _, completion in
+                guard !isClosed else {
+                    completion(.failure(.sessionClosed))
+                    return
+                }
+
                 let id = nextMessageId
                 nextMessageId += 1
                 requests[id] = completion
 
-                let request = MessagePackValue([
+                let message = MessagePackValue([
                     RPCType.request.value, // message type
                     .uint(id), // request ID
-                    .string(method), // method name
-                    .array(params.map(\.nvimValue.messagePackValue)), // method arguments.
+                    .string(request.method), // method name
+                    .array(request.params.map(\.nvimValue.messagePackValue)), // method arguments.
                 ])
-                let data = MessagePack.pack(request)
+                let data = MessagePack.pack(message)
 
-                logger?.t("Send request", [.messageId: id, .method: method, .params: params.map(\.nvimValue)])
+                logger?.t("Send request", [
+                    .messageId: id,
+                    .method: request.method,
+                    .params: request.params.map(\.nvimValue),
+                ])
                 do {
                     try send(data)
                 } catch {
@@ -280,7 +296,6 @@ final class RPCSession {
 
                 callbacks.onSent()
             }
-            .onCompletion { _ in callbacks.onAnswered() }
     }
 
     func endRequest(id: RPCMessageID, with result: Result<Value, RPCError>) {

@@ -19,9 +19,9 @@ import Combine
 import Foundation
 import Toolkit
 
-public extension EventDispatcher {
+public extension Nvim {
     /// Subscribes a new handler for the `nvim_buf_lines_event` event of the given `buffer`.
-    func bufLinesPublisher() -> AnyPublisher<BufLinesEvent, APIError> {
+    func bufLinesPublisher() -> AnyPublisher<BufLinesEvent, NvimError> {
         publisher(
             for: "nvim_buf_lines_event",
             unpack: { BufLinesEvent(params: $0) }

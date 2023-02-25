@@ -30,14 +30,14 @@ public final class NvimBuffers {
     private var subscriptions: Set<AnyCancellable> = []
     private let logger: Logger?
 
-    public init(events: EventDispatcher, logger: Logger?) {
+    public init(nvim: Nvim, logger: Logger?) {
         self.logger = logger
 
-        bufLinesPublisher = events.bufLinesPublisher()
+        bufLinesPublisher = nvim.bufLinesPublisher()
             .breakpointOnError()
             .ignoreFailure()
 
-        events.autoCmdPublisher(for: "BufEnter", args: "expand('<abuf>')")
+        nvim.autoCmdPublisher(for: "BufEnter", args: "expand('<abuf>')")
             .assertNoFailure()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] data in
@@ -46,34 +46,34 @@ public final class NvimBuffers {
             .store(in: &subscriptions)
     }
 
-    func edit(name: String, contents: @autoclosure () -> String, with api: API) -> APIAsync<NvimBuffer> {
+    func edit(name: String, contents: @autoclosure () -> String, with vim: Vim) -> Async<NvimBuffer, NvimError> {
         if let (_, buffer) = buffers.first(where: { $0.value.name == name }) {
-            return activate(buffer: buffer.handle, with: api)
+            return activate(buffer: buffer.handle, with: vim)
                 .map { _ in buffer }
         } else {
-            return create(name: name, contents: contents(), with: api)
+            return create(name: name, contents: contents(), with: vim)
         }
     }
 
-    private func create(name: String, contents: String, with api: API) -> APIAsync<NvimBuffer> {
+    private func create(name: String, contents: String, with vim: Vim) -> Async<NvimBuffer, NvimError> {
         var buffer: NvimBuffer!
         let lines = contents.lines.map { String($0) }
 
-        return api.transaction { api in
-            api.editNoWrite(name: name)
+        return vim.transaction { vim in
+            vim.editNoWrite(name: name)
                 .flatMap { [self] handle in
                     precondition(Thread.isMainThread)
                     buffer = makeBuffer(handle: handle, name: name)
                     // Reset the content, in case it's different from the file.
-                    return api.bufSetLines(buffer: handle, start: 0, end: -1, replacement: lines)
+                    return vim.api.bufSetLines(buffer: handle, start: 0, end: -1, replacement: lines)
                 }
                 .flatMap {
-                    api.bufAttach(buffer: buffer.handle, sendBuffer: true)
+                    vim.api.bufAttach(buffer: buffer.handle, sendBuffer: true)
                 }
                 .flatMap { _ in
                     // Clear the undo history, to prevent going back to an
                     // empty buffer.
-                    api.clearUndoHistory()
+                    vim.clearUndoHistory()
                 }
                 .map { _ in buffer }
         }
@@ -95,27 +95,27 @@ public final class NvimBuffers {
         return buffer
     }
 
-    private func activate(buffer: BufferHandle, with api: API) -> APIAsync<Void> {
+    private func activate(buffer: BufferHandle, with vim: Vim) -> Async<Void, NvimError> {
         guard editedBuffer != buffer else {
             return .success(())
         }
 
-        return api.cmd("buffer", args: .int(buffer))
+        return vim.api.cmd("buffer", args: .int(buffer))
             .discardResult()
             .onSuccess { self.editedBuffer = buffer }
     }
 }
 
 extension NvimBuffers: BufferDelegate {
-    func buffer(_ buffer: NvimBuffer, activateWith api: API) -> APIAsync<Void> {
-        activate(buffer: buffer.handle, with: api)
+    func buffer(_ buffer: NvimBuffer, activateWith vim: Vim) -> Async<Void, NvimError> {
+        activate(buffer: buffer.handle, with: vim)
     }
 }
 
-private extension API {
-    func editNoWrite(name: String) -> APIAsync<BufferHandle> {
-        transaction { api in
-            api.exec(
+private extension Vim {
+    func editNoWrite(name: String) -> Async<BufferHandle, NvimError> {
+        transaction { vim in
+            vim.api.exec(
                 """
                 edit \(name)
 
@@ -124,14 +124,14 @@ private extension API {
                 set noswapfile
                 """
             )
-            .flatMap { _ in api.getCurrentBuf() }
+            .flatMap { _ in vim.api.getCurrentBuf() }
         }
     }
 
-    func clearUndoHistory() -> APIAsync<Void> {
+    func clearUndoHistory() -> Async<Void, NvimError> {
         // This snippet is from the Vim help.
         // :help undo-remarks
-        exec(
+        api.exec(
             """
             let old_undolevels = &undolevels
             set undolevels=-1

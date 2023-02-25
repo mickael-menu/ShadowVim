@@ -21,7 +21,8 @@ import Toolkit
 
 public typealias Event = String
 
-/// Receives Neovim RPC events and dispatch them to observers using publishers.
+/// Receives Neovim RPC notifactions and dispatch them to observers using
+/// publishers.
 public class EventDispatcher {
     private let api: API
     private let logger: Logger?
@@ -37,7 +38,7 @@ public class EventDispatcher {
         mediators[event]?.receive(with: data)
     }
 
-    public func publisher(for event: String) -> AnyPublisher<[Value], APIError> {
+    public func publisher(for event: String) -> AnyPublisher<[Value], NvimError> {
         let mediator = $mediators.write {
             $0.getOrPut(event) {
                 EventMediator(event: event, api: api, logger: logger)
@@ -51,9 +52,9 @@ public class EventDispatcher {
     public func publisher<UnpackedValue>(
         for event: String,
         unpack: @escaping ([Value]) -> UnpackedValue?
-    ) -> AnyPublisher<UnpackedValue, APIError> {
+    ) -> AnyPublisher<UnpackedValue, NvimError> {
         publisher(for: event)
-            .flatMap { data -> AnyPublisher<UnpackedValue, APIError> in
+            .flatMap { data -> AnyPublisher<UnpackedValue, NvimError> in
                 guard let payload = unpack(data) else {
                     return .fail(.unexpectedNotificationPayload(event: event, payload: data))
                 }
@@ -62,36 +63,10 @@ public class EventDispatcher {
             .eraseToAnyPublisher()
     }
 
-    //    try await nvim.command("autocmd CursorMoved * call rpcnotify(0, 'moved')")
-    //    try await nvim.command("autocmd ModeChanged * call rpcnotify(0, 'mode', mode())")
-    //    try await nvim.command("autocmd CmdlineChanged * call rpcnotify(0, 'cmdline', getcmdline())")
     public func autoCmdPublisher(
-        for events: String...,
-        args: String...
-    ) -> AnyPublisher<[Value], APIError> {
-        autoCmdPublisher(for: events, args: args)
-    }
-
-    public func autoCmdPublisher<UnpackedValue>(
-        for events: String...,
-        args: String...,
-        unpack: @escaping ([Value]) -> UnpackedValue?
-    ) -> AnyPublisher<UnpackedValue, APIError> {
-        autoCmdPublisher(for: events, args: args)
-            .flatMap { data -> AnyPublisher<UnpackedValue, APIError> in
-                guard let payload = unpack(data) else {
-                    let event = events.joined(separator: ", ")
-                    return .fail(.unexpectedNotificationPayload(event: event, payload: data))
-                }
-                return .just(payload)
-            }
-            .eraseToAnyPublisher()
-    }
-
-    private func autoCmdPublisher(
         for events: [String],
         args: [String]
-    ) -> AnyPublisher<[Value], APIError> {
+    ) -> AnyPublisher<[Value], NvimError> {
         let eventName = "autocmd-\(UUID().uuidString)"
 
         var autocmdID: AutocmdID?
@@ -133,6 +108,22 @@ public class EventDispatcher {
         return EventPublisher(event: eventName, mediator: mediator)
             .eraseToAnyPublisher()
     }
+
+    public func autoCmdPublisher<UnpackedValue>(
+        for events: [String],
+        args: [String],
+        unpack: @escaping ([Value]) -> UnpackedValue?
+    ) -> AnyPublisher<UnpackedValue, NvimError> {
+        autoCmdPublisher(for: events, args: args)
+            .flatMap { data -> AnyPublisher<UnpackedValue, NvimError> in
+                guard let payload = unpack(data) else {
+                    let event = events.joined(separator: ", ")
+                    return .fail(.unexpectedNotificationPayload(event: event, payload: data))
+                }
+                return .just(payload)
+            }
+            .eraseToAnyPublisher()
+    }
 }
 
 /// Manages a set of `EventReceiver` for the given `event`.
@@ -144,16 +135,16 @@ private class EventMediator {
 
     private let api: API
     private let logger: Logger?
-    private let onSetup: () -> APIAsync<Void>
-    private let onTeardown: () -> APIAsync<Void>
+    private let onSetup: () -> Async<Void, NvimError>
+    private let onTeardown: () -> Async<Void, NvimError>
     @Atomic private var receivers: [any EventReceiver] = []
 
     init(
         event: Event,
         api: API,
         logger: Logger?,
-        onSetup: @escaping () -> APIAsync<Void> = { .success(()) },
-        onTeardown: @escaping () -> APIAsync<Void> = { .success(()) }
+        onSetup: @escaping () -> Async<Void, NvimError> = { .success(()) },
+        onTeardown: @escaping () -> Async<Void, NvimError> = { .success(()) }
     ) {
         self.event = event
         self.logger = logger
@@ -210,7 +201,7 @@ private protocol EventReceiver: AnyObject {
 /// Combine publisher to observe Neovim events.
 private struct EventPublisher: Publisher {
     public typealias Output = [Value]
-    public typealias Failure = APIError
+    public typealias Failure = NvimError
 
     private let event: Event
     private let mediator: EventMediator
@@ -223,14 +214,14 @@ private struct EventPublisher: Publisher {
 
     public func receive<S>(
         subscriber: S
-    ) where S: Subscriber, S.Input == [Value], S.Failure == APIError {
+    ) where S: Subscriber, S.Input == [Value], S.Failure == NvimError {
         let subscription = Subscription(event: event, mediator: mediator, subscriber: subscriber)
         subscriber.receive(subscription: subscription)
     }
 
     private class Subscription<S: Subscriber>:
         EventReceiver,
-        Combine.Subscription where S.Input == [Value], S.Failure == APIError
+        Combine.Subscription where S.Input == [Value], S.Failure == NvimError
     {
         let event: Event
         private let mediator: EventMediator

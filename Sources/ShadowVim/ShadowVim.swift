@@ -55,7 +55,6 @@ class ShadowVim: ObservableObject {
     func didLaunch() {
         addToLoginItems()
         start()
-        try! NvimProcess.apiInfo(logger: logger)
     }
 
     private func addToLoginItems() {
@@ -114,7 +113,7 @@ class ShadowVim: ObservableObject {
 
     private func checkNvimVersion() throws {
         let expectedVersion: Version = "0.8"
-        let currentVersion = try? NvimProcess.apiInfo(logger: logger).version
+        let currentVersion = try? Nvim.apiInfo(logger: logger).version
         guard let currentVersion = currentVersion, expectedVersion <= currentVersion else {
             throw UserError.nvimVersion(current: currentVersion, expected: expectedVersion)
         }
@@ -310,7 +309,7 @@ enum UserError: LocalizedError {
 
     init?(error: Error) {
         switch error {
-        case let NvimError.processStopped(status: status):
+        case let NvimError.terminated(status: status):
             // man env
             // > The env utility exits 0 on success, and >0 if an error occurs.
             // > An exit status of 126 indicates that utility was found, but
