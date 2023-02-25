@@ -2,7 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+<!-- ## [Unreleased] -->
+
+## [0.1.1]
 
 ### Added
 
@@ -25,5 +27,5 @@ All notable changes to this project will be documented in this file.
 * Neovim user commands to trigger UI keyboard shortcuts.
 
 [unreleased]: https://github.com/mickael-menu/ShadowVim/compare/main...HEAD
-[0.2]: https://github.com/mickael-menu/ShadowVim/compare/0.1.0...0.2.0
+[0.1.1]: https://github.com/mickael-menu/ShadowVim/compare/0.1.0...0.1.1
 [0.1]: https://github.com/mickael-menu/ShadowVim/tree/0.1.0
