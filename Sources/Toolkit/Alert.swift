@@ -18,27 +18,27 @@
 import AppKit
 import Foundation
 
-struct Alert {
-    enum Style {
+public struct Alert {
+    public enum Style {
         case info
         case warning
     }
 
-    enum Accessory {
-        case code(String)
+    public enum Accessory {
+        case code(String, width: Int)
     }
 
-    var style: Style
-    var title: String
-    var message: String?
+    public var style: Style
+    public var title: String
+    public var message: String?
 
-    init(style: Style, title: String, message: String? = nil) {
+    public init(style: Style, title: String, message: String? = nil) {
         self.style = style
         self.title = title
         self.message = message
     }
 
-    init(error: Error) {
+    public init(error: Error) {
         style = .warning
 
         if let error = error as? LocalizedError {
@@ -46,21 +46,21 @@ struct Alert {
             message = error.failureReason ?? ""
         } else {
             title = "An error occurred"
-            accessory = .code(String(reflecting: error))
+            accessory = .code(String(reflecting: error), width: 350)
         }
     }
 
-    var accessory: Accessory?
+    public var accessory: Accessory?
 
     private typealias Button = (title: String, action: () -> Void)
     private var buttons: [Button] = []
 
-    mutating func addButton(_ title: String, action: @escaping () -> Void) {
+    public mutating func addButton(_ title: String, action: @escaping () -> Void) {
         precondition(buttons.count < 3)
         buttons.append((title: title, action: action))
     }
 
-    func showModal() {
+    public func showModal() {
         let response = alert().runModal()
         DispatchQueue.main.async {
             switch response {
@@ -89,8 +89,8 @@ struct Alert {
         alert.informativeText = message ?? ""
 
         switch accessory {
-        case let .code(code):
-            let codeView = NSTextView(frame: .init(origin: .zero, size: .init(width: 350, height: 0)))
+        case let .code(code, width: width):
+            let codeView = NSTextView(frame: .init(origin: .zero, size: .init(width: width, height: 0)))
             codeView.string = code
             codeView.font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
             codeView.sizeToFit()
