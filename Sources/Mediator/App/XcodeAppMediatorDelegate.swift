@@ -67,9 +67,9 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
             let commands = currentSettings.commands()
             var alert = Alert(style: .info, title: "Updated Xcode settings")
             alert.message = """
-                Your Xcode settings were changed to prevent conflicts with ShadowVim.
-                If you want to restore them after closing ShadowVim, run the following commands in the terminal.
-                """
+            Your Xcode settings were changed to prevent conflicts with ShadowVim.
+            If you want to restore them after closing ShadowVim, run the following commands in the terminal.
+            """
             alert.accessory = .code(commands, width: 620)
             alert.addButton("Copy and Close") {
                 NSPasteboard.set(commands)
@@ -235,7 +235,6 @@ private struct XcodeSettings: Equatable {
 }
 
 private extension UserDefaults {
-
     enum Keys {
         static let keyBindingsMode = "KeyBindingsMode"
         static let textAutoCloseBlockComment = "DVTTextAutoCloseBlockComment"
