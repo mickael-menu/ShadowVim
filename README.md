@@ -39,29 +39,6 @@ ShadowVim uses macOS's Accessibility API to keep Xcode and Neovim synchronized. 
 
 ## Setup
 
-### Xcode settings
-
-The synchronization works best if you disable Xcode's auto-indentation and a couple of other settings. This can be done from the command line:
-
-```sh
-# First, create a backup of your current Xcode settings
-defaults export -app Xcode ~/Downloads/Xcode.plist
-
-# Then disable these settings.
-defaults write -app Xcode DVTTextAutoCloseBlockComment -bool NO
-defaults write -app Xcode DVTTextAutoInsertCloseBrace -bool NO
-defaults write -app Xcode DVTTextEditorTrimTrailingWhitespace -bool NO
-defaults write -app Xcode DVTTextEnableTypeOverCompletions -bool NO
-defaults write -app Xcode DVTTextIndentCaseInC -bool NO
-defaults write -app Xcode DVTTextUsesSyntaxAwareIndenting -bool NO
-```
-
-If you decide to remove ShadowVim, you can restore your previous settings with:
-
-```sh
-defaults import -app Xcode ~/Downloads/Xcode.plist
-```
-
 ### Neovim configuration
 
 :point_up: The default Neovim indent files for Swift are not great. For a better alternative, install [`keith/swift.vim`](https://github.com/keith/swift.vim) with your Neovim package manager.
