@@ -116,12 +116,11 @@ struct UISelection: Equatable {
 
         let start = startLineRange.location + start.column
         let end = endLineRange.location + end.column
-        let max = max(start, end)
-        let min = min(start, end)
+        assert(start <= end)
 
         return CFRange(
-            location: min,
-            length: max - min
+            location: start,
+            length: end - start
         )
     }
 }
