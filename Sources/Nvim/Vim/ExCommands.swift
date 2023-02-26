@@ -46,6 +46,39 @@ public final class ExCommands {
         return api.exec(args.joinedLines(), output: false)
             .discardResult()
     }
+
+    /// Defines a user command.
+    ///
+    /// https://neovim.io/doc/user/map.html#%3Acommand
+    public func command(
+        cmd: String,
+        bang: Bool = false,
+        args: ArgsCardinality = .none,
+        repl: String
+    ) -> Async<Void, NvimError> {
+        api.cmd("command", opts: CmdOptions(
+            bang: bang,
+            args: ["-nargs=\(args.rawValue)", cmd, repl]
+        ))
+        .discardResult()
+    }
+
+    public enum ArgsCardinality: String {
+        /// No arguments are allowed (the default).
+        case none = "0"
+
+        /// Exactly one argument is required, it includes spaces.
+        case one = "1"
+
+        /// Any number of arguments are allowed (0, 1, or many), separated by white space.
+        case any = "*"
+
+        /// 0 or 1 arguments are allowed.
+        case noneOrOne = "?"
+
+        /// Arguments must be supplied, but any number are allowed.
+        case moreThanOne = "+"
+    }
 }
 
 @dynamicCallable

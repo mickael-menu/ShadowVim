@@ -209,27 +209,10 @@ public final class Nvim {
 
     // MARK: User commands
 
-    public enum ArgsCardinality: String {
-        /// No arguments are allowed (the default).
-        case none = "0"
-
-        /// Exactly one argument is required, it includes spaces.
-        case one = "1"
-
-        /// Any number of arguments are allowed (0, 1, or many), separated by white space.
-        case any = "*"
-
-        /// 0 or 1 arguments are allowed.
-        case noneOrOne = "?"
-
-        /// Arguments must be supplied, but any number are allowed.
-        case moreThanOne = "+"
-    }
-
     /// Adds a new user command executing the given action.
     public func add(
         command: String,
-        args: ArgsCardinality = .none,
+        args: ExCommands.ArgsCardinality = .none,
         action: @escaping ([Value]) throws -> Value
     ) -> Async<Void, NvimError> {
         $state.write {
@@ -241,8 +224,13 @@ public final class Nvim {
             state.userCommands[command] = action
             $0 = .started(state)
 
-            return state.vim.api
-                .command("command! -nargs=\(args.rawValue) \(command) call rpcrequest(1, '\(command)', <f-args>)")
+            return state.vim.cmd
+                .command(
+                    cmd: command,
+                    bang: true,
+                    args: args,
+                    repl: "call rpcrequest(1, '\(command)', <f-args>)"
+                )
                 .discardResult()
         }
     }

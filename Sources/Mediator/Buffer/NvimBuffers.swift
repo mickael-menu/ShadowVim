@@ -115,7 +115,7 @@ extension NvimBuffers: BufferDelegate {
 private extension Vim {
     func editNoWrite(name: String) -> Async<BufferHandle, NvimError> {
         atomic { vim in
-            vim.api.exec(
+            vim.cmd(
                 """
                 edit \(name)
 
@@ -124,14 +124,14 @@ private extension Vim {
                 set noswapfile
                 """
             )
-            .flatMap { _ in vim.api.getCurrentBuf() }
+            .flatMap { vim.api.getCurrentBuf() }
         }
     }
 
     func clearUndoHistory() -> Async<Void, NvimError> {
         // This snippet is from the Vim help.
         // :help undo-remarks
-        api.exec(
+        cmd(
             """
             let old_undolevels = &undolevels
             set undolevels=-1
@@ -139,6 +139,6 @@ private extension Vim {
             let &undolevels = old_undolevels
             unlet old_undolevels
             """
-        ).discardResult()
+        )
     }
 }
