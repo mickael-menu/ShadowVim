@@ -213,8 +213,9 @@ public class API {
         request("nvim_win_set_cursor", with: [
             Value.window(window),
             [
-                position.line + 1,
-                position.column,
+                // win_set_cursor is (1,0)-indexed.
+                position.line,
+                position.column - 1,
             ],
         ])
         .discardResult()
