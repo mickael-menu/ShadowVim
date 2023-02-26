@@ -193,7 +193,7 @@ public final class BufferMediator {
     }
 
     private func updateNvim(diff: CollectionDifference<String>, cursorPosition: BufferPosition) {
-        nvim.vim?.transaction(in: nvimBuffer) { [self] vim in
+        nvim.vim?.atomic(in: nvimBuffer) { [self] vim in
             withAsyncGroup { group in
                 for change in diff {
                     var start: LineIndex
@@ -223,7 +223,7 @@ public final class BufferMediator {
     }
 
     private func updateNvimCursor(position: BufferPosition) {
-        nvim.vim?.transaction(in: nvimBuffer) { vim in
+        nvim.vim?.atomic(in: nvimBuffer) { vim in
             vim.api.winSetCursor(position: position, failOnInvalidPosition: false)
         }
         .discardResult()

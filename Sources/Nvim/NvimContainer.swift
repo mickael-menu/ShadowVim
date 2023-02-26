@@ -80,6 +80,7 @@ public final class NvimContainer {
         return Vim(
             api: api,
             fn: BuiltinFunctions(api: api),
+            cmd: ExCommands(api: api),
             logger: logger,
             startTransaction: { [self] in
                 let child = vim(session: session, lock: nil)

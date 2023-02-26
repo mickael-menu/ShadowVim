@@ -100,7 +100,7 @@ public final class NvimBuffers {
             return .success(())
         }
 
-        return vim.api.cmd("buffer", args: .int(buffer))
+        return vim.cmd.buffer(buffer)
             .discardResult()
             .onSuccess { self.editedBuffer = buffer }
     }

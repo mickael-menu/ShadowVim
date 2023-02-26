@@ -22,6 +22,25 @@ import Foundation
 import MessagePack
 import Toolkit
 
+/// Ex command options table
+///
+/// See https://neovim.io/doc/user/api.html#nvim_parse_cmd()
+public struct CmdOptions {
+    /// Whether command contains a `<bang>` (!) modifier.
+    public var bang: Bool
+    /// Command arguments.
+    public var args: [ValueConvertible]
+
+    public init(bang: Bool = false, args: [ValueConvertible]) {
+        self.bang = bang
+        self.args = args
+    }
+
+    public init(bang: Bool = false, _ args: ValueConvertible...) {
+        self.init(bang: bang, args: args)
+    }
+}
+
 public class API {
     private let logger: Logger?
     private let sendRequest: (RPCRequest) -> Async<Value, RPCError>
@@ -38,26 +57,27 @@ public class API {
         request("nvim_command", with: command)
     }
 
-    public func cmd(_ cmd: String, bang: Bool = false, args: Value...) -> Async<String, NvimError> {
+    public func cmd(_ cmd: String, with args: ValueConvertible..., output: Bool = true) -> Async<String, NvimError> {
+        self.cmd(cmd, opts: CmdOptions(args: args), output: output)
+    }
+
+    public func cmd(_ cmd: String, opts: CmdOptions, output: Bool = true) -> Async<String, NvimError> {
         request("nvim_cmd", with: [
             [
                 "cmd": cmd.nvimValue,
-                "bang": bang.nvimValue,
-                "args": args.nvimValue,
+                "bang": opts.bang.nvimValue,
+                "args": opts.args.map(\.nvimValue).nvimValue,
             ],
             [
-                "output": true,
+                "output": output,
             ],
         ])
         .checkedUnpacking { $0.stringValue }
     }
 
-    public func exec(_ src: String) -> Async<String, NvimError> {
-        request("nvim_exec", with: [
-            src,
-            true, // output
-        ])
-        .checkedUnpacking { $0.stringValue }
+    public func exec(_ src: String, output: Bool = true) -> Async<String, NvimError> {
+        request("nvim_exec", with: [src, output])
+            .checkedUnpacking { $0.stringValue }
     }
 
     /// Calls a VimL function with the given arguments.
@@ -422,5 +442,4 @@ extension Async where Success == Value, Failure == NvimError {
 private extension LogKey {
     static var method: LogKey { "method" }
     static var params: LogKey { "params" }
-    static var transaction: LogKey { "@transaction" }
 }

@@ -267,16 +267,16 @@ public final class AppMediator {
     private func handle(_ event: KeyEvent, in buffer: NvimBuffer) -> Bool {
         switch event.keyCombo {
         case cmdZ:
-            nvim.vim?.transaction(in: buffer) { vim in
-                vim.api.command("undo")
+            nvim.vim?.atomic(in: buffer) { vim in
+                vim.cmd.undo()
             }
             .discardResult()
             .forwardErrorToDelegate(of: self)
             .run()
 
         case cmdShiftZ:
-            nvim.vim?.transaction(in: buffer) { vim in
-                vim.api.command("redo")
+            nvim.vim?.atomic(in: buffer) { vim in
+                vim.cmd.redo()
             }
             .discardResult()
             .forwardErrorToDelegate(of: self)
@@ -292,7 +292,7 @@ public final class AppMediator {
                 return false
             }
 
-            nvim.vim?.transaction(in: buffer) { vim in
+            nvim.vim?.atomic(in: buffer) { vim in
                 // If the user pressed control, we send the key combo as is to
                 // be able to remap this keyboard shortcut in Nvim.
                 // Otherwise, we send the unicode character for this event.

@@ -32,6 +32,10 @@ public final class Vim {
     /// See https://neovim.io/doc/user/builtin.html
     public let fn: BuiltinFunctions
 
+    /// Vim Ex commands.
+    /// See https://neovim.io/doc/user/lua.html#vim.cmd()
+    public let cmd: ExCommands
+
     private let logger: Logger?
     private let startTransaction: () -> Async<Vim, Never>
     private let endTransaction: () -> Void
@@ -39,12 +43,14 @@ public final class Vim {
     init(
         api: API,
         fn: BuiltinFunctions,
+        cmd: ExCommands,
         logger: Logger?,
         startTransaction: @escaping () -> Async<Vim, Never>,
         endTransaction: @escaping () -> Void
     ) {
         self.api = api
         self.fn = fn
+        self.cmd = cmd
         self.logger = logger
         self.startTransaction = startTransaction
         self.endTransaction = endTransaction

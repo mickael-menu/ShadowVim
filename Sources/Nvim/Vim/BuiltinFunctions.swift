@@ -30,9 +30,9 @@ public final class BuiltinFunctions {
     }
 
     /// Dynamic resolution for the builtin functions.
-    public subscript(dynamicMember member: String) -> (ValueConvertible...) -> Async<Value, NvimError> {
+    public subscript(dynamicMember name: String) -> (ValueConvertible...) -> Async<Value, NvimError> {
         { [api] args in
-            api.callFunction(member, args: args)
+            api.callFunction(name, args: args)
         }
     }
 
