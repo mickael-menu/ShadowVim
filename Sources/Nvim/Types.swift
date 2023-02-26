@@ -32,7 +32,7 @@ public typealias LineIndex = Int
 public typealias ColumnIndex = Int
 
 /// Buffer location as 1-indexed offsets.
-public struct BufferPosition: Equatable {
+public struct BufferPosition: Equatable, Comparable {
     public var line: LineIndex
     public var column: ColumnIndex
 
@@ -53,6 +53,14 @@ public struct BufferPosition: Equatable {
             line: line ?? self.line,
             column: column ?? self.column
         )
+    }
+
+    public static func < (lhs: BufferPosition, rhs: BufferPosition) -> Bool {
+        if lhs.line == rhs.line {
+            return lhs.column < rhs.column
+        } else {
+            return lhs.line < rhs.line
+        }
     }
 }
 

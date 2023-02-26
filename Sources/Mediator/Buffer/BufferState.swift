@@ -216,6 +216,9 @@ struct BufferState: Equatable {
         /// Update the current selections in the UI buffer.
         case updateUISelections([UISelection])
 
+        /// Scrolls the UI to make the given selection visible.
+        case scrollUI(visibleSelection: UISelection)
+
         /// Start a new timeout for the edition token. Any on-going timeout
         /// should be cancelled.
         case startTokenTimeout
@@ -264,6 +267,13 @@ struct BufferState: Equatable {
 
             if tryEdition(from: .nvim) {
                 perform(.updateUISelections(nvim.uiSelections()))
+
+                // Ensures the cursor is always visible.
+                if cursor.position.line != cursor.visual.line {
+                    let cursorPosition = UIPosition(cursor.position)
+                    let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
+                    perform(.scrollUI(visibleSelection: visibleSelection))
+                }
             }
 
         case let .uiDidFocus(lines: lines, selection: selection):
@@ -478,6 +488,8 @@ extension BufferState.Action: LogPayloadConvertible {
             return [.name: "updateUIPartialLines", "event": event]
         case let .updateUISelections(selections):
             return [.name: "updateUISelection", "selections": selections]
+        case let .scrollUI(visibleSelection: visibleSelection):
+            return [.name: "scrollUI", "visibleSelection": visibleSelection]
         case .startTokenTimeout:
             return [.name: "startTokenTimeout"]
         case .bell:

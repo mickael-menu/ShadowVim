@@ -178,6 +178,8 @@ public final class BufferMediator {
                 try updateUIPartialLines(with: event)
             case let .updateUISelections(selections):
                 try updateUISelections(selections)
+            case let .scrollUI(visibleSelection: visibleSelection):
+                try scrollUI(to: visibleSelection)
             case .startTokenTimeout:
                 tokenTimeoutSubject.send(())
             case .bell:
@@ -348,6 +350,16 @@ public final class BufferMediator {
             return
         }
         try uiElement.set(.selectedTextRange, value: range)
+    }
+
+    private func scrollUI(to visibleSelection: UISelection) throws {
+        guard
+            let uiElement = uiElement,
+            let range = try visibleSelection.range(in: uiElement)
+        else {
+            return
+        }
+        try uiElement.set(.visibleCharacterRange, value: range)
     }
 
     private func fail(_ error: Error) {

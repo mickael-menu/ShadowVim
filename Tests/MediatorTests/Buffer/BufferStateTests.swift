@@ -342,6 +342,45 @@ final class BufferStateTests: XCTestCase {
         )
     }
 
+    // When a UI selection is generated from the Nvim cursor, the UI
+    // will be requested to scroll to the cursor position.
+    func testNvimCursorDidChangeScrollsUIWithSelection() {
+        let position = BufferPosition(line: 4, column: 2)
+
+        func test(visual: BufferPosition, expected: UISelection?) {
+            let cursor = Cursor(
+                mode: .visual,
+                position: position,
+                visual: visual
+            )
+
+            assert(
+                initial: initialState.copy(token: .free),
+                on: .nvimCursorDidChange(cursor),
+                expected: initialState.copy(
+                    token: .acquired(owner: .nvim),
+                    nvimCursor: cursor
+                ),
+                actions: [
+                    .startTokenTimeout,
+                    .updateUISelections([UISelection(
+                        start: UIPosition(cursor.position),
+                        end: UIPosition(visual.moving(column: +1))
+                    )]),
+                    expected.map { .scrollUI(visibleSelection: $0) },
+                ].compactMap { $0 }
+            )
+        }
+
+        // No scroll when the visual position is on the same line as the cursor.
+        test(visual: position, expected: nil)
+        test(visual: position.moving(column: 5), expected: nil)
+
+        // Scroll to the cursor when the visual is on a different line.
+        let expected = UISelection(start: UIPosition(position), end: UIPosition(position))
+        test(visual: position.moving(line: +5), expected: expected)
+    }
+
     // MARK: UI focus
 
     // The UI state is updated with the given data, then synchronized back to Nvim.
