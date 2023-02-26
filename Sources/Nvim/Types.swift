@@ -25,23 +25,26 @@ public typealias TabpageHandle = Int
 
 public typealias AutocmdID = Int
 
+/// 1-indexed line number.
 public typealias LineIndex = Int
+
+/// 1-indexed column number.
 public typealias ColumnIndex = Int
 
-/// Buffer location as 0-indexed offsets.
+/// Buffer location as 1-indexed offsets.
 public struct BufferPosition: Equatable {
     public var line: LineIndex
     public var column: ColumnIndex
 
-    public init(line: LineIndex = 0, column: ColumnIndex = 0) {
+    public init(line: LineIndex = 1, column: ColumnIndex = 1) {
         self.line = line
         self.column = column
     }
 
     public func moving(line: LineIndex? = nil, column: ColumnIndex? = nil) -> BufferPosition {
         BufferPosition(
-            line: self.line + (line ?? 0),
-            column: self.column + (column ?? 0)
+            line: self.line + (line ?? 1),
+            column: self.column + (column ?? 1)
         )
     }
 
@@ -49,34 +52,6 @@ public struct BufferPosition: Equatable {
         BufferPosition(
             line: line ?? self.line,
             column: column ?? self.column
-        )
-    }
-}
-
-public struct BufferSelection: Equatable {
-    public var start: BufferPosition
-    public var end: BufferPosition
-
-    public init(start: BufferPosition = .init(), end: BufferPosition = .init()) {
-        self.start = start
-        self.end = end
-    }
-
-    public func copy(
-        startLine: LineIndex? = nil,
-        startColumn: ColumnIndex? = nil,
-        endLine: LineIndex? = nil,
-        endColumn: ColumnIndex? = nil
-    ) -> BufferSelection {
-        BufferSelection(
-            start: BufferPosition(
-                line: startLine ?? start.line,
-                column: startColumn ?? start.column
-            ),
-            end: BufferPosition(
-                line: endLine ?? end.line,
-                column: endColumn ?? end.column
-            )
         )
     }
 }
@@ -97,24 +72,28 @@ public enum Mode: String, Equatable {
 }
 
 public struct Cursor: Equatable {
-    public var position: BufferPosition
+    /// The current mode.
     public var mode: Mode
 
-    public init(position: BufferPosition, mode: Mode) {
-        self.position = position
+    /// The cursor position.
+    public var position: BufferPosition
+
+    /// The start of the visual area.
+    ///
+    /// When not in Visual or Select mode, this is the same as the cursor
+    /// `position`.
+    public var visual: BufferPosition
+
+    public init(mode: Mode, position: BufferPosition, visual: BufferPosition) {
         self.mode = mode
+        self.position = position
+        self.visual = visual
     }
 }
 
 extension BufferPosition: LogPayloadConvertible {
     public func logPayload() -> [LogKey: LogValueConvertible] {
         ["line": line, "column": column]
-    }
-}
-
-extension BufferSelection: LogPayloadConvertible {
-    public func logPayload() -> [LogKey: LogValueConvertible] {
-        ["start": start, "end": end]
     }
 }
 

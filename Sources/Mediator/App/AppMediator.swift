@@ -397,28 +397,27 @@ public final class AppMediator {
             }
     }
 
-    /// This publisher is used to observe the Neovim cursor position and mode
+    /// This publisher is used to observe the Neovim selection and mode
     /// changes.
     lazy var nvimCursorPublisher: AnyPublisher<(BufferHandle, Cursor), NvimError> =
         nvim.autoCmdPublisher(
             for: "ModeChanged", "CursorMoved", "CursorMovedI",
-            args: "bufnr()", "mode()", "getcursorcharpos()",
+            args: "bufnr()", "mode()", "getcharpos('.')", "getcharpos('v')",
             unpack: { params -> (BufferHandle, Cursor)? in
                 guard
-                    params.count == 3,
+                    params.count == 4,
                     let buffer: BufferHandle = params[0].intValue,
                     let mode = params[1].stringValue,
-                    let cursorParams = params[2].arrayValue,
-                    cursorParams.count == 5,
-                    let line = cursorParams[1].intValue,
-                    let col = cursorParams[2].intValue
+                    let position = BuiltinFunctions.GetposResult(params[2]),
+                    let visual = BuiltinFunctions.GetposResult(params[3])
                 else {
                     return nil
                 }
 
                 let cursor = Cursor(
-                    position: BufferPosition(line: line - 1, column: col - 1),
-                    mode: Mode(rawValue: mode) ?? .normal
+                    mode: Mode(rawValue: mode) ?? .normal,
+                    position: position.position,
+                    visual: visual.position
                 )
                 return (buffer, cursor)
             }

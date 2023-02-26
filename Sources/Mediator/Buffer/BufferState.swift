@@ -90,20 +90,22 @@ struct BufferState: Equatable {
     /// Represents the current state of the Nvim buffer.
     struct NvimState: Equatable {
         /// Current cursor position and mode.
-        var cursor: Cursor = .init(position: .init(), mode: .normal)
+        var cursor: Cursor = .init(mode: .normal, position: .init(), visual: .init())
 
         /// Buffer content lines.
         var lines: [String] = []
 
         /// Converts the current cursor position as a selection range to
-        /// represent the cursor in the UI buffer.
-        func uiSelection() -> BufferSelection {
+        /// represent the cursor/visual selection in the UI buffer.
+        func uiSelection() -> UISelection? {
             switch cursor.mode {
-            case .insert, .replace:
-                return BufferSelection(start: cursor.position, end: cursor.position)
-            default:
+            case .insert, .replace, .visual, .visualLine, .select, .selectLine:
+                return UISelection(start: UIPosition(cursor.position), end: UIPosition(cursor.visual))
+            case .normal:
                 let end = BufferPosition(line: cursor.position.line, column: cursor.position.column + 1)
-                return BufferSelection(start: cursor.position, end: end)
+                return UISelection(start: UIPosition(cursor.position), end: UIPosition(end))
+            case .cmdline, .hitEnterPrompt, .shell, .terminal:
+                return nil
             }
         }
     }
@@ -112,7 +114,7 @@ struct BufferState: Equatable {
     /// accessibility APIs (AX).
     struct UIState: Equatable {
         /// Current text selection in the buffer view.
-        var selection: BufferSelection = .init()
+        var selection: UISelection = .init()
 
         /// Buffer content lines.
         var lines: [String] = []
@@ -137,13 +139,13 @@ struct BufferState: Equatable {
         ///
         /// The current `lines` and `selection` are given in case they were
         /// changed by a third party.
-        case uiDidFocus(lines: [String], selection: BufferSelection)
+        case uiDidFocus(lines: [String], selection: UISelection)
 
         /// The UI buffer changed with the given new `lines`.
         case uiBufferDidChange(lines: [String])
 
         /// The UI selection changed.
-        case uiSelectionDidChange(BufferSelection)
+        case uiSelectionDidChange(UISelection)
 
         /// The keys passthrough was toggled.
         case didToggleKeysPassthrough(enabled: Bool)
@@ -168,14 +170,14 @@ struct BufferState: Equatable {
         /// `selection`.
         ///
         /// The `diff` contains the changes from the current UI `lines`.
-        case updateUI(lines: [String], diff: CollectionDifference<String>, selection: BufferSelection)
+        case updateUI(lines: [String], diff: CollectionDifference<String>, selection: UISelection?)
 
         /// Update a portion of the UI buffer using the given `BufLinesEvent`
         /// from Nvim.
         case updateUIPartialLines(event: BufLinesEvent)
 
         /// Update the current selection of the UI buffer.
-        case updateUISelection(BufferSelection)
+        case updateUISelection(UISelection)
 
         /// Start a new timeout for the edition token. Any on-going timeout
         /// should be cancelled.
@@ -217,14 +219,18 @@ struct BufferState: Equatable {
 
             if tryEdition(from: .nvim) {
                 perform(.updateUIPartialLines(event: event))
-                perform(.updateUISelection(nvim.uiSelection()))
+                if let selection = nvim.uiSelection() {
+                    perform(.updateUISelection(selection))
+                }
             }
 
         case let .nvimCursorDidChange(cursor):
             nvim.cursor = cursor
 
             if tryEdition(from: .nvim) {
-                perform(.updateUISelection(nvim.uiSelection()))
+                if let selection = nvim.uiSelection() {
+                    perform(.updateUISelection(selection))
+                }
             }
 
         case let .uiDidFocus(lines: lines, selection: selection):
@@ -256,8 +262,9 @@ struct BufferState: Equatable {
                 if selection != adjustedSel {
                     perform(.updateUISelection(adjustedSel))
                 }
-                if nvim.cursor.position != adjustedSel.start {
-                    perform(.updateNvimCursor(adjustedSel.start))
+                let start = BufferPosition(selection.start)
+                if nvim.cursor.position != start {
+                    perform(.updateNvimCursor(start))
                 }
             }
 
@@ -329,7 +336,7 @@ struct BufferState: Equatable {
             perform(.updateNvim(
                 lines: ui.lines,
                 diff: ui.lines.difference(from: nvim.lines),
-                cursorPosition: ui.selection.start
+                cursorPosition: BufferPosition(ui.selection.start)
             ))
         }
 
@@ -344,9 +351,9 @@ struct BufferState: Equatable {
     }
 }
 
-extension BufferSelection {
+extension UISelection {
     /// Adjusts this `BufferSelection` to match the given Nvim `mode`.
-    func adjust(to mode: Mode, lines: [String]) -> BufferSelection {
+    func adjust(to mode: Mode, lines: [String]) -> UISelection {
         guard
             start.line == end.line,
             (start.column ... start.column + 1).contains(end.column),
@@ -356,20 +363,20 @@ extension BufferSelection {
         }
 
         switch mode {
-        case .insert, .replace:
-            return BufferSelection(start: start, end: start)
+        case .insert, .replace, .visual, .visualLine, .select, .selectLine:
+            return UISelection(start: start, end: start)
 
         default:
             let line = lines[start.line]
             if line.isEmpty {
-                return BufferSelection(
+                return UISelection(
                     start: start.copy(column: 0),
                     end: start.copy(column: 1)
                 )
             } else {
                 var start = start
                 start.column = min(start.column, line.count - 1)
-                return BufferSelection(
+                return UISelection(
                     start: start,
                     end: start.moving(column: +1)
                 )
@@ -467,7 +474,7 @@ extension BufferState.Action: LogPayloadConvertible {
         case let .updateNvimCursor(cursor):
             return [.name: "updateNvimCursor", "cursor": cursor]
         case let .updateUI(lines: lines, diff: diff, selection: selection):
-            return [.name: "updateUI", "lines": lines, "diff": diff, "selection": selection]
+            return [.name: "updateUI", "lines": lines, "diff": diff, "selection": selection?.logValue ?? .nil]
         case let .updateUIPartialLines(event: event):
             return [.name: "updateUIPartialLines", "event": event]
         case let .updateUISelection(selection):

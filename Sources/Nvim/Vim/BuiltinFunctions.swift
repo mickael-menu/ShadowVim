@@ -36,10 +36,20 @@ public final class BuiltinFunctions {
         }
     }
 
-    /// Get the position for
-    /// https://neovim.io/doc/user/builtin.html#getpos()
-    public func getpos(_ position: Position) -> Async<GetposResult, NvimError> {
-        api.callFunction("getpos", with: position.expr) { value in
+    /// https://neovim.io/doc/user/builtin.html#getcharpos()
+    public func getcharpos(_ position: Position) -> Async<GetposResult, NvimError> {
+        api.callFunction("getpos", with: position.expr) {
+            GetposResult($0)
+        }
+    }
+
+    public struct GetposResult {
+        public var bufnum: BufferHandle
+        public var lnum: LineIndex
+        public var col: ColumnIndex
+        public var off: Int
+
+        public init?(_ value: Value) {
             guard
                 let values = value.arrayValue,
                 values.count == 4,
@@ -51,21 +61,16 @@ public final class BuiltinFunctions {
                 return nil
             }
 
-            return (
-                bufnum: BufferHandle(bufnum),
-                lnum: LineIndex(lnum),
-                col: ColumnIndex(col),
-                off: off
-            )
+            self.bufnum = BufferHandle(bufnum)
+            self.lnum = LineIndex(lnum)
+            self.col = ColumnIndex(col)
+            self.off = off
+        }
+
+        public var position: BufferPosition {
+            BufferPosition(line: lnum, column: col)
         }
     }
-
-    public typealias GetposResult = (
-        bufnum: BufferHandle,
-        lnum: LineIndex,
-        col: ColumnIndex,
-        off: Int
-    )
 
     /// Position expression.
     /// https://neovim.io/doc/user/builtin.html#line()

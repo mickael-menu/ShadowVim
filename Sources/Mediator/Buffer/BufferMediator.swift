@@ -230,7 +230,7 @@ public final class BufferMediator {
         .get(onFailure: fail)
     }
 
-    private func updateUI(diff: CollectionDifference<String>, selection: BufferSelection) throws {
+    private func updateUI(diff: CollectionDifference<String>, selection: UISelection?) throws {
         guard let uiElement = uiElement else {
             return
         }
@@ -270,7 +270,9 @@ public final class BufferMediator {
             }
         }
 
-        try updateUISelection(selection)
+        if let selection = selection {
+            try updateUISelection(selection)
+        }
     }
 
     private func updateUIPartialLines(with event: BufLinesEvent) throws {
@@ -328,7 +330,7 @@ public final class BufferMediator {
         try element.set(.selectedText, value: replacement)
     }
 
-    private func updateUISelection(_ selection: BufferSelection) throws {
+    private func updateUISelection(_ selection: UISelection) throws {
         guard
             let uiElement = uiElement,
             let startLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.start.line),
@@ -339,10 +341,12 @@ public final class BufferMediator {
 
         let start = startLineRange.location + selection.start.column
         let end = endLineRange.location + selection.end.column
+        let max = max(start, end)
+        let min = min(start, end)
 
         let range = CFRange(
-            location: start,
-            length: end - start
+            location: min,
+            length: max - min
         )
 
         try uiElement.set(.selectedTextRange, value: range)
@@ -360,8 +364,8 @@ private extension AXUIElement {
         try (get(.value) as String?).map { $0.lines.map { String($0) } } ?? []
     }
 
-    /// Returns the buffer selection of the receiving accessibility element.
-    func selection() throws -> BufferSelection? {
+    /// Returns the UI selection of the receiving accessibility element.
+    func selection() throws -> UISelection? {
         guard let selection: CFRange = try get(.selectedTextRange) else {
             return nil
         }
@@ -378,12 +382,12 @@ private extension AXUIElement {
             return nil
         }
 
-        return BufferSelection(
-            start: BufferPosition(
+        return UISelection(
+            start: UIPosition(
                 line: startLine,
                 column: start - startLineRange.location
             ),
-            end: BufferPosition(
+            end: UIPosition(
                 line: endLine,
                 column: end - endLineRange.location
             )
