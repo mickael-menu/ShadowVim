@@ -15,49 +15,58 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+import AX
 import Foundation
 import Nvim
 import Toolkit
 
 /// 0-indexed line number.
-public typealias LineIndex = Int
+typealias LineIndex = Int
 
 /// 0-indexed column number.
-public typealias ColumnIndex = Int
+typealias ColumnIndex = Int
 
 /// UI text position as 0-indexed offsets.
-public struct UIPosition: Equatable {
-    public var line: LineIndex
-    public var column: ColumnIndex
+struct UIPosition: Equatable, Comparable {
+    var line: LineIndex
+    var column: ColumnIndex
 
-    public init(_ position: BufferPosition) {
+    init(_ position: BufferPosition) {
         self.init(
             line: position.line - 1,
             column: position.column - 1
         )
     }
 
-    public init(line: LineIndex = 0, column: ColumnIndex = 0) {
+    init(line: LineIndex = 0, column: ColumnIndex = 0) {
         self.line = line
         self.column = column
     }
 
-    public func moving(line: LineIndex? = nil, column: ColumnIndex? = nil) -> UIPosition {
+    func moving(line: LineIndex? = nil, column: ColumnIndex? = nil) -> UIPosition {
         UIPosition(
             line: self.line + (line ?? 0),
             column: self.column + (column ?? 0)
         )
     }
 
-    public func copy(line: LineIndex? = nil, column: ColumnIndex? = nil) -> UIPosition {
+    func copy(line: LineIndex? = nil, column: ColumnIndex? = nil) -> UIPosition {
         UIPosition(
             line: line ?? self.line,
             column: column ?? self.column
         )
     }
+
+    static func < (lhs: UIPosition, rhs: UIPosition) -> Bool {
+        if lhs.line == rhs.line {
+            return lhs.column < rhs.column
+        } else {
+            return lhs.line < rhs.line
+        }
+    }
 }
 
-public extension BufferPosition {
+extension BufferPosition {
     init(_ position: UIPosition) {
         self.init(
             line: position.line + 1,
@@ -67,20 +76,19 @@ public extension BufferPosition {
 }
 
 /// Represents a text selection in an UI text area.
-public struct UISelection: Equatable {
-
+struct UISelection: Equatable {
     /// Fixed start of the selection.
-    public var start: UIPosition
+    var start: UIPosition
 
     /// Movable end of the selection.
-    public var end: UIPosition
+    var end: UIPosition
 
-    public init(start: UIPosition = .init(), end: UIPosition = .init()) {
+    init(start: UIPosition = .init(), end: UIPosition = .init()) {
         self.start = start
         self.end = end
     }
 
-    public func copy(
+    func copy(
         startLine: LineIndex? = nil,
         startColumn: ColumnIndex? = nil,
         endLine: LineIndex? = nil,
@@ -97,18 +105,58 @@ public struct UISelection: Equatable {
             )
         )
     }
+
+    func range(in element: AXUIElement) throws -> CFRange? {
+        guard
+            let startLineRange: CFRange = try element.get(.rangeForLine, with: start.line),
+            let endLineRange: CFRange = try element.get(.rangeForLine, with: end.line)
+        else {
+            return nil
+        }
+
+        let start = startLineRange.location + start.column
+        let end = endLineRange.location + end.column
+        let max = max(start, end)
+        let min = min(start, end)
+
+        return CFRange(
+            location: min,
+            length: max - min
+        )
+    }
+}
+
+extension Array where Element == UISelection {
+    /// Joins noncontiguous selections into a single selection.
+    func joined() -> UISelection? {
+        guard count > 1 else {
+            return first
+        }
+
+        var start = first!.start
+        var end = first!.end
+        for selection in self {
+            if start > selection.start {
+                start = selection.start
+            }
+            if end < selection.end {
+                end = selection.end
+            }
+        }
+        return UISelection(start: start, end: end)
+    }
 }
 
 // MARK: Logging
 
 extension UIPosition: LogPayloadConvertible {
-    public func logPayload() -> [LogKey: LogValueConvertible] {
+    func logPayload() -> [LogKey: LogValueConvertible] {
         ["line": line, "column": column]
     }
 }
 
 extension UISelection: LogPayloadConvertible {
-    public func logPayload() -> [LogKey: LogValueConvertible] {
+    func logPayload() -> [LogKey: LogValueConvertible] {
         ["start": start, "end": end]
     }
 }

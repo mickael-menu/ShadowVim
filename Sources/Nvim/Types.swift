@@ -61,8 +61,10 @@ public enum Mode: String, Equatable {
     case normal = "n"
     case visual = "v"
     case visualLine = "V"
+    case visualBlock = "\u{16}" // Ctrl-V
     case select = "s"
     case selectLine = "S"
+    case selectBlock = "\u{13}" // Ctrl-S
     case insert = "i"
     case replace = "R"
     case cmdline = "c"

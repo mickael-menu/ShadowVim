@@ -258,10 +258,6 @@ public extension AXUIElement {
 
     private func pack(_ value: Any) -> AnyObject? {
         switch value {
-        case let value as AXUIElement:
-            return value
-        case let value as [Any]:
-            return value.compactMap(pack) as CFArray
         case var value as CGPoint:
             return AXValueCreate(AXValueType(rawValue: kAXValueCGPointType)!, &value)
         case var value as CGSize:
@@ -270,6 +266,10 @@ public extension AXUIElement {
             return AXValueCreate(AXValueType(rawValue: kAXValueCGRectType)!, &value)
         case var value as CFRange:
             return AXValueCreate(AXValueType(rawValue: kAXValueCFRangeType)!, &value)
+        case let value as [Any]:
+            return value.compactMap(pack) as CFArray
+        case let value as AXUIElement:
+            return value
         default:
             return value as AnyObject
         }

@@ -172,12 +172,12 @@ public final class BufferMediator {
                 updateNvim(diff: diff, cursorPosition: cursorPosition)
             case let .updateNvimCursor(position):
                 updateNvimCursor(position: position)
-            case let .updateUI(_, diff: diff, selection: selection):
-                try updateUI(diff: diff, selection: selection)
+            case let .updateUI(_, diff: diff, selections: selections):
+                try updateUI(diff: diff, selections: selections)
             case let .updateUIPartialLines(event: event):
                 try updateUIPartialLines(with: event)
-            case let .updateUISelection(selection):
-                try updateUISelection(selection)
+            case let .updateUISelections(selections):
+                try updateUISelections(selections)
             case .startTokenTimeout:
                 tokenTimeoutSubject.send(())
             case .bell:
@@ -230,7 +230,7 @@ public final class BufferMediator {
         .get(onFailure: fail)
     }
 
-    private func updateUI(diff: CollectionDifference<String>, selection: UISelection?) throws {
+    private func updateUI(diff: CollectionDifference<String>, selections: [UISelection]) throws {
         guard let uiElement = uiElement else {
             return
         }
@@ -270,9 +270,7 @@ public final class BufferMediator {
             }
         }
 
-        if let selection = selection {
-            try updateUISelection(selection)
-        }
+        try updateUISelections(selections)
     }
 
     private func updateUIPartialLines(with event: BufLinesEvent) throws {
@@ -330,25 +328,25 @@ public final class BufferMediator {
         try element.set(.selectedText, value: replacement)
     }
 
-    private func updateUISelection(_ selection: UISelection) throws {
-        guard
-            let uiElement = uiElement,
-            let startLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.start.line),
-            let endLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.end.line)
-        else {
+    private func updateUISelections(_ selections: [UISelection]) throws {
+        guard let uiElement = uiElement, selections.count > 0 else {
             return
         }
 
-        let start = startLineRange.location + selection.start.column
-        let end = endLineRange.location + selection.end.column
-        let max = max(start, end)
-        let min = min(start, end)
-
-        let range = CFRange(
-            location: min,
-            length: max - min
-        )
-
+        // Unfortunately, setting `selectedTextRanges` doesn't work in Xcode 14
+        // (it works in TextEdit though). For now, we will join the selections
+        // into a single continuous one.
+        /*
+         let ranges: [CFRange] = try selections
+             .compactMap { try $0.range(in: uiElement) }
+         try uiElement.set(.selectedTextRanges, value: ranges)
+         */
+        guard
+            let selection = selections.joined(),
+            let range = try selection.range(in: uiElement)
+        else {
+            return
+        }
         try uiElement.set(.selectedTextRange, value: range)
     }
 

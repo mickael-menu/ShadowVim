@@ -95,17 +95,23 @@ struct BufferState: Equatable {
         /// Buffer content lines.
         var lines: [String] = []
 
-        /// Converts the current cursor position as a selection range to
-        /// represent the cursor/visual selection in the UI buffer.
-        func uiSelection() -> UISelection? {
+        /// Converts the current cursor position and visual selections as a
+        /// list of selection ranges in the UI buffer.
+        func uiSelections() -> [UISelection] {
             switch cursor.mode {
-            case .insert, .replace, .visual, .visualLine, .select, .selectLine:
-                return UISelection(start: UIPosition(cursor.position), end: UIPosition(cursor.visual))
+            case .insert, .replace:
+                return [UISelection(start: UIPosition(cursor.position), end: UIPosition(cursor.position))]
+            case .visual, .select:
+                return [UISelection(start: UIPosition(cursor.position), end: UIPosition(cursor.visual))]
+            case .visualLine, .selectLine:
+                return [UISelection(start: UIPosition(cursor.position), end: UIPosition(cursor.visual))]
+            case .visualBlock, .selectBlock:
+                return [UISelection(start: UIPosition(cursor.position), end: UIPosition(cursor.visual))]
             case .normal:
                 let end = BufferPosition(line: cursor.position.line, column: cursor.position.column + 1)
-                return UISelection(start: UIPosition(cursor.position), end: UIPosition(end))
+                return [UISelection(start: UIPosition(cursor.position), end: UIPosition(end))]
             case .cmdline, .hitEnterPrompt, .shell, .terminal:
-                return nil
+                return []
             }
         }
     }
@@ -170,14 +176,14 @@ struct BufferState: Equatable {
         /// `selection`.
         ///
         /// The `diff` contains the changes from the current UI `lines`.
-        case updateUI(lines: [String], diff: CollectionDifference<String>, selection: UISelection?)
+        case updateUI(lines: [String], diff: CollectionDifference<String>, selections: [UISelection])
 
         /// Update a portion of the UI buffer using the given `BufLinesEvent`
         /// from Nvim.
         case updateUIPartialLines(event: BufLinesEvent)
 
-        /// Update the current selection of the UI buffer.
-        case updateUISelection(UISelection)
+        /// Update the current selections in the UI buffer.
+        case updateUISelections([UISelection])
 
         /// Start a new timeout for the edition token. Any on-going timeout
         /// should be cancelled.
@@ -219,18 +225,14 @@ struct BufferState: Equatable {
 
             if tryEdition(from: .nvim) {
                 perform(.updateUIPartialLines(event: event))
-                if let selection = nvim.uiSelection() {
-                    perform(.updateUISelection(selection))
-                }
+                perform(.updateUISelections(nvim.uiSelections()))
             }
 
         case let .nvimCursorDidChange(cursor):
             nvim.cursor = cursor
 
             if tryEdition(from: .nvim) {
-                if let selection = nvim.uiSelection() {
-                    perform(.updateUISelection(selection))
-                }
+                perform(.updateUISelections(nvim.uiSelections()))
             }
 
         case let .uiDidFocus(lines: lines, selection: selection):
@@ -260,7 +262,7 @@ struct BufferState: Equatable {
 
             if tryEdition(from: .ui) {
                 if selection != adjustedSel {
-                    perform(.updateUISelection(adjustedSel))
+                    perform(.updateUISelections([adjustedSel]))
                 }
                 let start = BufferPosition(selection.start)
                 if nvim.cursor.position != start {
@@ -274,7 +276,7 @@ struct BufferState: Equatable {
                 to: enabled ? .insert : nvim.cursor.mode,
                 lines: ui.lines
             )
-            perform(.updateUISelection(selection))
+            perform(.updateUISelections([selection]))
 
         case let .didFail(error):
             perform(.alert(error))
@@ -328,7 +330,7 @@ struct BufferState: Equatable {
             perform(.updateUI(
                 lines: nvim.lines,
                 diff: nvim.lines.difference(from: ui.lines),
-                selection: nvim.uiSelection()
+                selections: nvim.uiSelections()
             ))
         }
 
@@ -473,12 +475,12 @@ extension BufferState.Action: LogPayloadConvertible {
             return [.name: "updateNvim", "lines": lines, "diff": diff, "cursorPosition": cursorPosition]
         case let .updateNvimCursor(cursor):
             return [.name: "updateNvimCursor", "cursor": cursor]
-        case let .updateUI(lines: lines, diff: diff, selection: selection):
-            return [.name: "updateUI", "lines": lines, "diff": diff, "selection": selection?.logValue ?? .nil]
+        case let .updateUI(lines: lines, diff: diff, selections: selections):
+            return [.name: "updateUI", "lines": lines, "diff": diff, "selections": selections]
         case let .updateUIPartialLines(event: event):
             return [.name: "updateUIPartialLines", "event": event]
-        case let .updateUISelection(selection):
-            return [.name: "updateUISelection", "selection": selection]
+        case let .updateUISelections(selections):
+            return [.name: "updateUISelection", "selections": selections]
         case .startTokenTimeout:
             return [.name: "startTokenTimeout"]
         case .bell:
