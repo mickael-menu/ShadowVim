@@ -99,6 +99,10 @@ struct BufferState: Equatable {
         /// list of selection ranges in the UI buffer.
         func uiSelections() -> [UISelection] {
             switch cursor.mode {
+            case .normal:
+                let end = BufferPosition(line: cursor.position.line, column: cursor.position.column + 1)
+                return [UISelection(start: UIPosition(cursor.position), end: UIPosition(end))]
+
             case .insert, .replace:
                 let position = UIPosition(cursor.position)
                 return [UISelection(start: position, end: position)]
@@ -136,10 +140,6 @@ struct BufferState: Equatable {
                     end.column = lines[end.line].count + 1
                 }
                 return [UISelection(start: start, end: end)]
-
-            case .normal:
-                let end = BufferPosition(line: cursor.position.line, column: cursor.position.column + 1)
-                return [UISelection(start: UIPosition(cursor.position), end: UIPosition(end))]
 
             case .cmdline, .hitEnterPrompt, .shell, .terminal:
                 return []
