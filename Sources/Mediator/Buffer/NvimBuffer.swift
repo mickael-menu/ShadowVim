@@ -21,7 +21,7 @@ import Nvim
 import Toolkit
 
 protocol BufferDelegate: AnyObject {
-    func buffer(_ buffer: NvimBuffer, activateWith api: API) -> APIAsync<Void>
+    func buffer(_ buffer: NvimBuffer, activateWith vim: Vim) -> Async<Void, NvimError>
 }
 
 /// Represents a live buffer in Nvim.
@@ -70,27 +70,27 @@ public final class NvimBuffer {
             .store(in: &subscriptions)
     }
 
-    func activate(with api: API) -> APIAsync<Void> {
+    func activate(with vim: Vim) -> Async<Void, NvimError> {
         guard let delegate = delegate else {
             preconditionFailure("Expected a delegate")
         }
 
-        return delegate.buffer(self, activateWith: api)
+        return delegate.buffer(self, activateWith: vim)
     }
 }
 
-extension API {
-    func transaction<Result>(in buffer: NvimBuffer, block: @escaping (API) -> APIAsync<Result>) -> APIAsync<Result> {
-        transaction { api in
-            buffer.activate(with: api)
-                .flatMap { block(api) }
+extension Vim {
+    func atomic<Result>(in buffer: NvimBuffer, block: @escaping (Vim) -> Async<Result, NvimError>) -> Async<Result, NvimError> {
+        atomic { vim in
+            buffer.activate(with: vim)
+                .flatMap { block(vim) }
         }
     }
 
-    func transaction<Result>(in buffer: NvimBuffer, block: @escaping (API) throws -> Async<Result, Error>) -> Async<Result, Error> {
-        transaction { api in
-            buffer.activate(with: api)
-                .tryFlatMap { try block(api) }
+    func atomic<Result>(in buffer: NvimBuffer, block: @escaping (Vim) throws -> Async<Result, Error>) -> Async<Result, Error> {
+        atomic { vim in
+            buffer.activate(with: vim)
+                .tryFlatMap { try block(vim) }
         }
     }
 }

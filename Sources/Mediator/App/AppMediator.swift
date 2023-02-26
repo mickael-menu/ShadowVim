@@ -267,16 +267,16 @@ public final class AppMediator {
     private func handle(_ event: KeyEvent, in buffer: NvimBuffer) -> Bool {
         switch event.keyCombo {
         case cmdZ:
-            nvim.api.transaction(in: buffer) { api in
-                api.command("undo")
+            nvim.vim?.atomic(in: buffer) { vim in
+                vim.cmd.undo()
             }
             .discardResult()
             .forwardErrorToDelegate(of: self)
             .run()
 
         case cmdShiftZ:
-            nvim.api.transaction(in: buffer) { api in
-                api.command("redo")
+            nvim.vim?.atomic(in: buffer) { vim in
+                vim.cmd.redo()
             }
             .discardResult()
             .forwardErrorToDelegate(of: self)
@@ -292,7 +292,7 @@ public final class AppMediator {
                 return false
             }
 
-            nvim.api.transaction(in: buffer) { api in
+            nvim.vim?.atomic(in: buffer) { vim in
                 // If the user pressed control, we send the key combo as is to
                 // be able to remap this keyboard shortcut in Nvim.
                 // Otherwise, we send the unicode character for this event.
@@ -302,9 +302,9 @@ public final class AppMediator {
                     !event.keyCombo.key.isNonPrintableCharacter,
                     let character = event.character
                 {
-                    return api.input(character)
+                    return vim.api.input(character)
                 } else {
-                    return api.input(event.keyCombo)
+                    return vim.api.input(event.keyCombo)
                 }
             }
             .discardResult()
@@ -369,8 +369,12 @@ public final class AppMediator {
             }
     }
 
-    private func editBuffer(for element: AXUIElement, name: BufferName) -> Async<BufferMediator, APIError> {
-        buffers.edit(name: name, contents: element[.value] ?? "", with: nvim.api)
+    private func editBuffer(for element: AXUIElement, name: BufferName) -> Async<BufferMediator, NvimError> {
+        guard let vim = nvim.vim else {
+            return .failure(.notStarted)
+        }
+
+        return buffers.edit(name: name, contents: element[.value] ?? "", with: vim)
             .map(on: .main) { [self] buffer in
                 let mediator = bufferMediators.getOrPut(name) {
                     bufferMediatorFactory((
@@ -395,8 +399,8 @@ public final class AppMediator {
 
     /// This publisher is used to observe the Neovim cursor position and mode
     /// changes.
-    lazy var nvimCursorPublisher: AnyPublisher<(BufferHandle, Cursor), APIError> =
-        nvim.events.autoCmdPublisher(
+    lazy var nvimCursorPublisher: AnyPublisher<(BufferHandle, Cursor), NvimError> =
+        nvim.autoCmdPublisher(
             for: "ModeChanged", "CursorMoved", "CursorMovedI",
             args: "bufnr()", "mode()", "getcursorcharpos()",
             unpack: { params -> (BufferHandle, Cursor)? in

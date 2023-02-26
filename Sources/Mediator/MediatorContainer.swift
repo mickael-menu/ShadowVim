@@ -58,12 +58,13 @@ public final class MediatorContainer {
     }
 
     func appMediator(app: NSRunningApplication) throws -> AppMediator {
-        let nvim = try nvimContainer.nvim()
+        let nvim = nvimContainer.nvim()
+        try nvim.start()
         return AppMediator(
             app: app,
             nvim: nvim,
             buffers: NvimBuffers(
-                events: nvim.events,
+                nvim: nvim,
                 logger: logger?.domain("nvim-buffers")
             ),
             eventSource: try EventSource(
@@ -81,7 +82,7 @@ public final class MediatorContainer {
         nvim: Nvim,
         nvimBuffer: NvimBuffer,
         uiElement: AXUIElement,
-        nvimCursorPublisher: AnyPublisher<Cursor, APIError>
+        nvimCursorPublisher: AnyPublisher<Cursor, NvimError>
     ) -> BufferMediator {
         BufferMediator(
             nvim: nvim,

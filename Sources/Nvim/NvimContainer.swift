@@ -18,6 +18,9 @@
 import Foundation
 import Toolkit
 
+/// Composition root for the Nvim module.
+///
+/// Manages dependencies and creates the objects.
 public final class NvimContainer {
     let logger: Logger?
 
@@ -25,31 +28,70 @@ public final class NvimContainer {
         self.logger = logger?.domain("nvim")
     }
 
-    public func nvim() throws -> Nvim {
-        let process = try NvimProcess.start(
-            logger: logger?.domain("process")
+    public func nvim() -> Nvim {
+        Nvim(
+            logger: logger?.domain("process"),
+            runningStateFactory: runningState(process:pipes:)
         )
+    }
 
+    private func runningState(
+        process: Process,
+        pipes: (input: FileHandle, output: FileHandle)
+    ) -> Nvim.RunningState {
         let session = RPCSession(
             logger: logger?.domain("rpc"),
-            input: process.input,
-            output: process.output
+            input: pipes.input,
+            output: pipes.output
         )
 
-        let api = API(
+        let vim = vim(
             session: session,
-            logger: logger?.domain("api")
+            lock: AsyncLock(logger: logger?.domain("lock"))
         )
 
-        return Nvim(
+        return Nvim.RunningState(
             process: process,
             session: session,
-            api: api,
+            vim: vim,
             events: EventDispatcher(
-                api: api,
+                api: vim.api,
                 logger: logger?.domain("events")
-            ),
-            logger: logger
+            )
+        )
+    }
+
+    private func vim(session: RPCSession, lock: AsyncLock?) -> Vim {
+        let api = API(
+            logger: logger?.domain("api"),
+            sendRequest: { request in
+                session.request(
+                    request,
+                    callbacks: lock.map {
+                        RPCRequestCallbacks(
+                            prepare: $0.acquire,
+                            onSent: $0.release
+                        )
+                    } ?? .none
+                )
+            }
+        )
+
+        return Vim(
+            api: api,
+            fn: BuiltinFunctions(api: api),
+            cmd: ExCommands(api: api),
+            logger: logger,
+            startTransaction: { [self] in
+                let child = vim(session: session, lock: nil)
+                if let lock = lock {
+                    return lock.acquire()
+                        .map { child }
+                } else {
+                    return .success(child)
+                }
+            },
+            endTransaction: { lock?.release() }
         )
     }
 }

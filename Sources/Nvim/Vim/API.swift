@@ -22,112 +22,111 @@ import Foundation
 import MessagePack
 import Toolkit
 
+/// Ex command options table
+///
+/// See https://neovim.io/doc/user/api.html#nvim_parse_cmd()
+public struct CmdOptions {
+    /// Whether command contains a `<bang>` (!) modifier.
+    public var bang: Bool
+    /// Command arguments.
+    public var args: [ValueConvertible]
+
+    public init(bang: Bool = false, args: [ValueConvertible]) {
+        self.bang = bang
+        self.args = args
+    }
+
+    public init(bang: Bool = false, _ args: ValueConvertible...) {
+        self.init(bang: bang, args: args)
+    }
+}
+
 public class API {
-    /// The lock is used to protect calls to Nvim's API.
-    ///
-    /// Using the shared `Nvim.api` property, each call is in its own
-    /// transaction. If you need to perform a sequence of `API` calls in a
-    /// single atomic transaction, use `Api.transaction()`.
-    private enum TransactionLevel {
-        case root(lock: AsyncLock)
-        case child(level: Int)
-
-        func makeChild() -> TransactionLevel {
-            switch self {
-            case .root:
-                return .child(level: 0)
-            case let .child(level):
-                return .child(level: level + 1)
-            }
-        }
-    }
-
-    private let session: RPCSession
     private let logger: Logger?
-    private let transactionLevel: TransactionLevel
+    private let sendRequest: (RPCRequest) -> Async<Value, RPCError>
 
-    convenience init(session: RPCSession, logger: Logger?) {
-        self.init(
-            session: session,
-            logger: logger,
-            transactionLevel: .root(lock: AsyncLock(logger: logger?.domain("lock")))
-        )
-    }
-
-    private init(
-        session: RPCSession,
+    init(
         logger: Logger?,
-        transactionLevel: TransactionLevel
+        sendRequest: @escaping (RPCRequest) -> Async<Value, RPCError>
     ) {
-        self.session = session
-        self.logger = logger?.with(.transaction, to: {
-            switch transactionLevel {
-            case .root:
-                return "root"
-            case let .child(level):
-                return "child(\(level))"
-            }
-        }())
-        self.transactionLevel = transactionLevel
+        self.logger = logger
+        self.sendRequest = sendRequest
     }
 
-    /// Performs a sequence of `API` calls in a single atomic transaction.
-    ///
-    /// You must return an `Async` object completed when the transaction is
-    /// done.
-    public func transaction<Value, Failure>(
-        _ block: @escaping (API) -> Async<Value, Failure>
-    ) -> Async<Value, Failure> {
-        switch transactionLevel {
-        case let .root(lock: lock):
-            return lock.acquire()
-                .setFailureType(to: Failure.self)
-                .flatMap { [self] in
-                    block(API(session: session, logger: logger, transactionLevel: transactionLevel.makeChild()))
-                }
-                .mapError { $0 }
-                .onCompletion { _ in
-                    lock.release()
-                }
-
-        case .child:
-            // Already in a transaction
-            return block(self)
-        }
-    }
-
-    public func command(_ command: String) -> APIAsync<Value> {
+    public func command(_ command: String) -> Async<Value, NvimError> {
         request("nvim_command", with: command)
     }
 
-    public func cmd(_ cmd: String, bang: Bool = false, args: Value...) -> APIAsync<String> {
+    public func cmd(_ cmd: String, with args: ValueConvertible..., output: Bool = true) -> Async<String, NvimError> {
+        self.cmd(cmd, opts: CmdOptions(args: args), output: output)
+    }
+
+    public func cmd(_ cmd: String, opts: CmdOptions, output: Bool = true) -> Async<String, NvimError> {
         request("nvim_cmd", with: [
             [
                 "cmd": cmd.nvimValue,
-                "bang": bang.nvimValue,
-                "args": args.nvimValue,
+                "bang": opts.bang.nvimValue,
+                "args": opts.args.map(\.nvimValue).nvimValue,
             ],
             [
-                "output": true,
+                "output": output,
             ],
         ])
         .checkedUnpacking { $0.stringValue }
     }
 
-    public func exec(_ src: String) -> APIAsync<String> {
-        request("nvim_exec", with: [
-            src,
-            true, // output
-        ])
-        .checkedUnpacking { $0.stringValue }
+    public func exec(_ src: String, output: Bool = true) -> Async<String, NvimError> {
+        request("nvim_exec", with: [src, output])
+            .checkedUnpacking { $0.stringValue }
     }
 
-    public func getCurrentBuf() -> APIAsync<BufferHandle> {
+    /// Calls a VimL function with the given arguments.
+    /// https://neovim.io/doc/user/api.html#nvim_call_function()
+    public func callFunction<UnpackedValue>(
+        _ fn: String,
+        with args: ValueConvertible...,
+        unpack: @escaping (Value) -> UnpackedValue? = { $0 }
+    ) -> Async<UnpackedValue, NvimError> {
+        callFunction(fn, args: args, unpack: unpack)
+    }
+
+    /// Calls a VimL function with the given arguments.
+    /// https://neovim.io/doc/user/api.html#nvim_call_function()
+    public func callFunction<UnpackedValue>(
+        _ fn: String,
+        args: [ValueConvertible],
+        unpack: @escaping (Value) -> UnpackedValue? = { $0 }
+    ) -> Async<UnpackedValue, NvimError> {
+        request("nvim_call_function", with: [fn, args.map(\.nvimValue)])
+            .flatMap { payload in
+                guard let value = unpack(payload) else {
+                    return .failure(.unexpectedResult(payload: payload))
+                }
+                return .success(value)
+            }
+    }
+
+    /// Evaluates a VimL expression.
+    /// https://neovim.io/doc/user/api.html#nvim_eval()
+    public func eval<UnpackedValue>(
+        _ expr: String,
+        unpack: @escaping (Value) -> UnpackedValue? = { $0 }
+    ) -> Async<UnpackedValue, NvimError> {
+        request("nvim_eval", with: expr)
+            .flatMap { payload in
+                guard let value = unpack(payload) else {
+                    return .failure(.unexpectedResult(payload: payload))
+                }
+                return .success(value)
+            }
+    }
+
+    public func getCurrentBuf() -> Async<BufferHandle, NvimError> {
         request("nvim_get_current_buf")
             .checkedUnpacking { $0.bufferValue }
     }
 
-    public func createBuf(listed: Bool, scratch: Bool) -> APIAsync<BufferHandle> {
+    public func createBuf(listed: Bool, scratch: Bool) -> Async<BufferHandle, NvimError> {
         request("nvim_create_buf", with: [
             listed,
             scratch,
@@ -140,7 +139,7 @@ public class API {
         }
     }
 
-    public func bufAttach(buffer: BufferHandle, sendBuffer: Bool) -> APIAsync<Bool> {
+    public func bufAttach(buffer: BufferHandle, sendBuffer: Bool) -> Async<Bool, NvimError> {
         request("nvim_buf_attach", with: [
             Value.buffer(buffer),
             sendBuffer,
@@ -149,7 +148,7 @@ public class API {
         .checkedUnpacking { $0.boolValue }
     }
 
-    public func bufSetName(buffer: BufferHandle = 0, name: String) -> APIAsync<Void> {
+    public func bufSetName(buffer: BufferHandle = 0, name: String) -> Async<Void, NvimError> {
         request("nvim_buf_set_name", with: [
             Value.buffer(buffer),
             name,
@@ -162,7 +161,7 @@ public class API {
         start: LineIndex,
         end: LineIndex,
         strictIndexing: Bool = true
-    ) -> APIAsync<[String]> {
+    ) -> Async<[String], NvimError> {
         request("nvim_buf_get_lines", with: [
             Value.buffer(buffer),
             start,
@@ -186,7 +185,7 @@ public class API {
         end: LineIndex,
         strictIndexing: Bool = true,
         replacement: [S]
-    ) -> APIAsync<Void> {
+    ) -> Async<Void, NvimError> {
         request("nvim_buf_set_lines", with: [
             Value.buffer(buffer),
             start,
@@ -197,16 +196,20 @@ public class API {
         .discardResult()
     }
 
-    public func winGetWidth(_ window: WindowHandle = 0) -> APIAsync<Int> {
+    public func winGetWidth(_ window: WindowHandle = 0) -> Async<Int, NvimError> {
         request("nvim_win_get_width", with: Value.window(window))
             .checkedUnpacking { $0.intValue }
     }
 
-    public func winGetCursor(_ window: WindowHandle = 0) -> APIAsync<Value> {
+    public func winGetCursor(_ window: WindowHandle = 0) -> Async<Value, NvimError> {
         request("nvim_win_get_cursor", with: Value.window(window))
     }
 
-    public func winSetCursor(_ window: WindowHandle = 0, position: BufferPosition, failOnInvalidPosition: Bool = true) -> APIAsync<Void> {
+    public func winSetCursor(
+        _ window: WindowHandle = 0,
+        position: BufferPosition,
+        failOnInvalidPosition: Bool = true
+    ) -> Async<Void, NvimError> {
         request("nvim_win_set_cursor", with: [
             Value.window(window),
             [
@@ -216,7 +219,7 @@ public class API {
         ])
         .discardResult()
         .catch { error in
-            if !failOnInvalidPosition, case APIError.validation = error {
+            if !failOnInvalidPosition, case .apiFailed(.validation) = error {
                 return .success(())
             } else {
                 return .failure(error)
@@ -224,12 +227,12 @@ public class API {
         }
     }
 
-    public func input(_ keyCombo: KeyCombo) -> APIAsync<Int> {
+    public func input(_ keyCombo: KeyCombo) -> Async<Int, NvimError> {
         request("nvim_input", with: keyCombo.nvimNotation)
             .checkedUnpacking { $0.intValue }
     }
 
-    public func input(_ keys: String) -> APIAsync<Int> {
+    public func input(_ keys: String) -> Async<Int, NvimError> {
         var keys = keys
         // Note: keycodes like <CR> are translated, so "<" is special.
         // To input a literal "<", send <LT>.
@@ -241,17 +244,17 @@ public class API {
             .checkedUnpacking { $0.intValue }
     }
 
-    public func subscribe(to event: String) -> APIAsync<Void> {
+    public func subscribe(to event: String) -> Async<Void, NvimError> {
         request("nvim_subscribe", with: event)
             .discardResult()
     }
 
-    public func unsubscribe(from event: String) -> APIAsync<Void> {
+    public func unsubscribe(from event: String) -> Async<Void, NvimError> {
         request("nvim_unsubscribe", with: event)
             .discardResult()
     }
 
-    public func evalStatusline(_ str: String) -> APIAsync<String> {
+    public func evalStatusline(_ str: String) -> Async<String, NvimError> {
         request("nvim_eval_statusline", with: str, [:] as [String: Value])
             .checkedUnpacking { $0.dictValue?[.string("str")]?.stringValue }
     }
@@ -260,7 +263,7 @@ public class API {
         for event: String,
         once: Bool = false,
         command: String
-    ) -> APIAsync<AutocmdID> {
+    ) -> Async<AutocmdID, NvimError> {
         createAutocmd(for: [event], once: once, command: command)
     }
 
@@ -268,7 +271,7 @@ public class API {
         for events: [String],
         once: Bool = false,
         command: String
-    ) -> APIAsync<AutocmdID> {
+    ) -> Async<AutocmdID, NvimError> {
         request("nvim_create_autocmd", with: [
             events,
             [
@@ -279,7 +282,7 @@ public class API {
         .checkedUnpacking { $0.intValue }
     }
 
-    public func delAutocmd(_ id: AutocmdID) -> APIAsync<Void> {
+    public func delAutocmd(_ id: AutocmdID) -> Async<Void, NvimError> {
         request("nvim_del_autocmd", with: id)
             .discardResult()
     }
@@ -352,7 +355,7 @@ public class API {
     }
 
     /// https://neovim.io/doc/user/api.html#nvim_ui_attach()
-    public func uiAttach(width: Int, height: Int, options: UIOptions) -> APIAsync<Void> {
+    public func uiAttach(width: Int, height: Int, options: UIOptions) -> Async<Void, NvimError> {
         request("nvim_ui_attach", with: [
             width, height,
             [
@@ -372,32 +375,16 @@ public class API {
     }
 
     @discardableResult
-    public func request(_ method: String, with params: ValueConvertible...) -> APIAsync<Value> {
+    public func request(_ method: String, with params: ValueConvertible...) -> Async<Value, NvimError> {
         request(method, with: params)
     }
 
     @discardableResult
-    public func request(_ method: String, with params: [ValueConvertible]) -> APIAsync<Value> {
-        guard !session.isClosed else {
-            return .failure(.rpcSessionClosed)
-        }
+    public func request(_ method: String, with params: [ValueConvertible]) -> Async<Value, NvimError> {
+        logger?.t("Call Nvim API: \(method)", [.params: params.map(\.nvimValue)])
 
-        logger?.t("Call Nvim API", [.method: method, .params: params.map(\.nvimValue)])
-
-        let requestCallbacks: RPCRequestCallbacks = {
-            switch transactionLevel {
-            case let .root(lock: lock):
-                return RPCRequestCallbacks(
-                    prepare: { lock.acquire() },
-                    onSent: { lock.release() }
-                )
-            case .child:
-                return RPCRequestCallbacks()
-            }
-        }()
-
-        return session.request(method: method, params: params, callbacks: requestCallbacks)
-            .mapError { APIError(from: $0) }
+        return sendRequest((method: method, params: params))
+            .mapError { .apiFailed(APIError(from: $0)) }
     }
 }
 
@@ -408,8 +395,6 @@ public enum APIError: Error {
     case unexpectedResponseError(content: Value)
     // When Nvim returns an unexpected result for the request `method`.
     case unexpectedResult(Value)
-    // When Nvim sends a notification with an unexpected payload.
-    case unexpectedNotificationPayload(event: String, payload: [Value])
     // A low-level RPC failure occurred.
     case rpcFailure(RPCError)
     // The RPC session is closed.
@@ -443,13 +428,11 @@ public enum APIError: Error {
     }
 }
 
-public typealias APIAsync<Success> = Async<Success, APIError>
-
-extension Async where Success == Value, Failure == APIError {
-    func checkedUnpacking<NewSuccess>(transform: @escaping (Success) -> NewSuccess?) -> APIAsync<NewSuccess> {
+extension Async where Success == Value, Failure == NvimError {
+    func checkedUnpacking<NewSuccess>(transform: @escaping (Success) -> NewSuccess?) -> Async<NewSuccess, NvimError> {
         flatMap {
             guard let res = transform($0) else {
-                return .failure(.unexpectedResult($0))
+                return .failure(.apiFailed(.unexpectedResult($0)))
             }
             return .success(res)
         }
@@ -459,5 +442,4 @@ extension Async where Success == Value, Failure == APIError {
 private extension LogKey {
     static var method: LogKey { "method" }
     static var params: LogKey { "params" }
-    static var transaction: LogKey { "@transaction" }
 }

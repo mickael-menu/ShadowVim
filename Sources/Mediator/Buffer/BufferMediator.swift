@@ -32,7 +32,7 @@ public final class BufferMediator {
         nvim: Nvim,
         nvimBuffer: NvimBuffer,
         uiElement: AXUIElement,
-        nvimCursorPublisher: AnyPublisher<Cursor, APIError>
+        nvimCursorPublisher: AnyPublisher<Cursor, NvimError>
     )) -> BufferMediator
 
     weak var delegate: BufferMediatorDelegate?
@@ -61,7 +61,7 @@ public final class BufferMediator {
         nvim: Nvim,
         nvimBuffer: NvimBuffer,
         uiElement: AXUIElement,
-        nvimCursorPublisher: AnyPublisher<Cursor, APIError>,
+        nvimCursorPublisher: AnyPublisher<Cursor, NvimError>,
         logger: Logger?
     ) {
         self.nvim = nvim
@@ -193,7 +193,7 @@ public final class BufferMediator {
     }
 
     private func updateNvim(diff: CollectionDifference<String>, cursorPosition: BufferPosition) {
-        nvim.api.transaction(in: nvimBuffer) { [self] api in
+        nvim.vim?.atomic(in: nvimBuffer) { [self] vim in
             withAsyncGroup { group in
                 for change in diff {
                     var start: LineIndex
@@ -209,12 +209,12 @@ public final class BufferMediator {
                         end = offset + 1
                         replacement = []
                     }
-                    api.bufSetLines(buffer: nvimBuffer.handle, start: start, end: end, replacement: replacement)
+                    vim.api.bufSetLines(buffer: nvimBuffer.handle, start: start, end: end, replacement: replacement)
                         .eraseToAnyError()
                         .add(to: group)
                 }
 
-                api.winSetCursor(position: cursorPosition, failOnInvalidPosition: false)
+                vim.api.winSetCursor(position: cursorPosition, failOnInvalidPosition: false)
                     .eraseToAnyError()
                     .add(to: group)
             }
@@ -223,8 +223,8 @@ public final class BufferMediator {
     }
 
     private func updateNvimCursor(position: BufferPosition) {
-        nvim.api.transaction(in: nvimBuffer) { api in
-            api.winSetCursor(position: position, failOnInvalidPosition: false)
+        nvim.vim?.atomic(in: nvimBuffer) { vim in
+            vim.api.winSetCursor(position: position, failOnInvalidPosition: false)
         }
         .discardResult()
         .get(onFailure: fail)
