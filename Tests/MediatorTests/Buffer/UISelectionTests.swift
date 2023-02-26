@@ -16,10 +16,9 @@
 //
 
 @testable import Mediator
-import Nvim
 import XCTest
 
-final class BufferSelectionTests: XCTestCase {
+final class UISelectionTests: XCTestCase {
     let lines = [
         "func helloWorld() {",
         "    print(\"Hello world\")",
@@ -27,11 +26,11 @@ final class BufferSelectionTests: XCTestCase {
         "",
     ]
 
-    // MARK: - Insert mode
+    // MARK: - Adjust to Insert mode
 
     // Does nothing when the selection is already of length 0.
     func testAdjustInsertAlreadyLength0() {
-        let sel = BufferSelection(startLine: 0, col: 5, endLine: 0, col: 5)
+        let sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 5)
         XCTAssertEqual(
             sel.adjust(to: .insert, lines: lines),
             sel
@@ -40,7 +39,7 @@ final class BufferSelectionTests: XCTestCase {
 
     // Collapses a selection of length 1.
     func testAdjustInsertCollapsesLength1() {
-        let sel = BufferSelection(startLine: 0, col: 5, endLine: 0, col: 6)
+        let sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 6)
         XCTAssertEqual(
             sel.adjust(to: .insert, lines: lines),
             sel.copy(endColumn: 5)
@@ -50,7 +49,7 @@ final class BufferSelectionTests: XCTestCase {
     // Keeps a selection of length >1, because otherwise it prevents the user
     // from selecting with the mouse (e.g. with a right click on a symbol).
     func testAdjustInsertIgnoresLengthMoreThan1() {
-        let sel = BufferSelection(startLine: 0, col: 5, endLine: 0, col: 7)
+        let sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 7)
         XCTAssertEqual(
             sel.adjust(to: .insert, lines: lines),
             sel
@@ -58,7 +57,7 @@ final class BufferSelectionTests: XCTestCase {
     }
 
     func testAdjustInsertIgnoresLengthMoreThan1TwoLines() {
-        let sel = BufferSelection(startLine: 0, col: 5, endLine: 1, col: 2)
+        let sel = UISelection(startLine: 0, col: 5, endLine: 1, col: 2)
         XCTAssertEqual(
             sel.adjust(to: .insert, lines: lines),
             sel
@@ -67,18 +66,18 @@ final class BufferSelectionTests: XCTestCase {
 
     // Adjusts on an empty line.
     func testAdjustInsertEmptyLine() {
-        let sel = BufferSelection(startLine: 3, col: 0, endLine: 3, col: 0)
+        let sel = UISelection(startLine: 3, col: 0, endLine: 3, col: 0)
         XCTAssertEqual(
             sel.adjust(to: .insert, lines: lines),
             sel
         )
     }
 
-    // MARK: - Replace mode
+    // MARK: - Adjust to Replace mode
 
     // Does nothing when the selection is already of length 0.
     func testAdjustReplaceAlreadyLength0() {
-        let sel = BufferSelection(startLine: 0, col: 5, endLine: 0, col: 5)
+        let sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 5)
         XCTAssertEqual(
             sel.adjust(to: .replace, lines: lines),
             sel
@@ -87,7 +86,7 @@ final class BufferSelectionTests: XCTestCase {
 
     // Collapses a selection of length 1.
     func testAdjustReplaceCollapsesLength1() {
-        let sel = BufferSelection(startLine: 0, col: 5, endLine: 0, col: 6)
+        let sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 6)
         XCTAssertEqual(
             sel.adjust(to: .replace, lines: lines),
             sel.copy(endColumn: 5)
@@ -97,7 +96,7 @@ final class BufferSelectionTests: XCTestCase {
     // Keeps a selection of length >1, because otherwise it prevents the user
     // from selecting with the mouse (e.g. with a right click on a symbol).
     func testAdjustReplaceIgnoresLengthMoreThan1() {
-        let sel = BufferSelection(startLine: 0, col: 5, endLine: 0, col: 7)
+        let sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 7)
         XCTAssertEqual(
             sel.adjust(to: .replace, lines: lines),
             sel
@@ -105,7 +104,7 @@ final class BufferSelectionTests: XCTestCase {
     }
 
     func testAdjustReplaceIgnoresLengthMoreThan1TwoLines() {
-        let sel = BufferSelection(startLine: 0, col: 5, endLine: 1, col: 2)
+        let sel = UISelection(startLine: 0, col: 5, endLine: 1, col: 2)
         XCTAssertEqual(
             sel.adjust(to: .replace, lines: lines),
             sel
@@ -114,30 +113,30 @@ final class BufferSelectionTests: XCTestCase {
 
     // Adjusts on an empty line.
     func testAdjustReplaceEmptyLine() {
-        let sel = BufferSelection(startLine: 3, col: 0, endLine: 3, col: 0)
+        let sel = UISelection(startLine: 3, col: 0, endLine: 3, col: 0)
         XCTAssertEqual(
             sel.adjust(to: .replace, lines: lines),
             sel
         )
     }
 
-    // MARK: - Normal mode
+    // MARK: - Adjust to Normal mode
 
     // Does nothing when the selection is already of length 1.
     func testAdjustNormalAlreadyLength1() {
-        var sel = BufferSelection(startLine: 0, col: 0, endLine: 0, col: 1)
+        var sel = UISelection(startLine: 0, col: 0, endLine: 0, col: 1)
         XCTAssertEqual(
             sel.adjust(to: .normal, lines: lines),
             sel
         )
 
-        sel = BufferSelection(startLine: 0, col: 5, endLine: 0, col: 6)
+        sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 6)
         XCTAssertEqual(
             sel.adjust(to: .normal, lines: lines),
             sel
         )
 
-        sel = BufferSelection(startLine: 0, col: 18, endLine: 0, col: 19)
+        sel = UISelection(startLine: 0, col: 18, endLine: 0, col: 19)
         XCTAssertEqual(
             sel.adjust(to: .normal, lines: lines),
             sel
@@ -146,7 +145,7 @@ final class BufferSelectionTests: XCTestCase {
 
     // Expands a selection of length 0, at the beginning of the line.
     func testAdjustNormalExpandLength0StartOfLine() {
-        let sel = BufferSelection(startLine: 0, col: 0, endLine: 0, col: 0)
+        let sel = UISelection(startLine: 0, col: 0, endLine: 0, col: 0)
         XCTAssertEqual(
             sel.adjust(to: .normal, lines: lines),
             sel.copy(endColumn: 1)
@@ -155,7 +154,7 @@ final class BufferSelectionTests: XCTestCase {
 
     // Expands a selection of length 0, in the middle of the line.
     func testAdjustNormalExpandLength0MiddleOfLine() {
-        let sel = BufferSelection(startLine: 0, col: 4, endLine: 0, col: 4)
+        let sel = UISelection(startLine: 0, col: 4, endLine: 0, col: 4)
         XCTAssertEqual(
             sel.adjust(to: .normal, lines: lines),
             sel.copy(endColumn: 5)
@@ -164,7 +163,7 @@ final class BufferSelectionTests: XCTestCase {
 
     // Expands a selection of length 0, at the end of the line.
     func testAdjustNormalExpandLength0EndOfLine() {
-        let sel = BufferSelection(startLine: 0, col: 19, endLine: 0, col: 19)
+        let sel = UISelection(startLine: 0, col: 19, endLine: 0, col: 19)
         XCTAssertEqual(
             sel.adjust(to: .normal, lines: lines),
             sel.copy(startColumn: 18)
@@ -173,7 +172,7 @@ final class BufferSelectionTests: XCTestCase {
 
     // Expands a selection of length 0, past the end of the line
     func testAdjustNormalExpandLength0PastEndOfLine() {
-        let sel = BufferSelection(startLine: 0, col: 25, endLine: 0, col: 25)
+        let sel = UISelection(startLine: 0, col: 25, endLine: 0, col: 25)
         XCTAssertEqual(
             sel.adjust(to: .normal, lines: lines),
             sel.copy(
@@ -186,7 +185,7 @@ final class BufferSelectionTests: XCTestCase {
     // Keeps a selection of length >1, because otherwise it prevents the user
     // from selecting with the mouse (e.g. with a right click on a symbol).
     func testAdjustNormalIgnoresLengthMoreThan1() {
-        let sel = BufferSelection(startLine: 0, col: 5, endLine: 0, col: 7)
+        let sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 7)
         XCTAssertEqual(
             sel.adjust(to: .normal, lines: lines),
             sel
@@ -194,7 +193,7 @@ final class BufferSelectionTests: XCTestCase {
     }
 
     func testAdjustNormalIgnoresLengthMoreThan1TwoLines() {
-        let sel = BufferSelection(startLine: 0, col: 5, endLine: 1, col: 2)
+        let sel = UISelection(startLine: 0, col: 5, endLine: 1, col: 2)
         XCTAssertEqual(
             sel.adjust(to: .normal, lines: lines),
             sel
@@ -203,10 +202,60 @@ final class BufferSelectionTests: XCTestCase {
 
     // Adjusts on an empty line.
     func testAdjustNormalEmptyLine() {
-        let sel = BufferSelection(startLine: 3, col: 0, endLine: 3, col: 0)
+        let sel = UISelection(startLine: 3, col: 0, endLine: 3, col: 0)
         XCTAssertEqual(
             sel.adjust(to: .normal, lines: lines),
             sel.copy(endColumn: 1)
+        )
+    }
+
+    // MARK: - Join selections
+
+    func testJoin0Selections() {
+        let selections = [UISelection]()
+        XCTAssertNil(selections.joined())
+    }
+
+    func testJoin1Selection() {
+        let selection = UISelection(startLine: 1, col: 5, endLine: 2, col: 7)
+        XCTAssertEqual([selection].joined(), selection)
+    }
+
+    func testJoinMultipleSelections() {
+        let selections = [
+            UISelection(startLine: 2, col: 7, endLine: 3, col: 9),
+            UISelection(startLine: 3, col: 9, endLine: 4, col: 11),
+            UISelection(startLine: 1, col: 5, endLine: 2, col: 7),
+        ]
+        XCTAssertEqual(
+            selections.joined(),
+            UISelection(startLine: 1, col: 5, endLine: 4, col: 11)
+        )
+    }
+
+    func testJoinOverlappingSelections() {
+        let selections = [
+            UISelection(startLine: 2, col: 6, endLine: 3, col: 9),
+            UISelection(startLine: 1, col: 5, endLine: 2, col: 7),
+            UISelection(startLine: 3, col: 9, endLine: 4, col: 11),
+        ]
+        XCTAssertEqual(
+            selections.joined(),
+            UISelection(startLine: 1, col: 5, endLine: 4, col: 11)
+        )
+    }
+}
+
+extension UISelection {
+    init(
+        startLine: LineIndex,
+        col startColumn: ColumnIndex,
+        endLine: LineIndex,
+        col endColumn: ColumnIndex
+    ) {
+        self.init(
+            start: UIPosition(line: startLine, column: startColumn),
+            end: UIPosition(line: endLine, column: endColumn)
         )
     }
 }

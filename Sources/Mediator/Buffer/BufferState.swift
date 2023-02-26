@@ -384,40 +384,6 @@ struct BufferState: Equatable {
     }
 }
 
-extension UISelection {
-    /// Adjusts this `BufferSelection` to match the given Nvim `mode`.
-    func adjust(to mode: Mode, lines: [String]) -> UISelection {
-        guard
-            start.line == end.line,
-            (start.column ... start.column + 1).contains(end.column),
-            lines.indices.contains(start.line)
-        else {
-            return self
-        }
-
-        switch mode {
-        case .insert, .replace, .visual, .visualLine, .select, .selectLine:
-            return UISelection(start: start, end: start)
-
-        default:
-            let line = lines[start.line]
-            if line.isEmpty {
-                return UISelection(
-                    start: start.copy(column: 0),
-                    end: start.copy(column: 1)
-                )
-            } else {
-                var start = start
-                start.column = min(start.column, line.count - 1)
-                return UISelection(
-                    start: start,
-                    end: start.moving(column: +1)
-                )
-            }
-        }
-    }
-}
-
 // MARK: - Logging
 
 extension BufferState.EditionToken: LogValueConvertible {

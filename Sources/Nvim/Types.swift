@@ -43,8 +43,8 @@ public struct BufferPosition: Equatable {
 
     public func moving(line: LineIndex? = nil, column: ColumnIndex? = nil) -> BufferPosition {
         BufferPosition(
-            line: self.line + (line ?? 1),
-            column: self.column + (column ?? 1)
+            line: self.line + (line ?? 0),
+            column: self.column + (column ?? 0)
         )
     }
 
