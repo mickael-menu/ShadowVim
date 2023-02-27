@@ -114,7 +114,7 @@ public final class AppMediator {
 
         setupUserCommands()
 
-        // nvim.api.uiAttach(
+        // nvim.vim?.api.uiAttach(
         //     width: 1000,
         //     height: 100,
         //     options: API.UIOptions(
@@ -131,7 +131,7 @@ public final class AppMediator {
         // .forwardErrorToDelegate(of: self)
         // .run()
 
-        // nvim.events.publisher(for: "redraw")
+        // nvim.publisher(for: "redraw")
         //     .assertNoFailure()
         //     .sink { params in
         //         for v in params {
