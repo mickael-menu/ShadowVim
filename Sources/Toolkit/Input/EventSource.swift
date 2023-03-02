@@ -22,19 +22,16 @@ public enum EventSourceError: Error {
     case failedToCreateSource
 }
 
-/// An event source allows to post events (e.g. key combos) to the application
-/// with a given `pid`.
+/// An event source allows to post events (e.g. key combos) to the system.
 public final class EventSource {
-    private let pid: pid_t
     private let source: CGEventSource
     private let keyResolver: CGKeyResolver
 
-    public init(pid: pid_t, keyResolver: CGKeyResolver) throws {
+    public init(keyResolver: CGKeyResolver) throws {
         guard let source = CGEventSource(stateID: .combinedSessionState) else {
             throw EventSourceError.failedToCreateSource
         }
 
-        self.pid = pid
         self.source = source
         self.keyResolver = keyResolver
     }
@@ -48,12 +45,12 @@ public final class EventSource {
             return false
         }
 
-        DispatchQueue.main.async { [self] in
+        DispatchQueue.main.async {
             let flags = kc.modifiers.cgFlags
             downEvent.flags = flags
             upEvent.flags = flags
-            downEvent.postToPid(pid)
-            upEvent.postToPid(pid)
+            downEvent.post(tap: .cgSessionEventTap)
+            upEvent.post(tap: .cgSessionEventTap)
         }
 
         return true

@@ -111,6 +111,16 @@ The following commands are available in your bindings when Neovim is run by Shad
 
 Neovim is in read-only mode, so `:w` won't do anything. Use the usual <kbd>⌘S</kbd> to save your files.
 
+### Custom passthrough for hot keys
+
+All keyboard shortcuts that are not using the <kbd>⌘</kbd> modifier are sent to Neovim. This means that if you have a global hot key (e.g. <kbd>⌥\`</kbd> to open iTerm), it won't work when Xcode is focused.
+
+As a workaround, you can add a custom mapping to your `init.vim` to retrigger your hot key globally.
+
+```viml
+map <A-`> <Cmd>SVPressKeys <LT>A-`><CR>
+```
+
 ### Navigation with <kbd>C-o</kbd> and <kbd>C-i</kbd>
 
 Cross-buffers navigation is not yet supported with ShadowVim. Therefore, it is recommended to override the <kbd>C-o</kbd> and <kbd>C-i</kbd> mappings to use Xcode's navigation instead.
