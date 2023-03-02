@@ -2,7 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
+### Changed
+
+* `SVPressKeys` now emits the keyboard shortcut system-wide instead of only in the Xcode process.
+    * This can be used to have a custom passthrough for hot keys (e.g. <kbd>⌥\`</kbd> to open iTerm) by adding this to your `init.vim`:
+    ```viml
+    if exists('g:shadowvim')
+        map <A-`> <Cmd>SVPressKeys <LT>A-`><CR>
+    endif
+    ```
 
 ## [0.1.1]
 
