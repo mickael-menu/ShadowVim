@@ -47,8 +47,17 @@ public final class ExCommands {
             .discardResult()
     }
 
+    /// Execute Normal mode commands.
+    /// https://neovim.io/doc/user/various.html#%3Anormal
+    public func normal(
+        bang: Bool = false,
+        _ commands: String
+    ) -> Async<Void, NvimError> {
+        api.cmd("normal", opts: CmdOptions(bang: bang, with: commands))
+            .discardResult()
+    }
+
     /// Defines a user command.
-    ///
     /// https://neovim.io/doc/user/map.html#%3Acommand
     public func command(
         cmd: String,

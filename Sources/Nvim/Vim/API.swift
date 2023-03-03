@@ -36,7 +36,7 @@ public struct CmdOptions {
         self.args = args
     }
 
-    public init(bang: Bool = false, _ args: ValueConvertible...) {
+    public init(bang: Bool = false, with args: ValueConvertible...) {
         self.init(bang: bang, args: args)
     }
 }
