@@ -49,8 +49,8 @@ public class EventTap {
             options: .defaultTap,
             eventsOfInterest: CGEventMask(
                 1 << CGEventType.keyDown.rawValue
-//                | 1 << CGEventType.leftMouseDown.rawValue
-//                | 1 << CGEventType.otherMouseDown.rawValue
+                    | 1 << CGEventType.leftMouseDown.rawValue
+                    | 1 << CGEventType.leftMouseUp.rawValue
             ),
             callback: { proxy, type, event, refcon in
                 Unmanaged<EventTap>.fromOpaque(refcon!)

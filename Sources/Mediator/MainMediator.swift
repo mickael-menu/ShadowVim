@@ -97,7 +97,7 @@ public final class MainMediator {
         apps = [:]
     }
 
-    public func handle(_ event: KeyEvent) -> Bool {
+    public func handle(_ event: InputEvent) -> Bool {
         do {
             guard
                 let app = NSWorkspace.shared.frontmostApplication,

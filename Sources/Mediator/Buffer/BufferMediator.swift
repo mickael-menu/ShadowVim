@@ -131,6 +131,9 @@ public final class BufferMediator {
         }
     }
 
+    func didReceiveMouseEvent(_ event: MouseEvent) {
+    }
+
     private func subscribeToElementChanges(_ element: AXUIElement) {
         uiSubscriptions = []
 

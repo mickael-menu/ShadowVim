@@ -108,8 +108,8 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
             && !name.hasSuffix("/")
     }
 
-    public func appMediator(_ mediator: AppMediator, shouldIgnoreKeyEvent event: KeyEvent) -> Bool {
-        shouldIgnoreKeyEventForCompletionPopUp(event)
+    public func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: InputEvent) -> Bool {
+        shouldIgnoreEventForCompletionPopUp(event)
     }
 
     // MARK: - Completion pop-up passthrough keys
@@ -127,8 +127,8 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
         KeyCombo(.p, modifiers: .control),
     ]
 
-    private func shouldIgnoreKeyEventForCompletionPopUp(_ event: KeyEvent) -> Bool {
-        guard isCompletionPopUpVisible else {
+    private func shouldIgnoreEventForCompletionPopUp(_ event: InputEvent) -> Bool {
+        guard isCompletionPopUpVisible, case let .key(event) = event else {
             return false
         }
 

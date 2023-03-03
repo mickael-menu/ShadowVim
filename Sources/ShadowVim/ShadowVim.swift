@@ -206,40 +206,39 @@ class ShadowVim: ObservableObject {
 
 extension ShadowVim: EventTapDelegate {
     func eventTap(_ tap: EventTap, didReceive event: CGEvent) -> CGEvent? {
-        guard
-            event.type == .keyDown,
-            let keyCombo = keyResolver.keyCombo(for: event),
-            let event = KeyEvent(event: event, keyCombo: keyCombo)
-        else {
-            return event
+        guard let inputEvent = InputEvent(event: event, keyResolver: keyResolver) else {
+            return nil
         }
 
-        if keyCombo.modifiers == [.control, .option, .command] {
-            switch keyCombo.key {
-            case .escape:
-                reset()
-                return nil
-            case .period:
-                toggleKeysPassthrough()
-                return nil
-            case .slash:
-                setVerboseLogger()
-                return nil
-            default:
-                break
+        if case let .key(keyEvent) = inputEvent {
+            let keyCombo = keyEvent.keyCombo
+            if keyCombo.modifiers == [.control, .option, .command] {
+                switch keyCombo.key {
+                case .escape:
+                    reset()
+                    return nil
+                case .period:
+                    toggleKeysPassthrough()
+                    return nil
+                case .slash:
+                    setVerboseLogger()
+                    return nil
+                default:
+                    break
+                }
             }
-        }
 
-        if keysPassthrough, keyCombo == KeyCombo(.escape) {
-            setKeysPassthrough(false)
+            if keysPassthrough, keyCombo == KeyCombo(.escape) {
+                setKeysPassthrough(false)
+            }
         }
 
         guard
             !keysPassthrough,
             let mediator = mediator,
-            mediator.handle(event)
+            mediator.handle(inputEvent)
         else {
-            return event.event
+            return event
         }
 
         return nil
