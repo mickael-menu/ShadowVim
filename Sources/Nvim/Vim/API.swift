@@ -196,6 +196,17 @@ public class API {
         .discardResult()
     }
 
+    /// Pastes at cursor, in any mode.
+    /// https://neovim.io/doc/user/api.html#nvim_paste()
+    public func paste(_ data: String) -> Async<Void, NvimError> {
+        request("nvim_paste", with: [
+            data,
+            false, // crlf
+            -1 // phase
+        ])
+        .discardResult()
+    }
+
     public func winGetWidth(_ window: WindowHandle = 0) -> Async<Int, NvimError> {
         request("nvim_win_get_width", with: Value.window(window))
             .checkedUnpacking { $0.intValue }

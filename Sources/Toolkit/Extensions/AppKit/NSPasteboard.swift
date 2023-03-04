@@ -19,6 +19,14 @@ import AppKit
 import Foundation
 
 public extension NSPasteboard {
+
+    static func get() -> String? {
+        guard let text = NSPasteboard.general.string(forType: .string), !text.isEmpty else {
+            return nil
+        }
+        return text
+    }
+
     static func set(_ contents: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.declareTypes([.string], owner: nil)

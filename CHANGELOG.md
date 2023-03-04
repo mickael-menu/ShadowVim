@@ -2,7 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
+### Changed
+
+* The system paste shortcut (<kbd>⌘V</kbd>) is now overridden and handled by Neovim to improve performances and the undo history.
+
 
 ## [0.1.1]
 
