@@ -19,7 +19,6 @@ import AppKit
 import Foundation
 
 public extension NSPasteboard {
-
     static func get() -> String? {
         guard let text = NSPasteboard.general.string(forType: .string), !text.isEmpty else {
             return nil

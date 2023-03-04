@@ -202,7 +202,7 @@ public class API {
         request("nvim_paste", with: [
             data,
             false, // crlf
-            -1 // phase
+            -1, // phase
         ])
         .discardResult()
     }
