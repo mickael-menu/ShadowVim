@@ -68,14 +68,17 @@ To conditionally activate plugins, `vim-plug` has a
 
 Only <kbd>⌃</kbd>/<kbd>C-</kbd>-based keyboard shortcuts can be customized in Neovim. <kbd>⌘</kbd>-based hotkeys are handled directly by Xcode.
 
-The `SVPressKeys` user command triggers a keyboard shortcut in Xcode. This is convenient to bind Neovim commands to Xcode features, such as:
+The `SVPress` user command triggers a keyboard shortcut or mouse click in Xcode. This is convenient to bind Neovim commands to Xcode features, such as:
 
 ```viml
-" Jump to Definition (⌃⌘J)
-nmap gd <Cmd>SVPressKeys <LT>C-D-j><CR>
+" Jump to Definition (⌃⌘J).
+nmap gd <Cmd>SVPress <LT>C-D-j><CR>
+
+" Show the Quick Help pop-up for the symbol at the caret location (<kbd>⌥ + Left Click</kbd>).
+nmap K <Cmd>SVPress <LT>M-LeftMouse><CR>
 ```
 
-:warning: The first `<` needs to be escaped as `<LT>` when calling `SVPressKeys` from a key binding.
+:warning: The first `<` needs to be escaped as `<LT>` when calling `SVPress` from a key binding.
 
 | Modifier | macOS        | Nvim                           |
 |----------|--------------|--------------------------------|
@@ -99,7 +102,7 @@ ShadowVim adds a new menu bar icon (🅽) with a couple of useful features which
 
 The following commands are available in your bindings when Neovim is run by ShadowVim.
 
-* `SVPressKeys` triggers a keyboard shortcut in Xcode. The syntax is the same as Neovim's key bindings, e.g. `SVPressKeys <D-s>` to save the current file.
+* `SVPress` triggers a keyboard shortcut or mouse click in Xcode. The syntax is the same as Neovim's key bindings, e.g. `SVPress <D-s>` to save the current file. Mouse clicks are performed at the current caret location.
 * `SVEnableKeysPassthrough` switches on the Keys Passthrough mode, which lets Xcode handle key events until you press <kbd>⎋</kbd>.
 * `SVReset` kills Neovim and resets the synchronization. This might be useful if you get stuck.
 * `SVSynchronizeUI` requests Xcode to reset the current file to the state of the Neovim buffer. You should not need to call this manually.
@@ -118,7 +121,7 @@ All keyboard shortcuts that are not using the <kbd>⌘</kbd> modifier are sent t
 As a workaround, you can add a custom mapping to your `init.vim` to retrigger your hot key globally.
 
 ```viml
-map <A-`> <Cmd>SVPressKeys <LT>A-`><CR>
+map <A-`> <Cmd>SVPress <LT>A-`><CR>
 ```
 
 ### Navigation with <kbd>C-o</kbd> and <kbd>C-i</kbd>
@@ -126,18 +129,18 @@ map <A-`> <Cmd>SVPressKeys <LT>A-`><CR>
 Cross-buffers navigation is not yet supported with ShadowVim. Therefore, it is recommended to override the <kbd>C-o</kbd> and <kbd>C-i</kbd> mappings to use Xcode's navigation instead.
 
 ```viml
-nmap <C-o> <Cmd>SVPressKeys <LT>C-D-Left><CR>
-nmap <C-i> <Cmd>SVPressKeys <LT>C-D-Right><CR>
+nmap <C-o> <Cmd>SVPress <LT>C-D-Left><CR>
+nmap <C-i> <Cmd>SVPress <LT>C-D-Right><CR>
 ```
 
 Unfortunately, this won't work in read-only source editors. As a workaround, you can rebind **Go back** to <kbd>⌃O</kbd> and **Go forward** to <kbd>⌃I</kbd> in Xcode's **Key Bindings** preferences, then in Neovim:
 
 ```viml
-nmap <C-o> <Cmd>SVPressKeys <LT>C-o><CR>
-nmap <C-i> <Cmd>SVPressKeys <LT>C-i><CR>
+nmap <C-o> <Cmd>SVPress <LT>C-o><CR>
+nmap <C-i> <Cmd>SVPress <LT>C-i><CR>
 ```
 
-As `SVPressKeys` is not recursive, this will perform the native Xcode navigation.
+As `SVPress` is not recursive, this will perform the native Xcode navigation.
 
 ### Triggering Xcode's completion
 
@@ -154,32 +157,44 @@ nmap gp /<LT>#.\{-}#><CR>gn
 nmap cap /<LT>#.\{-}#><CR>cgn
 ```
 
+### Mouse clicks
+
+Here are some useful bindings simulating mouse clicks.
+
+```viml
+" Show the Quick Help pop-up for the symbol at the caret location (<kbd>⌥ + Left Click</kbd>).
+nmap K <Cmd>SVPress <LT>M-LeftMouse><CR>
+
+" Perform a right click at the caret location.
+nmap gr <Cmd>SVPress <LT>RightMouse><CR>
+```
+
 ### Window management
 
 Use the following bindings to manage Xcode's source editor with the usual <kbd>C-w</kbd>-based keyboard shortcuts.
 
 ```viml
 " Split vertically.
-map <C-w>v <Cmd>SVPressKeys <LT>C-D-t><CR>
+map <C-w>v <Cmd>SVPress <LT>C-D-t><CR>
 " Split horizontally.
-map <C-w>s <Cmd>SVPressKeys <LT>C-M-D-t><CR>
+map <C-w>s <Cmd>SVPress <LT>C-M-D-t><CR>
 
 " Close the focused editor.
 " Note: Xcode 14 doesn't focus the previous one... As a workaround, ⌃C is triggered to focus the first one.
-map <C-w>c <Cmd>SVPressKeys <LT>C-S-D-w><CR><Cmd>SVPressKeys <LT>C-`><CR>
+map <C-w>c <Cmd>SVPress <LT>C-S-D-w><CR><Cmd>SVPress <LT>C-`><CR>
 " Close all other source editors.
-map <C-w>o <Cmd>SVPressKeys <LT>C-S-M-D-w><CR>
+map <C-w>o <Cmd>SVPress <LT>C-S-M-D-w><CR>
 
 " Focus the editor on the left.
-map <C-w>h <Cmd>SVPressKeys <LT>D-j><CR><Cmd>SVPressKeys h<CR><Cmd>SVPressKeys <LT>CR><CR>
+map <C-w>h <Cmd>SVPress <LT>D-j><CR><Cmd>SVPress h<CR><Cmd>SVPress <LT>CR><CR>
 " Focus the editor below.
-map <C-w>j <Cmd>SVPressKeys <LT>D-j><CR><Cmd>SVPressKeys j<CR><Cmd>SVPressKeys <LT>CR><CR>
+map <C-w>j <Cmd>SVPress <LT>D-j><CR><Cmd>SVPress j<CR><Cmd>SVPress <LT>CR><CR>
 " Focus the editor above.
-map <C-w>k <Cmd>SVPressKeys <LT>D-j><CR><Cmd>SVPressKeys k<CR><Cmd>SVPressKeys <LT>CR><CR>
+map <C-w>k <Cmd>SVPress <LT>D-j><CR><Cmd>SVPress k<CR><Cmd>SVPress <LT>CR><CR>
 " Focus the editor on the right.
-map <C-w>l <Cmd>SVPressKeys <LT>D-j><CR><Cmd>SVPressKeys l<CR><Cmd>SVPressKeys <LT>CR><CR>
+map <C-w>l <Cmd>SVPress <LT>D-j><CR><Cmd>SVPress l<CR><Cmd>SVPress <LT>CR><CR>
 " Rotate the source editors.
-map <C-w>w <Cmd>SVPressKeys <LT>C-`><CR>
+map <C-w>w <Cmd>SVPress <LT>C-`><CR>
 ```
 
 ### Folds
@@ -187,10 +202,10 @@ map <C-w>w <Cmd>SVPressKeys <LT>C-`><CR>
 Xcode's folding capabilities are limited, but you get the basics with these bindings:
 
 ```viml
-nmap zc <Cmd>SVPressKeys <LT>M-D-Left><CR>
-nmap zo <Cmd>SVPressKeys <LT>M-D-Right><CR>
-nmap zM <Cmd>SVPressKeys <LT>M-S-D-Left><CR>
-nmap zR <Cmd>SVPressKeys <LT>M-S-D-Right><CR>
+nmap zc <Cmd>SVPress <LT>M-D-Left><CR>
+nmap zo <Cmd>SVPress <LT>M-D-Right><CR>
+nmap zM <Cmd>SVPress <LT>M-S-D-Left><CR>
+nmap zR <Cmd>SVPress <LT>M-S-D-Right><CR>
 ```
 
 ### Opening third-party applications

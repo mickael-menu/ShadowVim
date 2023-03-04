@@ -4,9 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+* Use `SVPress` to trigger click events from Neovim bindings.
+    ```viml
+    " Show the Quick Help pop-up for the symbol at the caret location (<kbd>⌥ + Left Click</kbd>).
+    nmap K <Cmd>SVPress <LT>M-LeftMouse><CR>
+
+    " Perform a right click at the caret location.
+    nmap gr <Cmd>SVPress <LT>RightMouse><CR>
+    ```
+
 ### Changed
 
-* `SVPressKeys` now emits the keyboard shortcut system-wide instead of only in the Xcode process.
+* `SVPressKeys` was renamed to `SVPress`.
+* `SVPress` now emits the keyboard shortcut system-wide instead of only in the Xcode process.
     * This can be used to have a custom passthrough for hot keys (e.g. <kbd>⌥\`</kbd> to open iTerm) by adding this to your `init.vim`:
     ```viml
     if exists('g:shadowvim')
