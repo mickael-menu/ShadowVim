@@ -263,6 +263,7 @@ public final class AppMediator {
 
     private let cmdZ = KeyCombo(.z, modifiers: .command)
     private let cmdShiftZ = KeyCombo(.z, modifiers: [.command, .shift])
+    private let cmdV = KeyCombo(.v, modifiers: [.command])
 
     private func handle(_ event: InputEvent, in buffer: BufferMediator) -> Bool {
         switch event {
@@ -293,6 +294,19 @@ public final class AppMediator {
         case cmdShiftZ:
             nvim.vim?.atomic(in: buffer) { vim in
                 vim.cmd.redo()
+            }
+            .discardResult()
+            .forwardErrorToDelegate(of: self)
+            .run()
+
+        case cmdV:
+            // We override the system paste behavior to improve performance and
+            // nvim's undo history.
+            guard let text = NSPasteboard.get() else {
+                break
+            }
+            nvim.vim?.atomic(in: buffer) { vim in
+                vim.api.paste(text)
             }
             .discardResult()
             .forwardErrorToDelegate(of: self)
