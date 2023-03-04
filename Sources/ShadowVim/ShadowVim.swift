@@ -55,7 +55,6 @@ class ShadowVim: ObservableObject {
     func didLaunch() {
         addToLoginItems()
         start()
-        try! NvimProcess.apiInfo(logger: logger)
     }
 
     private func addToLoginItems() {

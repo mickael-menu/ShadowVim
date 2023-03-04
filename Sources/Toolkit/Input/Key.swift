@@ -170,6 +170,19 @@ public enum Key: Hashable {
     // Keycodes for ISO keyboard only
     case section
 
+    // Mouse buttons
+    case leftMouse
+    case rightMouse
+
+    public var isMouseButton: Bool {
+        switch self {
+        case .leftMouse, .rightMouse:
+            return true
+        default:
+            return false
+        }
+    }
+
     public var isNonPrintableCharacter: Bool {
         Key.nonPrintableKeys.contains(self)
     }
@@ -179,6 +192,6 @@ public enum Key: Hashable {
         .upArrow, .downArrow, .leftArrow, .rightArrow,
         .pageUp, .pageDown, .home, .end, .help,
         .f1, .f2, .f3, .f4, .f5, .f6, .f7, .f8, .f9, .f10, .f11, .f12,
-        .keypadClear, .keypadEnter,
+        .keypadClear, .keypadEnter, .leftMouse, .rightMouse,
     ]
 }

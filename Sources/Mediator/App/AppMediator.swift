@@ -171,7 +171,7 @@ public final class AppMediator {
             else {
                 return .bool(false)
             }
-            return .bool(self.pressKeys(notation: notation))
+            return .bool(self.press(notation: notation))
         }
         .forwardErrorToDelegate(of: self)
         .run()
@@ -319,16 +319,35 @@ public final class AppMediator {
         return app.processIdentifier == focusedAppPid
     }
 
-    /// Simulates a key combo press in the app using a Nvim notation.
-    ///
-    /// If the brackets (<>) are missing around the notation, they are
-    /// automatically added. Only key combos with modifiers are supported.
-    private func pressKeys(notation: Notation) -> Bool {
+    /// Simulates a key combo press in the app using an Nvim notation.
+    private func press(notation: Notation) -> Bool {
         guard let kc = KeyCombo(nvimNotation: notation) else {
             return false
         }
 
-        return eventSource.press(kc)
+        if !kc.key.isMouseButton {
+            return eventSource.press(kc)
+        } else {
+            click(kc)
+            return true
+        }
+    }
+
+    private func click(_ kc: KeyCombo) {
+        DispatchQueue.main.async { [self] in
+            do {
+                guard
+                    case let .focused(buffer: buffer) = state,
+                    let cursorLocation = try buffer.uiCursorLocation()
+                else {
+                    return
+                }
+                eventSource.click(kc, at: cursorLocation)
+
+            } catch {
+                delegate?.appMediator(self, didFailWithError: error)
+            }
+        }
     }
 
     // MARK: - Focus synchronization

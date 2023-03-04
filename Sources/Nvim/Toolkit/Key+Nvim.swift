@@ -245,6 +245,9 @@ private let lookupTo: [Notation: Toolkit.Key] = [
     "kdivide": .keypadDivide,
     "kenter": .keypadEnter,
     "kequal": .keypadEquals,
+
+    "leftmouse": .leftMouse,
+    "rightmouse": .rightMouse,
 ]
 
 private let lookupFrom: [Toolkit.Key: (Notation, bracketed: Bool)] = [
@@ -344,4 +347,7 @@ private let lookupFrom: [Toolkit.Key: (Notation, bracketed: Bool)] = [
     .keypadDivide: ("kDivide", bracketed: true),
     .keypadEnter: ("kEnter", bracketed: true),
     .keypadEquals: ("kEqual", bracketed: true),
+
+    .leftMouse: ("LeftMouse", bracketed: true),
+    .rightMouse: ("RightMouse", bracketed: true),
 ]
