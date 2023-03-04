@@ -103,6 +103,20 @@ public final class BufferMediator {
             .store(in: &subscriptions)
     }
 
+    /// Returns the screen coordinates to the current UI cursor position.
+    ///
+    /// When a range is selected, returns the center point.
+    func uiCursorLocation() throws -> CGPoint? {
+        guard
+            let element = uiElement,
+            let selectedRange: CFRange = try element.get(.selectedTextRange),
+            let bounds: CGRect = try element.get(.boundsForRange, with: selectedRange)
+        else {
+            return nil
+        }
+        return CGPoint(x: bounds.midX, y: bounds.midY)
+    }
+
     func synchronize(source: BufferState.Host) {
         DispatchQueue.main.async {
             self.on(.didRequestRefresh(source: .nvim))

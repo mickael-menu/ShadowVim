@@ -117,6 +117,8 @@ final class KeyNvimTests: XCTestCase {
         XCTAssertEqual(KeyCombo(.keypadDivide).nvimNotation, "<kDivide>")
         XCTAssertEqual(KeyCombo(.keypadEnter).nvimNotation, "<kEnter>")
         XCTAssertEqual(KeyCombo(.keypadEquals).nvimNotation, "<kEqual>")
+        XCTAssertEqual(KeyCombo(.leftMouse).nvimNotation, "<LeftMouse>")
+        XCTAssertEqual(KeyCombo(.rightMouse).nvimNotation, "<RightMouse>")
     }
 
     func testNotationOfCharacterWithModifiers() {
@@ -233,6 +235,8 @@ final class KeyNvimTests: XCTestCase {
         XCTAssertEqual(KeyCombo(nvimNotation: "<kDivide>"), KeyCombo(.keypadDivide))
         XCTAssertEqual(KeyCombo(nvimNotation: "<kEnter>"), KeyCombo(.keypadEnter))
         XCTAssertEqual(KeyCombo(nvimNotation: "<kEqual>"), KeyCombo(.keypadEquals))
+        XCTAssertEqual(KeyCombo(nvimNotation: "<LeftMouse>"), KeyCombo(.leftMouse))
+        XCTAssertEqual(KeyCombo(nvimNotation: "<RightMouse>"), KeyCombo(.rightMouse))
     }
 
     func testKeyComboFromNotationOfCharacterWithModifiers() {

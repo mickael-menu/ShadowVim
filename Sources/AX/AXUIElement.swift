@@ -151,8 +151,14 @@ public extension AXUIElement {
     func get<Value, Parameter>(_ attribute: AXAttribute, with param: Parameter) throws -> Value? {
         precondition(Thread.isMainThread)
 
+        guard let param = pack(param) else {
+            let error = AXError.packFailure(param)
+            axLogger?.e(error, "get(\(attribute), with:): pack failure", ["param": String(reflecting: param)])
+            throw error
+        }
+
         var value: AnyObject?
-        let code = AXUIElementCopyParameterizedAttributeValue(self, attribute.rawValue as CFString, param as AnyObject, &value)
+        let code = AXUIElementCopyParameterizedAttributeValue(self, attribute.rawValue as CFString, param, &value)
         if let error = AXError(code: code) {
             switch error {
             case .attributeUnsupported, .parameterizedAttributeUnsupported, .noValue, .cannotComplete:
@@ -258,10 +264,6 @@ public extension AXUIElement {
 
     private func pack(_ value: Any) -> AnyObject? {
         switch value {
-        case let value as AXUIElement:
-            return value
-        case let value as [Any]:
-            return value.compactMap(pack) as CFArray
         case var value as CGPoint:
             return AXValueCreate(AXValueType(rawValue: kAXValueCGPointType)!, &value)
         case var value as CGSize:
@@ -270,6 +272,10 @@ public extension AXUIElement {
             return AXValueCreate(AXValueType(rawValue: kAXValueCGRectType)!, &value)
         case var value as CFRange:
             return AXValueCreate(AXValueType(rawValue: kAXValueCFRangeType)!, &value)
+        case let value as [Any]:
+            return value.compactMap(pack) as CFArray
+        case let value as AXUIElement:
+            return value
         default:
             return value as AnyObject
         }
