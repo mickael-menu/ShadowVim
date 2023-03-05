@@ -300,7 +300,9 @@ struct BufferState: Equatable {
                     } else {
                         perform(.startNvimVisual(
                             start: BufferPosition(ui.selection.start),
-                            end: BufferPosition(ui.selection.end)
+                            // In Visual mode the end character is included in
+                            // the selection, so we need to shift it.
+                            end: BufferPosition(ui.selection.end.moving(column: -1))
                         ))
                     }
                 }
