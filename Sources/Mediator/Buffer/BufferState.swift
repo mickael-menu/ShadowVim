@@ -295,20 +295,14 @@ struct BufferState: Equatable {
                 isSelecting = false
 
                 if tryEdition(from: .ui) {
-                    adjustUISelection()
-
-                    // print("Adjusting from \(ui.selection)")
-                    // let adjustedSel = ui.selection.adjust(to: .visual, lines: ui.lines)
-                    // print("Adjusted to \(adjustedSel)")
-
-                    // if ui.selection != adjustedSel {
-                    //     ui.selection = adjustedSel
-                    //     perform(.updateUISelections([ui.selection]))
-                    // }
-                    // perform(.startNvimVisual(
-                    //     start: BufferPosition(ui.selection.start),
-                    //     end: BufferPosition(ui.selection.end)
-                    // ))
+                    if ui.selection.isCollapsed {
+                        adjustUISelection()
+                    } else {
+                        perform(.startNvimVisual(
+                            start: BufferPosition(ui.selection.start),
+                            end: BufferPosition(ui.selection.end)
+                        ))
+                    }
                 }
             }
 
@@ -442,28 +436,20 @@ struct BufferState: Equatable {
                 return
             }
 
-            if ui.selection.isCollapsed {
-                let adjustedSel = {
-                    guard !isKeysPassthroughEnabled else {
-                        return ui.selection
-                    }
-                    return ui.selection.adjust(to: nvim.cursor.mode, lines: ui.lines)
-                }()
-
-                if ui.selection != adjustedSel {
-                    ui.selection = adjustedSel
-                    perform(.updateUISelections([ui.selection]))
+            let adjustedSel = {
+                guard !isKeysPassthroughEnabled else {
+                    return ui.selection
                 }
-                let start = BufferPosition(ui.selection.start)
-                if nvim.cursor.position != start {
-                    perform(.moveNvimCursor(start))
-                }
+                return ui.selection.adjust(to: nvim.cursor.mode, lines: ui.lines)
+            }()
 
-            } else {
-                perform(.startNvimVisual(
-                    start: BufferPosition(ui.selection.start),
-                    end: BufferPosition(ui.selection.end)
-                ))
+            if ui.selection != adjustedSel {
+                ui.selection = adjustedSel
+                perform(.updateUISelections([ui.selection]))
+            }
+            let start = BufferPosition(ui.selection.start)
+            if nvim.cursor.position != start {
+                perform(.moveNvimCursor(start))
             }
         }
 
