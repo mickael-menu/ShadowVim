@@ -542,7 +542,7 @@ final class BufferStateTests: XCTestCase {
             ),
             actions: [
                 .startTokenTimeout,
-                .updateNvimCursor(BufferPosition(selection.start)),
+                .moveNvimCursor(BufferPosition(selection.start)),
             ]
         )
     }
@@ -563,7 +563,7 @@ final class BufferStateTests: XCTestCase {
             ),
             actions: [
                 .startTokenTimeout,
-                .updateNvimCursor(BufferPosition(selection.start)),
+                .moveNvimCursor(BufferPosition(selection.start)),
             ]
         )
     }
@@ -629,7 +629,7 @@ final class BufferStateTests: XCTestCase {
             actions: [
                 .startTokenTimeout,
                 .updateUISelections([selection.copy(endColumn: 3)]),
-                .updateNvimCursor(BufferPosition(selection.start)),
+                .moveNvimCursor(BufferPosition(selection.start)),
             ]
         )
     }
@@ -653,7 +653,7 @@ final class BufferStateTests: XCTestCase {
             ),
             actions: [
                 .startTokenTimeout,
-                .updateNvimCursor(BufferPosition(selection.start)),
+                .moveNvimCursor(BufferPosition(selection.start)),
             ]
         )
     }

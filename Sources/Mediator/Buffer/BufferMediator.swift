@@ -180,7 +180,7 @@ public final class BufferMediator {
             case let .updateNvim(_, diff: diff, cursorPosition: cursorPosition):
                 updateNvim(diff: diff, cursorPosition: cursorPosition)
             case let .moveNvimCursor(position):
-                updateNvimCursor(position: position)
+                moveNvimCursor(position: position)
             case let .startNvimVisual(start: start, end: end):
                 startNvimVisual(from: start, to: end)
             case .stopNvimVisual:
@@ -237,7 +237,7 @@ public final class BufferMediator {
         .get(onFailure: fail)
     }
 
-    private func updateNvimCursor(position: BufferPosition) {
+    private func moveNvimCursor(position: BufferPosition) {
         nvim.vim?.atomic(in: nvimBuffer) { vim in
             vim.api.winSetCursor(position: position, failOnInvalidPosition: false)
         }
