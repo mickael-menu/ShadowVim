@@ -132,6 +132,11 @@ public final class BufferMediator {
     }
 
     func didReceiveMouseEvent(_ event: MouseEvent) {
+        // We use the element's parent to get the frame because Xcode's source
+        // editors return garbage positions.
+        let frame = uiElement?.parent()?.frame() ?? .zero
+        let inBuffer = frame.contains(event.event.location)
+        on(.didReceiveMouseEvent(event.kind, inBuffer: inBuffer))
     }
 
     private func subscribeToElementChanges(_ element: AXUIElement) {
@@ -151,6 +156,7 @@ public final class BufferMediator {
         element.publisher(for: .selectedTextChanged)
             .receive(on: DispatchQueue.main)
             .tryCompactMap { try $0.selection() }
+            .removeDuplicates()
             .sink(
                 onFailure: { [unowned self] in fail($0) },
                 receiveValue: { [unowned self] in
@@ -173,8 +179,12 @@ public final class BufferMediator {
             switch action {
             case let .updateNvim(_, diff: diff, cursorPosition: cursorPosition):
                 updateNvim(diff: diff, cursorPosition: cursorPosition)
-            case let .updateNvimCursor(position):
+            case let .moveNvimCursor(position):
                 updateNvimCursor(position: position)
+            case let .startNvimVisual(start: start, end: end):
+                startNvimVisual(from: start, to: end)
+            case .stopNvimVisual:
+                stopNvimVisual()
             case let .updateUI(_, diff: diff, selections: selections):
                 try updateUI(diff: diff, selections: selections)
             case let .updateUIPartialLines(event: event):
@@ -231,6 +241,35 @@ public final class BufferMediator {
         nvim.vim?.atomic(in: nvimBuffer) { vim in
             vim.api.winSetCursor(position: position, failOnInvalidPosition: false)
         }
+        .discardResult()
+        .get(onFailure: fail)
+    }
+
+    /// Starts the Neovim Visual mode and selects from the given `start` and
+    /// `end` positions.
+    private func startNvimVisual(from start: BufferPosition, to end: BufferPosition) {
+        nvim.vim?.atomic(in: nvimBuffer) { vim in
+            vim.cmd(
+                """
+                " Exit the current mode, hopefully.
+                execute "normal! \\<Ignore>\\<Esc>"
+                normal! \(start.line)G\(start.column)|v\(end.line)G\(end.column)|",
+                """
+            )
+        }
+        .discardResult()
+        .get(onFailure: fail)
+    }
+
+    /// Exits the Neovim Visual mode (character, line or block-wise).
+    private func stopNvimVisual() {
+        nvim.vim?.cmd(
+            """
+            if mode() =~ "^[vV\\<C-v>]$"
+                execute "normal! \\<Ignore>\\<Esc>"
+            endif
+            """
+        )
         .discardResult()
         .get(onFailure: fail)
     }

@@ -33,6 +33,11 @@ struct UISelection: Equatable {
         self.end = end
     }
 
+    /// Returns whether this selection has a length of 0.
+    var isCollapsed: Bool {
+        start.line == end.line && start.column == end.column
+    }
+
     func copy(
         startLine: LineIndex? = nil,
         startColumn: ColumnIndex? = nil,
@@ -82,8 +87,14 @@ struct UISelection: Equatable {
         }
 
         switch mode {
-        case .insert, .replace, .visual, .visualLine, .select, .selectLine:
+        case .insert, .replace:
             return UISelection(start: start, end: start)
+
+        case .visual, .visualLine, .visualBlock, .select, .selectLine, .selectBlock:
+            guard !isCollapsed else {
+                fallthrough
+            }
+            return UISelection(start: start, end: end)
 
         default:
             let line = lines[start.line]

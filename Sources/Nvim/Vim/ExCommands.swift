@@ -50,10 +50,10 @@ public final class ExCommands {
     /// Execute Normal mode commands.
     /// https://neovim.io/doc/user/various.html#%3Anormal
     public func normal(
-        bang: Bool = false,
-        _ commands: String
+        _ commands: String,
+        ignoreMappings: Bool = false
     ) -> Async<Void, NvimError> {
-        api.cmd("normal", opts: CmdOptions(bang: bang, with: commands))
+        api.cmd("normal", opts: CmdOptions(bang: ignoreMappings, with: commands))
             .discardResult()
     }
 
