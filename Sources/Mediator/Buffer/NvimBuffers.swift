@@ -122,6 +122,8 @@ private extension Vim {
                 set buftype=nowrite
                 set bufhidden=hide
                 set noswapfile
+                set nowrap
+                set nofoldenable
                 """
             )
             .flatMap { vim.api.getCurrentBuf() }
