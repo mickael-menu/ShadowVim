@@ -727,7 +727,7 @@ final class BufferStateTests: XCTestCase {
     }
 
     // MARK: - UI mouse event
-    
+
     // Left mouse down is ignored if outside the buffer.
     func testUIDidReceiveMouseEventDownLeftIgnoredWhenOutsideBuffer() {
         let state = initialState.copy(
@@ -742,7 +742,7 @@ final class BufferStateTests: XCTestCase {
             actions: []
         )
     }
-    
+
     // Left mouse down inside the buffer is memorized, and the visual mode is
     // requested to stop.
     //
@@ -764,7 +764,7 @@ final class BufferStateTests: XCTestCase {
             ),
             actions: [
                 .startTokenTimeout,
-                .stopNvimVisual
+                .stopNvimVisual,
             ]
         )
     }
@@ -830,7 +830,7 @@ final class BufferStateTests: XCTestCase {
                     // "column - 1" because in visual mode the end character is
                     // included in the selection.
                     end: BufferPosition(line: 3, column: 5)
-                )
+                ),
             ]
         )
     }
@@ -866,7 +866,7 @@ final class BufferStateTests: XCTestCase {
                     startLine: 1, col: 2,
                     endLine: 1, col: 3
                 )]),
-                .moveNvimCursor(BufferPosition(line: 2, column: 3))
+                .moveNvimCursor(BufferPosition(line: 2, column: 3)),
             ]
         )
     }

@@ -150,7 +150,7 @@ public final class BufferMediator {
         // editors return garbage positions.
         let bufferFrame = uiElement?.parent()?.frame() ?? .zero
         let screenPoint = event.event.location
-        var bufferPoint: CGPoint? = nil
+        var bufferPoint: CGPoint?
         if bufferFrame.contains(screenPoint) {
             // Adapts point in the coordinates of frame
             bufferPoint = CGPoint(

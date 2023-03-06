@@ -30,7 +30,7 @@ public class AsyncLock {
 
     public init(name: String, logger: Logger? = nil) {
         self.name = name
-        self.queue = DispatchQueue(label: "menu.mickael.AsyncLock.\(name)")
+        queue = DispatchQueue(label: "menu.mickael.AsyncLock.\(name)")
         self.logger = logger
     }
 

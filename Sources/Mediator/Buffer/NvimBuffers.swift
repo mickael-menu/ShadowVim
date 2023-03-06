@@ -35,7 +35,7 @@ public final class NvimBuffers {
 
     public init(nvim: Nvim, logger: Logger?) {
         self.logger = logger
-        self.lock = AsyncLock(name: "NvimBuffers", logger: logger?.domain("lock"))
+        lock = AsyncLock(name: "NvimBuffers", logger: logger?.domain("lock"))
 
         bufLinesPublisher = nvim.bufLinesPublisher()
             .breakpointOnError()
