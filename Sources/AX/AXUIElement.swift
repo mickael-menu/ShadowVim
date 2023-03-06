@@ -151,8 +151,14 @@ public extension AXUIElement {
     func get<Value, Parameter>(_ attribute: AXAttribute, with param: Parameter) throws -> Value? {
         precondition(Thread.isMainThread)
 
+        guard let param = pack(param) else {
+            let error = AXError.packFailure(param)
+            axLogger?.e(error, "get(\(attribute), with:): pack failure", ["param": String(reflecting: param)])
+            throw error
+        }
+
         var value: AnyObject?
-        let code = AXUIElementCopyParameterizedAttributeValue(self, attribute.rawValue as CFString, param as AnyObject, &value)
+        let code = AXUIElementCopyParameterizedAttributeValue(self, attribute.rawValue as CFString, param, &value)
         if let error = AXError(code: code) {
             switch error {
             case .attributeUnsupported, .parameterizedAttributeUnsupported, .noValue, .cannotComplete:

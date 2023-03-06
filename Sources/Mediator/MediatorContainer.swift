@@ -67,10 +67,7 @@ public final class MediatorContainer {
                 nvim: nvim,
                 logger: logger?.domain("nvim-buffers")
             ),
-            eventSource: try EventSource(
-                pid: app.processIdentifier,
-                keyResolver: keyResolver
-            ),
+            eventSource: try EventSource(keyResolver: keyResolver),
             logger: logger?.domain("app"),
             bufferMediatorFactory: bufferMediator,
             enableKeysPassthrough: enableKeysPassthrough,

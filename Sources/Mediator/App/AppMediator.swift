@@ -69,6 +69,24 @@ public extension AppMediatorDelegate {
     }
 }
 
+public enum AppMediatorError: LocalizedError {
+    case deprecatedCommand(name: String, replacement: String)
+
+    public var errorDescription: String? {
+        switch self {
+        case let .deprecatedCommand(name: name, _):
+            return "'\(name)' is deprecated"
+        }
+    }
+
+    public var failureReason: String? {
+        switch self {
+        case let .deprecatedCommand(_, replacement: replacement):
+            return replacement
+        }
+    }
+}
+
 public final class AppMediator {
     public typealias Factory = (_ app: NSRunningApplication) throws -> AppMediator
 
@@ -163,7 +181,17 @@ public final class AppMediator {
         .forwardErrorToDelegate(of: self)
         .run()
 
-        nvim.add(command: "SVPressKeys", args: .one) { [weak self] params in
+        nvim.add(command: "SVPressKeys", args: .one) { [weak self] _ in
+            if let self = self {
+                let error = AppMediatorError.deprecatedCommand(name: "SVPressKeys", replacement: "Use 'SVPress' in your Neovim configuration instead.")
+                self.delegate?.appMediator(self, didFailWithError: error)
+            }
+            return .bool(false)
+        }
+        .forwardErrorToDelegate(of: self)
+        .run()
+
+        nvim.add(command: "SVPress", args: .one) { [weak self] params in
             guard
                 let self,
                 params.count == 1,
@@ -171,7 +199,7 @@ public final class AppMediator {
             else {
                 return .bool(false)
             }
-            return .bool(self.pressKeys(notation: notation))
+            return .bool(self.press(notation: notation))
         }
         .forwardErrorToDelegate(of: self)
         .run()
@@ -349,16 +377,35 @@ public final class AppMediator {
         return app.processIdentifier == focusedAppPid
     }
 
-    /// Simulates a key combo press in the app using a Nvim notation.
-    ///
-    /// If the brackets (<>) are missing around the notation, they are
-    /// automatically added. Only key combos with modifiers are supported.
-    private func pressKeys(notation: Notation) -> Bool {
+    /// Simulates a key combo press in the app using an Nvim notation.
+    private func press(notation: Notation) -> Bool {
         guard let kc = KeyCombo(nvimNotation: notation) else {
             return false
         }
 
-        return eventSource.press(kc)
+        if !kc.key.isMouseButton {
+            return eventSource.press(kc)
+        } else {
+            click(kc)
+            return true
+        }
+    }
+
+    private func click(_ kc: KeyCombo) {
+        DispatchQueue.main.async { [self] in
+            do {
+                guard
+                    case let .focused(buffer: buffer) = state,
+                    let cursorLocation = try buffer.uiCursorLocation()
+                else {
+                    return
+                }
+                eventSource.click(kc, at: cursorLocation)
+
+            } catch {
+                delegate?.appMediator(self, didFailWithError: error)
+            }
+        }
     }
 
     // MARK: - Focus synchronization

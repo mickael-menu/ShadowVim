@@ -22,25 +22,25 @@ public enum EventSourceError: Error {
     case failedToCreateSource
 }
 
-/// An event source allows to post events (e.g. key combos) to the application
-/// with a given `pid`.
+/// An event source allows to post events (e.g. key combos) to the system.
 public final class EventSource {
-    private let pid: pid_t
     private let source: CGEventSource
     private let keyResolver: CGKeyResolver
 
-    public init(pid: pid_t, keyResolver: CGKeyResolver) throws {
+    public init(keyResolver: CGKeyResolver) throws {
         guard let source = CGEventSource(stateID: .combinedSessionState) else {
             throw EventSourceError.failedToCreateSource
         }
 
-        self.pid = pid
         self.source = source
         self.keyResolver = keyResolver
     }
 
+    /// Posts a keyboard event for the given key combo.
+    @discardableResult
     public func press(_ kc: KeyCombo) -> Bool {
         guard
+            !kc.key.isMouseButton,
             let code = keyResolver.code(for: kc.key),
             let downEvent = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: true),
             let upEvent = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: false)
@@ -48,12 +48,52 @@ public final class EventSource {
             return false
         }
 
-        DispatchQueue.main.async { [self] in
+        DispatchQueue.main.async {
             let flags = kc.modifiers.cgFlags
             downEvent.flags = flags
             upEvent.flags = flags
-            downEvent.postToPid(pid)
-            upEvent.postToPid(pid)
+            downEvent.post(tap: .cgSessionEventTap)
+            upEvent.post(tap: .cgSessionEventTap)
+        }
+
+        return true
+    }
+
+    /// Posts a mouse click event at the given point.
+    ///
+    /// Only the keys `leftMouse` and `rightMouse` are supported in the key
+    /// combo.
+    @discardableResult
+    public func click(_ kc: KeyCombo, at point: CGPoint) -> Bool {
+        let typeDown: CGEventType
+        let typeUp: CGEventType
+        let button: CGMouseButton
+        switch kc.key {
+        case .leftMouse:
+            button = .left
+            typeDown = .leftMouseDown
+            typeUp = .leftMouseUp
+        case .rightMouse:
+            button = .right
+            typeDown = .rightMouseDown
+            typeUp = .rightMouseUp
+        default:
+            return false
+        }
+
+        guard
+            let downEvent = CGEvent(mouseEventSource: source, mouseType: typeDown, mouseCursorPosition: point, mouseButton: button),
+            let upEvent = CGEvent(mouseEventSource: source, mouseType: typeUp, mouseCursorPosition: point, mouseButton: button)
+        else {
+            return false
+        }
+
+        DispatchQueue.main.async {
+            let flags = kc.modifiers.cgFlags
+            downEvent.flags = flags
+            upEvent.flags = flags
+            downEvent.post(tap: .cgSessionEventTap)
+            upEvent.post(tap: .cgSessionEventTap)
         }
 
         return true
