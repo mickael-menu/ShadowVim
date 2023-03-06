@@ -95,8 +95,8 @@ extension LogValue: LogValueConvertible {
     public var logValue: LogValue { self }
 }
 
-public extension Optional where Wrapped: LogValueConvertible {
-    var logValue: LogValue {
+extension Optional: LogValueConvertible where Wrapped: LogValueConvertible {
+    public var logValue: LogValue {
         switch self {
         case .none:
             return .nil
@@ -172,5 +172,32 @@ extension CollectionDifference: LogValueConvertible {
             }
         }
         return .array(changes)
+    }
+}
+
+extension CGPoint: LogValueConvertible {
+    public var logValue: LogValue {
+        .dict([
+            "x": .double(x),
+            "y": .double(y)
+        ])
+    }
+}
+
+extension CGSize: LogValueConvertible {
+    public var logValue: LogValue {
+        .dict([
+            "width": .double(width),
+            "height": .double(height)
+        ])
+    }
+}
+
+extension CGRect: LogValueConvertible {
+    public var logValue: LogValue {
+        .dict([
+            "origin": origin.logValue,
+            "size": size.logValue
+        ])
     }
 }

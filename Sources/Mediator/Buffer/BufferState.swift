@@ -177,12 +177,6 @@ struct BufferState: Equatable {
         /// `source` host for the source of truth of the content.
         case didRequestRefresh(source: Host)
 
-        /// The user interacted with the mouse.
-        ///
-        /// `inBuffer` indicates whether the mouse event occurred in the frame
-        /// of the UI buffer.
-        case didReceiveMouseEvent(MouseEvent.Kind, inBuffer: Bool)
-
         /// The Nvim buffer changed and sent a `BufLinesEvent`.
         case nvimBufferDidChange(lines: [String], event: BufLinesEvent)
 
@@ -200,6 +194,12 @@ struct BufferState: Equatable {
 
         /// The UI selection changed.
         case uiSelectionDidChange(UISelection)
+
+        /// The user interacted with the mouse.
+        ///
+        /// `bufferPoint` is the event location in the UI buffer coordinates.
+        /// When `nil`, the event happened outside the bounds of the UI buffer.
+        case uiDidReceiveMouseEvent(MouseEvent.Kind, bufferPoint: CGPoint?)
 
         /// The keys passthrough was toggled.
         case didToggleKeysPassthrough(enabled: Bool)
@@ -277,41 +277,6 @@ struct BufferState: Equatable {
                 synchronize(source: source)
             }
 
-        case let .didReceiveMouseEvent(.down(.left), inBuffer: inBuffer):
-            guard inBuffer else { break }
-
-            isLeftMouseButtonDown = true
-
-            // Simulate the default behavior of `LeftMouse` in Nvim, which is:
-            // > If Visual mode is active it is stopped.
-            // > :help LeftMouse
-            if tryEdition(from: .ui) {
-                perform(.stopNvimVisual)
-            }
-
-        case .didReceiveMouseEvent(.up(.left), inBuffer: _):
-            isLeftMouseButtonDown = false
-            if isSelecting {
-                isSelecting = false
-
-                if tryEdition(from: .ui) {
-                    if ui.selection.isCollapsed {
-                        adjustUISelection()
-                    } else {
-                        perform(.startNvimVisual(
-                            start: BufferPosition(ui.selection.start),
-                            // In Visual mode the end character is included in
-                            // the selection, so we need to shift it.
-                            end: BufferPosition(ui.selection.end.moving(column: -1))
-                        ))
-                    }
-                }
-            }
-
-        case .didReceiveMouseEvent:
-            // Other mouse events are ignored.
-            break
-
         case let .nvimBufferDidChange(lines: lines, event: event):
             nvim.lines = lines
 
@@ -361,8 +326,48 @@ struct BufferState: Equatable {
                 adjustUISelection()
             }
 
+        case let .uiDidReceiveMouseEvent(.down(.left), bufferPoint: bufferPoint):
+            guard bufferPoint != nil else { break }
+
+            isLeftMouseButtonDown = true
+
+            // Simulate the default behavior of `LeftMouse` in Nvim, which is:
+            // > If Visual mode is active it is stopped.
+            // > :help LeftMouse
+            if tryEdition(from: .ui) {
+                perform(.stopNvimVisual)
+            }
+
+        case .uiDidReceiveMouseEvent(.up(.left), bufferPoint: _):
+            isLeftMouseButtonDown = false
+            if isSelecting {
+                isSelecting = false
+
+                if ui.selection.isCollapsed {
+                    adjustUISelection()
+                } else {
+                    if tryEdition(from: .ui) {
+                        perform(.startNvimVisual(
+                            start: BufferPosition(ui.selection.start),
+                            // In Visual mode the end character is included in
+                            // the selection, so we need to shift it.
+                            end: BufferPosition(ui.selection.end.moving(column: -1))
+                        ))
+                    }
+                }
+            }
+
+        case .uiDidReceiveMouseEvent:
+            // Other mouse events are ignored.
+            break
+
         case let .didToggleKeysPassthrough(enabled: enabled):
             isKeysPassthroughEnabled = enabled
+
+            if enabled {
+                perform(.stopNvimVisual)
+            }
+
             let selection = ui.selection.adjust(
                 to: enabled ? .insert : nvim.cursor.mode,
                 lines: ui.lines
@@ -506,8 +511,6 @@ extension BufferState.Event: LogPayloadConvertible {
             return "tokenDidTimeout"
         case .didRequestRefresh:
             return "userDidRequestRefresh"
-        case .didReceiveMouseEvent:
-            return "didReceiveMouseEvent"
         case .nvimBufferDidChange:
             return "nvimBufferDidChange"
         case .nvimCursorDidChange:
@@ -518,6 +521,8 @@ extension BufferState.Event: LogPayloadConvertible {
             return "uiBufferDidChange"
         case .uiSelectionDidChange:
             return "uiSelectionDidChange"
+        case .uiDidReceiveMouseEvent:
+            return "uiDidReceiveMouseEvent"
         case .didToggleKeysPassthrough:
             return "didToggleKeysPassthrough"
         case .didFail:
@@ -531,8 +536,6 @@ extension BufferState.Event: LogPayloadConvertible {
             return [.name: name]
         case let .didRequestRefresh(source: source):
             return [.name: name, "source": source.rawValue]
-        case let .didReceiveMouseEvent(kind):
-            return [.name: name, "kind": String(reflecting: kind)]
         case let .nvimBufferDidChange(lines: newLines, event: event):
             return [.name: name, "newLines": newLines, "event": event]
         case let .nvimCursorDidChange(cursor):
@@ -543,6 +546,8 @@ extension BufferState.Event: LogPayloadConvertible {
             return [.name: name, "lines": lines]
         case let .uiSelectionDidChange(selection):
             return [.name: name, "selection": selection]
+        case let .uiDidReceiveMouseEvent(kind, bufferPoint: bufferPoint):
+            return [.name: name, "kind": String(reflecting: kind), "bufferPoint": bufferPoint]
         case let .didToggleKeysPassthrough(enabled: enabled):
             return [.name: name, "enabled": enabled]
         case let .didFail(error):

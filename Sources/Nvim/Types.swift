@@ -94,7 +94,11 @@ public struct Cursor: Equatable {
     /// `position`.
     public var visual: BufferPosition
 
-    public init(mode: Mode, position: BufferPosition, visual: BufferPosition) {
+    public init(
+        mode: Mode,
+        position: BufferPosition = BufferPosition(),
+        visual: BufferPosition = BufferPosition()
+    ) {
         self.mode = mode
         self.position = position
         self.visual = visual

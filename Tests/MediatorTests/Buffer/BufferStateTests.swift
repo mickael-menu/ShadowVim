@@ -612,6 +612,28 @@ final class BufferStateTests: XCTestCase {
         )
     }
 
+    // Changes are ignored if identical with the UI selection, to avoid
+    // adjusting the selection several times in a row.
+    func testUISelectionDidChangeIgnoredWhenEqualToUISelection() {
+        let selection = UISelection(
+            startLine: 41, col: 31,
+            endLine: 41, col: 32
+        )
+
+        let state = initialState.copy(
+            token: .free,
+            nvimCursor: Cursor(mode: .normal),
+            uiSelection: selection
+        )
+
+        assert(
+            initial: state,
+            on: .uiSelectionDidChange(selection),
+            expected: state,
+            actions: []
+        )
+    }
+
     // The selection is adjusted to match the Nvim mode, when needed.
     func testUISelectionDidChangeAdjustsToNvimMode() {
         let selection = UISelection(
@@ -629,6 +651,28 @@ final class BufferStateTests: XCTestCase {
             actions: [
                 .startTokenTimeout,
                 .updateUISelections([selection.copy(endColumn: 3)]),
+                .moveNvimCursor(BufferPosition(selection.start)),
+            ]
+        )
+    }
+
+    // If the UI selection already matches the Nvim mode, only the Nvim cursor
+    // is updated, not the UI selection.
+    func testUISelectionDidChangeAlreadyAdjustedToNvimMode() {
+        let selection = UISelection(
+            startLine: 1, col: 2,
+            endLine: 1, col: 3
+        )
+
+        assert(
+            initial: initialState.copy(token: .free),
+            on: .uiSelectionDidChange(selection),
+            expected: initialState.copy(
+                token: .acquired(owner: .ui),
+                uiSelection: selection.copy(endColumn: 3)
+            ),
+            actions: [
+                .startTokenTimeout,
                 .moveNvimCursor(BufferPosition(selection.start)),
             ]
         )
@@ -658,6 +702,223 @@ final class BufferStateTests: XCTestCase {
         )
     }
 
+    // The selection change is ignored when the left mouse button is down.
+    // The state is put into "selecting" mode.
+    func testUISelectionDidChangeWhileLeftMouseDownStartsSelectingMode() {
+        let selection = UISelection(
+            startLine: 1, col: 2,
+            endLine: 1, col: 3
+        )
+
+        let state = initialState.copy(
+            token: .free,
+            isLeftMouseButtonDown: true
+        )
+
+        assert(
+            initial: state,
+            on: .uiSelectionDidChange(selection),
+            expected: state.copy(
+                uiSelection: selection,
+                isSelecting: true
+            ),
+            actions: []
+        )
+    }
+
+    // MARK: - UI mouse event
+    
+    // Left mouse down is ignored if outside the buffer.
+    func testUIDidReceiveMouseEventDownLeftIgnoredWhenOutsideBuffer() {
+        let state = initialState.copy(
+            token: .free,
+            isLeftMouseButtonDown: false
+        )
+
+        assert(
+            initial: state,
+            on: .uiDidReceiveMouseEvent(.down(.left), bufferPoint: nil),
+            expected: state,
+            actions: []
+        )
+    }
+    
+    // Left mouse down inside the buffer is memorized, and the visual mode is
+    // requested to stop.
+    //
+    // This simulates the default behavior of `LeftMouse` in Nvim, which is:
+    // > If Visual mode is active it is stopped.
+    // > :help LeftMouse
+    func testUIDidReceiveMouseEventDownLeftRequestsStopVisualModeWhenTokenFree() {
+        let state = initialState.copy(
+            token: .free,
+            isLeftMouseButtonDown: false
+        )
+
+        assert(
+            initial: state,
+            on: .uiDidReceiveMouseEvent(.down(.left), bufferPoint: .zero),
+            expected: state.copy(
+                token: .acquired(owner: .ui),
+                isLeftMouseButtonDown: true
+            ),
+            actions: [
+                .startTokenTimeout,
+                .stopNvimVisual
+            ]
+        )
+    }
+
+    func testUIDidReceiveMouseEventDownLeftStopsVisualModeWhenTokenBusy() {
+        let state = initialState.copy(
+            token: .acquired(owner: .nvim),
+            isLeftMouseButtonDown: false
+        )
+
+        assert(
+            initial: state,
+            on: .uiDidReceiveMouseEvent(.down(.left), bufferPoint: .zero),
+            expected: state.copy(
+                isLeftMouseButtonDown: true
+            ),
+            actions: []
+        )
+    }
+
+    // Left mouse up is ignored unless we were in "selecting mode".
+    func testUIDidReceiveMouseEventUpLeftIgnoredWhenNotSelecting() {
+        let state = initialState.copy(
+            token: .free,
+            isLeftMouseButtonDown: true
+        )
+
+        assert(
+            initial: state,
+            on: .uiDidReceiveMouseEvent(.up(.left), bufferPoint: .zero),
+            expected: state.copy(
+                isLeftMouseButtonDown: false
+            ),
+            actions: []
+        )
+    }
+
+    // Left mouse up interrupts "selecting mode" and requests Nvim to start
+    // a visual selection.
+    func testUIDidReceiveMouseEventUpLeftStartsNvimVisualMode() {
+        let state = initialState.copy(
+            token: .free,
+            uiSelection: UISelection(
+                startLine: 1, col: 2,
+                endLine: 2, col: 5
+            ),
+            isLeftMouseButtonDown: true,
+            isSelecting: true
+        )
+
+        assert(
+            initial: state,
+            on: .uiDidReceiveMouseEvent(.up(.left), bufferPoint: .zero),
+            expected: state.copy(
+                token: .acquired(owner: .ui),
+                isLeftMouseButtonDown: false,
+                isSelecting: false
+            ),
+            actions: [
+                .startTokenTimeout,
+                .startNvimVisual(
+                    start: BufferPosition(line: 2, column: 3),
+                    // "column - 1" because in visual mode the end character is
+                    // included in the selection.
+                    end: BufferPosition(line: 3, column: 5)
+                )
+            ]
+        )
+    }
+
+    // Left mouse up interrupts "selecting mode" and adjusts a collapsed UI
+    // selection.
+    func testUIDidReceiveMouseEventUpLeftAdjustsCollapsedSelection() {
+        let state = initialState.copy(
+            token: .free,
+            uiSelection: UISelection(
+                startLine: 1, col: 2,
+                endLine: 1, col: 2
+            ),
+            isLeftMouseButtonDown: true,
+            isSelecting: true
+        )
+
+        assert(
+            initial: state,
+            on: .uiDidReceiveMouseEvent(.up(.left), bufferPoint: .zero),
+            expected: state.copy(
+                token: .acquired(owner: .ui),
+                uiSelection: UISelection(
+                    startLine: 1, col: 2,
+                    endLine: 1, col: 3
+                ),
+                isLeftMouseButtonDown: false,
+                isSelecting: false
+            ),
+            actions: [
+                .startTokenTimeout,
+                .updateUISelections([UISelection(
+                    startLine: 1, col: 2,
+                    endLine: 1, col: 3
+                )]),
+                .moveNvimCursor(BufferPosition(line: 2, column: 3))
+            ]
+        )
+    }
+
+    // No adjustement is done when the Nvim token is buzy, with a collapsed
+    // selection.
+    func testUIDidReceiveMouseEventUpLeftWithCollapsedSelectionWhenTokenBusy() {
+        let state = initialState.copy(
+            token: .acquired(owner: .nvim),
+            uiSelection: UISelection(
+                startLine: 1, col: 2,
+                endLine: 1, col: 2
+            ),
+            isLeftMouseButtonDown: true,
+            isSelecting: true
+        )
+
+        assert(
+            initial: state,
+            on: .uiDidReceiveMouseEvent(.up(.left), bufferPoint: .zero),
+            expected: state.copy(
+                isLeftMouseButtonDown: false,
+                isSelecting: false
+            ),
+            actions: []
+        )
+    }
+
+    // No adjustement is done when the Nvim token is buzy, with an actual
+    // selection.
+    func testUIDidReceiveMouseEventUpLeftWithFullSelectionWhenTokenBusy() {
+        let state = initialState.copy(
+            token: .acquired(owner: .nvim),
+            uiSelection: UISelection(
+                startLine: 1, col: 2,
+                endLine: 2, col: 4
+            ),
+            isLeftMouseButtonDown: true,
+            isSelecting: true
+        )
+
+        assert(
+            initial: state,
+            on: .uiDidReceiveMouseEvent(.up(.left), bufferPoint: .zero),
+            expected: state.copy(
+                isLeftMouseButtonDown: false,
+                isSelecting: false
+            ),
+            actions: []
+        )
+    }
+
     // MARK: - Toggle keys passthrough
 
     func testDidToggleKeysPassthroughOn() {
@@ -674,6 +935,8 @@ final class BufferStateTests: XCTestCase {
             on: .didToggleKeysPassthrough(enabled: true),
             expected: state.copy(keysPassthrough: true),
             actions: [
+                // The visual mode is stopped in Neovim when enabling keys passthrough.
+                .stopNvimVisual,
                 .updateUISelections([UISelection(
                     startLine: 1, col: 3,
                     endLine: 1, col: 3
@@ -744,7 +1007,9 @@ extension BufferState {
         nvimCursor: Cursor? = nil,
         uiLines: [String]? = nil,
         uiSelection: UISelection? = nil,
-        keysPassthrough: Bool? = nil
+        keysPassthrough: Bool? = nil,
+        isLeftMouseButtonDown: Bool? = nil,
+        isSelecting: Bool? = nil
     ) -> BufferState {
         BufferState(
             token: token ?? self.token,
@@ -756,7 +1021,9 @@ extension BufferState {
                 selection: uiSelection ?? ui.selection,
                 lines: uiLines ?? ui.lines
             ),
-            isKeysPassthroughEnabled: keysPassthrough ?? isKeysPassthroughEnabled
+            isKeysPassthroughEnabled: keysPassthrough ?? isKeysPassthroughEnabled,
+            isLeftMouseButtonDown: isLeftMouseButtonDown ?? self.isLeftMouseButtonDown,
+            isSelecting: isSelecting ?? self.isSelecting
         )
     }
 }

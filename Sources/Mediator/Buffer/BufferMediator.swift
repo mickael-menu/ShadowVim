@@ -134,9 +134,18 @@ public final class BufferMediator {
     func didReceiveMouseEvent(_ event: MouseEvent) {
         // We use the element's parent to get the frame because Xcode's source
         // editors return garbage positions.
-        let frame = uiElement?.parent()?.frame() ?? .zero
-        let inBuffer = frame.contains(event.event.location)
-        on(.didReceiveMouseEvent(event.kind, inBuffer: inBuffer))
+        let bufferFrame = uiElement?.parent()?.frame() ?? .zero
+        let screenPoint = event.event.location
+        var bufferPoint: CGPoint? = nil
+        if bufferFrame.contains(screenPoint) {
+            // Adapts point in the coordinates of frame
+            bufferPoint = CGPoint(
+                x: screenPoint.x - bufferFrame.origin.x,
+                y: screenPoint.y - bufferFrame.origin.y
+            )
+        }
+
+        on(.uiDidReceiveMouseEvent(event.kind, bufferPoint: bufferPoint))
     }
 
     private func subscribeToElementChanges(_ element: AXUIElement) {
