@@ -405,9 +405,11 @@ public extension Async {
     ///        asyncOperation(val)
     ///     }
     func flatMap<NewSuccess>(
+        on queue: DispatchQueue? = nil,
         _ transform: @escaping (Success) -> Async<NewSuccess, Failure>
     ) -> Async<NewSuccess, Failure> {
         map(
+            on: queue,
             success: { val, compl in transform(val).getResult(compl) },
             failure: { err, compl in compl(.failure(err)) }
         )
