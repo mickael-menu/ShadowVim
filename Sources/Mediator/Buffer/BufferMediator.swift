@@ -130,6 +130,8 @@ public final class BufferMediator {
     }
 
     func didFocus(element: AXUIElement) {
+        precondition(Thread.isMainThread)
+
         do {
             uiElement = element
 
@@ -428,7 +430,12 @@ public final class BufferMediator {
     }
 
     private func fail(_ error: Error) {
-        on(.didFail(error.equatable()))
+        precondition(Thread.isMainThread)
+        if case AX.AXError.invalidUIElement = error {
+            uiElement = nil
+        } else {
+            on(.didFail(error.equatable()))
+        }
     }
 }
 

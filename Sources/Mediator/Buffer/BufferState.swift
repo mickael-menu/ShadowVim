@@ -443,15 +443,15 @@ struct BufferState: Equatable {
                 return
             }
 
-            let adjustedSel = {
+            let adjustedSelection = {
                 guard !isKeysPassthroughEnabled else {
                     return ui.selection
                 }
                 return ui.selection.adjust(to: nvim.cursor.mode, lines: ui.lines)
             }()
 
-            if ui.selection != adjustedSel {
-                ui.selection = adjustedSel
+            if ui.selection != adjustedSelection {
+                ui.selection = adjustedSelection
                 perform(.updateUISelections([ui.selection]))
             }
             let start = BufferPosition(ui.selection.start)
