@@ -323,7 +323,11 @@ struct BufferState: Equatable {
             if isLeftMouseButtonDown {
                 isSelecting = true
             } else {
-                adjustUISelection()
+                guard tryEdition(from: .ui) else {
+                    break
+                }
+                adjustUISelection(to: nvim.cursor.mode)
+                synchronizeNvimCursor()
             }
 
         case let .uiDidReceiveMouseEvent(.down(.left), bufferPoint: bufferPoint):
@@ -340,20 +344,19 @@ struct BufferState: Equatable {
 
         case .uiDidReceiveMouseEvent(.up(.left), bufferPoint: _):
             isLeftMouseButtonDown = false
+
             if isSelecting {
                 isSelecting = false
 
+                guard tryEdition(from: .ui) else {
+                    break
+                }
+
                 if ui.selection.isCollapsed {
-                    adjustUISelection()
+                    adjustUISelection(to: nvim.cursor.mode)
+                    synchronizeNvimCursor()
                 } else {
-                    if tryEdition(from: .ui) {
-                        perform(.startNvimVisual(
-                            start: BufferPosition(ui.selection.start),
-                            // In Visual mode the end character is included in
-                            // the selection, so we need to shift it.
-                            end: BufferPosition(ui.selection.end.moving(column: -1))
-                        ))
-                    }
+                    startNvimVisual(using: ui.selection)
                 }
             }
 
@@ -438,26 +441,44 @@ struct BufferState: Equatable {
             ))
         }
 
-        func adjustUISelection() {
-            guard tryEdition(from: .ui) else {
-                return
+        /// Moves the Nvim cursor to match the current UI selection.
+        func synchronizeNvimCursor() {
+            precondition(token == .acquired(owner: .ui))
+
+            let start = BufferPosition(ui.selection.start)
+            if nvim.cursor.position != start {
+                perform(.moveNvimCursor(start))
             }
+        }
+
+        /// Adjusts the current UI selection to match the Nvim mode, then
+        /// move the Nvim cursor to it.
+        func adjustUISelection(to mode: Mode) {
+            precondition(token == .acquired(owner: .ui))
 
             let adjustedSelection = {
                 guard !isKeysPassthroughEnabled else {
                     return ui.selection
                 }
-                return ui.selection.adjust(to: nvim.cursor.mode, lines: ui.lines)
+                return ui.selection.adjust(to: mode, lines: ui.lines)
             }()
 
             if ui.selection != adjustedSelection {
                 ui.selection = adjustedSelection
                 perform(.updateUISelections([ui.selection]))
             }
-            let start = BufferPosition(ui.selection.start)
-            if nvim.cursor.position != start {
-                perform(.moveNvimCursor(start))
-            }
+        }
+
+        /// Requests Nvim to start the Visual mode using the given `selection`.
+        func startNvimVisual(using selection: UISelection) {
+            precondition(token == .acquired(owner: .ui))
+
+            perform(.startNvimVisual(
+                start: BufferPosition(selection.start),
+                // In Visual mode the end character is included in
+                // the selection, so we need to shift it.
+                end: BufferPosition(selection.end.moving(column: -1))
+            ))
         }
 
         let newState = self
