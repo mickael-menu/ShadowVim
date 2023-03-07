@@ -364,7 +364,7 @@ public extension Async {
         map(
             success: { val, compl in
                 do {
-                    compl(.success(try transform(val)))
+                    try compl(.success(transform(val)))
                 } catch {
                     compl(.failure(error))
                 }

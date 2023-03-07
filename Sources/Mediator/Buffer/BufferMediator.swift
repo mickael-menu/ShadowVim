@@ -135,7 +135,7 @@ public final class BufferMediator {
         do {
             uiElement = element
 
-            on(.uiBufferDidChange(lines: try element.lines()))
+            try on(.uiBufferDidChange(lines: element.lines()))
 
             if let selection = try element.selection() {
                 on(.uiSelectionDidChange(selection))
@@ -306,7 +306,7 @@ public final class BufferMediator {
 
         if !diff.isEmpty {
             for change in diff {
-                let eof = (try uiElement.get(.numberOfCharacters) as Int?) ?? 0
+                let eof = try (uiElement.get(.numberOfCharacters) as Int?) ?? 0
 
                 switch change {
                 case .insert(offset: let offset, element: var element, _):
