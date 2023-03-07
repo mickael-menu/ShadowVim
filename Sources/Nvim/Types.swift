@@ -25,15 +25,18 @@ public typealias TabpageHandle = Int
 
 public typealias AutocmdID = Int
 
+/// 1-indexed line number.
 public typealias LineIndex = Int
+
+/// 1-indexed column number.
 public typealias ColumnIndex = Int
 
-/// Buffer location as 0-indexed offsets.
-public struct BufferPosition: Equatable {
+/// Buffer location as 1-indexed offsets.
+public struct BufferPosition: Equatable, Comparable {
     public var line: LineIndex
     public var column: ColumnIndex
 
-    public init(line: LineIndex = 0, column: ColumnIndex = 0) {
+    public init(line: LineIndex = 1, column: ColumnIndex = 1) {
         self.line = line
         self.column = column
     }
@@ -51,33 +54,13 @@ public struct BufferPosition: Equatable {
             column: column ?? self.column
         )
     }
-}
 
-public struct BufferSelection: Equatable {
-    public var start: BufferPosition
-    public var end: BufferPosition
-
-    public init(start: BufferPosition = .init(), end: BufferPosition = .init()) {
-        self.start = start
-        self.end = end
-    }
-
-    public func copy(
-        startLine: LineIndex? = nil,
-        startColumn: ColumnIndex? = nil,
-        endLine: LineIndex? = nil,
-        endColumn: ColumnIndex? = nil
-    ) -> BufferSelection {
-        BufferSelection(
-            start: BufferPosition(
-                line: startLine ?? start.line,
-                column: startColumn ?? start.column
-            ),
-            end: BufferPosition(
-                line: endLine ?? end.line,
-                column: endColumn ?? end.column
-            )
-        )
+    public static func < (lhs: BufferPosition, rhs: BufferPosition) -> Bool {
+        if lhs.line == rhs.line {
+            return lhs.column < rhs.column
+        } else {
+            return lhs.line < rhs.line
+        }
     }
 }
 
@@ -86,8 +69,10 @@ public enum Mode: String, Equatable {
     case normal = "n"
     case visual = "v"
     case visualLine = "V"
+    case visualBlock = "\u{16}" // Ctrl-V
     case select = "s"
     case selectLine = "S"
+    case selectBlock = "\u{13}" // Ctrl-S
     case insert = "i"
     case replace = "R"
     case cmdline = "c"
@@ -97,24 +82,32 @@ public enum Mode: String, Equatable {
 }
 
 public struct Cursor: Equatable {
-    public var position: BufferPosition
+    /// The current mode.
     public var mode: Mode
 
-    public init(position: BufferPosition, mode: Mode) {
-        self.position = position
+    /// The cursor position.
+    public var position: BufferPosition
+
+    /// The start of the visual area.
+    ///
+    /// When not in Visual or Select mode, this is the same as the cursor
+    /// `position`.
+    public var visual: BufferPosition
+
+    public init(
+        mode: Mode,
+        position: BufferPosition = BufferPosition(),
+        visual: BufferPosition = BufferPosition()
+    ) {
         self.mode = mode
+        self.position = position
+        self.visual = visual
     }
 }
 
 extension BufferPosition: LogPayloadConvertible {
     public func logPayload() -> [LogKey: LogValueConvertible] {
         ["line": line, "column": column]
-    }
-}
-
-extension BufferSelection: LogPayloadConvertible {
-    public func logPayload() -> [LogKey: LogValueConvertible] {
-        ["start": start, "end": end]
     }
 }
 

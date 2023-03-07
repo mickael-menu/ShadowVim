@@ -30,8 +30,12 @@ public final class NvimBuffers {
     private var subscriptions: Set<AnyCancellable> = []
     private let logger: Logger?
 
+    /// Lock protecting access to the `buffers`.
+    private let lock: AsyncLock
+
     public init(nvim: Nvim, logger: Logger?) {
         self.logger = logger
+        lock = AsyncLock(name: "NvimBuffers", logger: logger?.domain("lock"))
 
         bufLinesPublisher = nvim.bufLinesPublisher()
             .breakpointOnError()
@@ -46,13 +50,20 @@ public final class NvimBuffers {
             .store(in: &subscriptions)
     }
 
-    func edit(name: String, contents: @autoclosure () -> String, with vim: Vim) -> Async<NvimBuffer, NvimError> {
-        if let (_, buffer) = buffers.first(where: { $0.value.name == name }) {
-            return activate(buffer: buffer.handle, with: vim)
-                .map { _ in buffer }
-        } else {
-            return create(name: name, contents: contents(), with: vim)
-        }
+    func edit(name: String, contents: @escaping @autoclosure () -> String, with vim: Vim) -> Async<NvimBuffer, NvimError> {
+        lock.acquire()
+            .setFailureType(to: NvimError.self)
+            .flatMap(on: .main) { [self] in
+                if let (_, buffer) = buffers.first(where: { $0.value.name == name }) {
+                    return activate(buffer: buffer.handle, with: vim)
+                        .map { _ in buffer }
+                } else {
+                    return create(name: name, contents: contents(), with: vim)
+                }
+            }
+            .onCompletion { [self] _ in
+                lock.release()
+            }
     }
 
     private func create(name: String, contents: String, with vim: Vim) -> Async<NvimBuffer, NvimError> {
@@ -122,6 +133,8 @@ private extension Vim {
                 set buftype=nowrite
                 set bufhidden=hide
                 set noswapfile
+                set nowrap
+                set nofoldenable
                 """
             )
             .flatMap { vim.api.getCurrentBuf() }

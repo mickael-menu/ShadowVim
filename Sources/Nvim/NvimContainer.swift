@@ -47,7 +47,7 @@ public final class NvimContainer {
 
         let vim = vim(
             session: session,
-            lock: AsyncLock(logger: logger?.domain("lock"))
+            lock: AsyncLock(name: "Nvim", logger: logger?.domain("lock"))
         )
 
         return Nvim.RunningState(

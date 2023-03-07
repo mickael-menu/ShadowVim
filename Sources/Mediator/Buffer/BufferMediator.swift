@@ -130,10 +130,12 @@ public final class BufferMediator {
     }
 
     func didFocus(element: AXUIElement) {
+        precondition(Thread.isMainThread)
+
         do {
             uiElement = element
 
-            on(.uiBufferDidChange(lines: try element.lines()))
+            try on(.uiBufferDidChange(lines: element.lines()))
 
             if let selection = try element.selection() {
                 on(.uiSelectionDidChange(selection))
@@ -143,6 +145,23 @@ public final class BufferMediator {
         } catch {
             fail(error)
         }
+    }
+
+    func didReceiveMouseEvent(_ event: MouseEvent) {
+        // We use the element's parent to get the frame because Xcode's source
+        // editors return garbage positions.
+        let bufferFrame = uiElement?.parent()?.frame() ?? .zero
+        let screenPoint = event.event.location
+        var bufferPoint: CGPoint?
+        if bufferFrame.contains(screenPoint) {
+            // Adapts point in the coordinates of frame
+            bufferPoint = CGPoint(
+                x: screenPoint.x - bufferFrame.origin.x,
+                y: screenPoint.y - bufferFrame.origin.y
+            )
+        }
+
+        on(.uiDidReceiveMouseEvent(event.kind, bufferPoint: bufferPoint))
     }
 
     private func subscribeToElementChanges(_ element: AXUIElement) {
@@ -162,6 +181,7 @@ public final class BufferMediator {
         element.publisher(for: .selectedTextChanged)
             .receive(on: DispatchQueue.main)
             .tryCompactMap { try $0.selection() }
+            .removeDuplicates()
             .sink(
                 onFailure: { [unowned self] in fail($0) },
                 receiveValue: { [unowned self] in
@@ -184,14 +204,20 @@ public final class BufferMediator {
             switch action {
             case let .updateNvim(_, diff: diff, cursorPosition: cursorPosition):
                 updateNvim(diff: diff, cursorPosition: cursorPosition)
-            case let .updateNvimCursor(position):
-                updateNvimCursor(position: position)
-            case let .updateUI(_, diff: diff, selection: selection):
-                try updateUI(diff: diff, selection: selection)
+            case let .moveNvimCursor(position):
+                moveNvimCursor(position: position)
+            case let .startNvimVisual(start: start, end: end):
+                startNvimVisual(from: start, to: end)
+            case .stopNvimVisual:
+                stopNvimVisual()
+            case let .updateUI(_, diff: diff, selections: selections):
+                try updateUI(diff: diff, selections: selections)
             case let .updateUIPartialLines(event: event):
                 try updateUIPartialLines(with: event)
-            case let .updateUISelection(selection):
-                try updateUISelection(selection)
+            case let .updateUISelections(selections):
+                try updateUISelections(selections)
+            case let .scrollUI(visibleSelection: visibleSelection):
+                try scrollUI(to: visibleSelection)
             case .startTokenTimeout:
                 tokenTimeoutSubject.send(())
             case .bell:
@@ -236,7 +262,7 @@ public final class BufferMediator {
         .get(onFailure: fail)
     }
 
-    private func updateNvimCursor(position: BufferPosition) {
+    private func moveNvimCursor(position: BufferPosition) {
         nvim.vim?.atomic(in: nvimBuffer) { vim in
             vim.api.winSetCursor(position: position, failOnInvalidPosition: false)
         }
@@ -244,14 +270,43 @@ public final class BufferMediator {
         .get(onFailure: fail)
     }
 
-    private func updateUI(diff: CollectionDifference<String>, selection: BufferSelection) throws {
+    /// Starts the Neovim Visual mode and selects from the given `start` and
+    /// `end` positions.
+    private func startNvimVisual(from start: BufferPosition, to end: BufferPosition) {
+        nvim.vim?.atomic(in: nvimBuffer) { vim in
+            vim.cmd(
+                """
+                " Exit the current mode, hopefully.
+                execute "normal! \\<Ignore>\\<Esc>"
+                normal! \(start.line)G\(start.column)|v\(end.line)G\(end.column)|",
+                """
+            )
+        }
+        .discardResult()
+        .get(onFailure: fail)
+    }
+
+    /// Exits the Neovim Visual mode (character, line or block-wise).
+    private func stopNvimVisual() {
+        nvim.vim?.cmd(
+            """
+            if mode() =~ "^[vV\\<C-v>]$"
+                execute "normal! \\<Ignore>\\<Esc>"
+            endif
+            """
+        )
+        .discardResult()
+        .get(onFailure: fail)
+    }
+
+    private func updateUI(diff: CollectionDifference<String>, selections: [UISelection]) throws {
         guard let uiElement = uiElement else {
             return
         }
 
         if !diff.isEmpty {
             for change in diff {
-                let eof = (try uiElement.get(.numberOfCharacters) as Int?) ?? 0
+                let eof = try (uiElement.get(.numberOfCharacters) as Int?) ?? 0
 
                 switch change {
                 case .insert(offset: let offset, element: var element, _):
@@ -284,7 +339,7 @@ public final class BufferMediator {
             }
         }
 
-        try updateUISelection(selection)
+        try updateUISelections(selections)
     }
 
     private func updateUIPartialLines(with event: BufLinesEvent) throws {
@@ -342,28 +397,45 @@ public final class BufferMediator {
         try element.set(.selectedText, value: replacement)
     }
 
-    private func updateUISelection(_ selection: BufferSelection) throws {
-        guard
-            let uiElement = uiElement,
-            let startLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.start.line),
-            let endLineRange: CFRange = try uiElement.get(.rangeForLine, with: selection.end.line)
-        else {
+    private func updateUISelections(_ selections: [UISelection]) throws {
+        guard let uiElement = uiElement, selections.count > 0 else {
             return
         }
 
-        let start = startLineRange.location + selection.start.column
-        let end = endLineRange.location + selection.end.column
-
-        let range = CFRange(
-            location: start,
-            length: end - start
-        )
-
+        // Unfortunately, setting `selectedTextRanges` doesn't work in Xcode 14
+        // (it works in TextEdit though). For now, we will join the selections
+        // into a single continuous one.
+        /*
+         let ranges: [CFRange] = try selections
+             .compactMap { try $0.range(in: uiElement) }
+         try uiElement.set(.selectedTextRanges, value: ranges)
+         */
+        guard
+            let selection = selections.joined(),
+            let range = try selection.range(in: uiElement)
+        else {
+            return
+        }
         try uiElement.set(.selectedTextRange, value: range)
     }
 
+    private func scrollUI(to visibleSelection: UISelection) throws {
+        guard
+            let uiElement = uiElement,
+            let range = try visibleSelection.range(in: uiElement)
+        else {
+            return
+        }
+        try uiElement.set(.visibleCharacterRange, value: range)
+    }
+
     private func fail(_ error: Error) {
-        on(.didFail(error.equatable()))
+        precondition(Thread.isMainThread)
+        if case AX.AXError.invalidUIElement = error {
+            uiElement = nil
+        } else {
+            on(.didFail(error.equatable()))
+        }
     }
 }
 
@@ -374,8 +446,8 @@ private extension AXUIElement {
         try (get(.value) as String?).map { $0.lines.map { String($0) } } ?? []
     }
 
-    /// Returns the buffer selection of the receiving accessibility element.
-    func selection() throws -> BufferSelection? {
+    /// Returns the UI selection of the receiving accessibility element.
+    func selection() throws -> UISelection? {
         guard let selection: CFRange = try get(.selectedTextRange) else {
             return nil
         }
@@ -392,12 +464,12 @@ private extension AXUIElement {
             return nil
         }
 
-        return BufferSelection(
-            start: BufferPosition(
+        return UISelection(
+            start: UIPosition(
                 line: startLine,
                 column: start - startLineRange.location
             ),
-            end: BufferPosition(
+            end: UIPosition(
                 line: endLine,
                 column: end - endLineRange.location
             )

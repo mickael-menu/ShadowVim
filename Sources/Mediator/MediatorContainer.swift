@@ -60,14 +60,14 @@ public final class MediatorContainer {
     func appMediator(app: NSRunningApplication) throws -> AppMediator {
         let nvim = nvimContainer.nvim()
         try nvim.start()
-        return AppMediator(
+        return try AppMediator(
             app: app,
             nvim: nvim,
             buffers: NvimBuffers(
                 nvim: nvim,
                 logger: logger?.domain("nvim-buffers")
             ),
-            eventSource: try EventSource(keyResolver: keyResolver),
+            eventSource: EventSource(keyResolver: keyResolver),
             logger: logger?.domain("app"),
             bufferMediatorFactory: bufferMediator,
             enableKeysPassthrough: enableKeysPassthrough,

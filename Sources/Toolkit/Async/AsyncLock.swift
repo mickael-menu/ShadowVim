@@ -22,12 +22,15 @@ import Foundation
 /// Instead of blocking the calling thread, `acquire` returns an `Async` object
 /// which will be completed when the lock is freed.
 public class AsyncLock {
-    private let queue = DispatchQueue(label: "menu.mickael.AsyncLock")
+    private let name: String
+    private let queue: DispatchQueue
     private var isLocked: Bool = false
     private var waitlist: [(Result<Void, Never>) -> Void] = []
     private let logger: Logger?
 
-    public init(logger: Logger? = nil) {
+    public init(name: String, logger: Logger? = nil) {
+        self.name = name
+        queue = DispatchQueue(label: "menu.mickael.AsyncLock.\(name)")
         self.logger = logger
     }
 
@@ -36,7 +39,7 @@ public class AsyncLock {
             if isLocked {
                 waitlist.append(completion)
             } else {
-                logger?.t("Locked")
+                logger?.t("Locked \(name)")
                 isLocked = true
                 completion(.success(()))
             }
@@ -46,7 +49,7 @@ public class AsyncLock {
     public func release() {
         queue.async { [self] in
             if waitlist.isEmpty {
-                logger?.t("Released")
+                logger?.t("Released \(name)")
                 isLocked = false
             } else {
                 waitlist.removeFirst()(.success(()))

@@ -108,8 +108,8 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
             && !name.hasSuffix("/")
     }
 
-    public func appMediator(_ mediator: AppMediator, shouldIgnoreKeyEvent event: KeyEvent) -> Bool {
-        shouldIgnoreKeyEventForCompletionPopUp(event)
+    public func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: InputEvent) -> Bool {
+        shouldIgnoreEventForCompletionPopUp(event)
     }
 
     // MARK: - Completion pop-up passthrough keys
@@ -117,7 +117,9 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
     /// When Xcode's completion pop-up is visible, we want to let it handle
     /// the following key combos instead of forwarding them to Nvim.
     private let completionPopUpPassthrougKeyCombos: [KeyCombo] = [
-        KeyCombo(.escape),
+        // When typing fast, it's annoying to have the escape key not going
+        // back to normal mode.
+//        KeyCombo(.escape),
         KeyCombo(.return),
         KeyCombo(.upArrow),
         KeyCombo(.downArrow),
@@ -125,8 +127,8 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
         KeyCombo(.p, modifiers: .control),
     ]
 
-    private func shouldIgnoreKeyEventForCompletionPopUp(_ event: KeyEvent) -> Bool {
-        guard isCompletionPopUpVisible else {
+    private func shouldIgnoreEventForCompletionPopUp(_ event: InputEvent) -> Bool {
+        guard isCompletionPopUpVisible, case let .key(event) = event else {
             return false
         }
 

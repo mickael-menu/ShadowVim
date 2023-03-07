@@ -18,32 +18,6 @@
 import CoreGraphics
 import Foundation
 
-public struct KeyEvent {
-    public let event: CGEvent
-    public let keyCombo: KeyCombo
-
-    public init?(event: CGEvent, keyCombo: KeyCombo) {
-        guard event.type == .keyDown || event.type == .keyUp else {
-            return nil
-        }
-
-        self.event = event
-        self.keyCombo = keyCombo
-    }
-
-    public var character: String? {
-        let maxStringLength = 4
-        var actualStringLength = 0
-        var unicodeString = [UniChar](repeating: 0, count: Int(maxStringLength))
-        event.keyboardGetUnicodeString(maxStringLength: 1, actualStringLength: &actualStringLength, unicodeString: &unicodeString)
-        let char = String(utf16CodeUnits: &unicodeString, count: Int(actualStringLength))
-        guard !char.isEmpty else {
-            return nil
-        }
-        return char
-    }
-}
-
 /// A key combined with optional modifiers.
 public struct KeyCombo: Hashable {
     public let key: Key

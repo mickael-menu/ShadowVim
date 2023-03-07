@@ -364,7 +364,7 @@ public extension Async {
         map(
             success: { val, compl in
                 do {
-                    compl(.success(try transform(val)))
+                    try compl(.success(transform(val)))
                 } catch {
                     compl(.failure(error))
                 }
@@ -405,9 +405,11 @@ public extension Async {
     ///        asyncOperation(val)
     ///     }
     func flatMap<NewSuccess>(
+        on queue: DispatchQueue? = nil,
         _ transform: @escaping (Success) -> Async<NewSuccess, Failure>
     ) -> Async<NewSuccess, Failure> {
         map(
+            on: queue,
             success: { val, compl in transform(val).getResult(compl) },
             failure: { err, compl in compl(.failure(err)) }
         )

@@ -40,12 +40,12 @@ public protocol AppMediatorDelegate: AnyObject {
     func appMediator(_ mediator: AppMediator, nameForElement element: AXUIElement) -> String?
 
     /// Indicates whether the given `event` should be ignored by the mediator.
-    func appMediator(_ mediator: AppMediator, shouldIgnoreKeyEvent event: KeyEvent) -> Bool
+    func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: InputEvent) -> Bool
 
     /// Filters `event` before it is processed by this `AppMediator`.
     ///
     /// Return `nil` if you handled the key combo in the delegate.
-    func appMediator(_ mediator: AppMediator, willHandleKeyEvent event: KeyEvent) -> KeyEvent?
+    func appMediator(_ mediator: AppMediator, willHandleEvent event: InputEvent) -> InputEvent?
 }
 
 public extension AppMediatorDelegate {
@@ -60,11 +60,11 @@ public extension AppMediatorDelegate {
         element.document()
     }
 
-    func appMediator(_ mediator: AppMediator, shouldIgnoreKeyEvent event: KeyEvent) -> Bool {
+    func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: InputEvent) -> Bool {
         false
     }
 
-    func appMediator(_ mediator: AppMediator, willHandleKeyEvent event: KeyEvent) -> KeyEvent? {
+    func appMediator(_ mediator: AppMediator, willHandleEvent event: InputEvent) -> InputEvent? {
         event
     }
 }
@@ -132,7 +132,7 @@ public final class AppMediator {
 
         setupUserCommands()
 
-        // nvim.api.uiAttach(
+        // nvim.vim?.api.uiAttach(
         //     width: 1000,
         //     height: 100,
         //     options: API.UIOptions(
@@ -149,7 +149,7 @@ public final class AppMediator {
         // .forwardErrorToDelegate(of: self)
         // .run()
 
-        // nvim.events.publisher(for: "redraw")
+        // nvim.publisher(for: "redraw")
         //     .assertNoFailure()
         //     .sink { params in
         //         for v in params {
@@ -268,11 +268,11 @@ public final class AppMediator {
 
     // MARK: - Input handling
 
-    public func handle(_ event: KeyEvent) -> Bool {
+    public func handle(_ event: InputEvent) -> Bool {
         precondition(app.isActive)
 
         guard
-            !shouldIgnoreKeyEvent(event),
+            !shouldIgnoreEvent(event),
             // Check that we're still the focused app. Useful when the Spotlight
             // modal is opened.
             isAppFocused,
@@ -282,18 +282,34 @@ public final class AppMediator {
             return false
         }
 
-        guard let event = willHandleKeyEvent(event) else {
+        guard let event = willHandleEvent(event) else {
             return true
         }
 
-        return handle(event, in: buffer.nvimBuffer)
+        return handle(event, in: buffer)
     }
 
     private let cmdZ = KeyCombo(.z, modifiers: .command)
     private let cmdShiftZ = KeyCombo(.z, modifiers: [.command, .shift])
     private let cmdV = KeyCombo(.v, modifiers: [.command])
 
-    private func handle(_ event: KeyEvent, in buffer: NvimBuffer) -> Bool {
+    private func handle(_ event: InputEvent, in buffer: BufferMediator) -> Bool {
+        switch event {
+        case let .key(event):
+            return handle(event, in: buffer)
+        case let .mouse(event):
+            return handle(event, in: buffer)
+        }
+    }
+
+    private func handle(_ event: MouseEvent, in buffer: BufferMediator) -> Bool {
+        buffer.didReceiveMouseEvent(event)
+        return false
+    }
+
+    private func handle(_ event: KeyEvent, in buffer: BufferMediator) -> Bool {
+        let buffer = buffer.nvimBuffer
+
         switch event.keyCombo {
         case cmdZ:
             nvim.vim?.atomic(in: buffer) { vim in
@@ -458,28 +474,27 @@ public final class AppMediator {
             }
     }
 
-    /// This publisher is used to observe the Neovim cursor position and mode
+    /// This publisher is used to observe the Neovim selection and mode
     /// changes.
     lazy var nvimCursorPublisher: AnyPublisher<(BufferHandle, Cursor), NvimError> =
         nvim.autoCmdPublisher(
             for: "ModeChanged", "CursorMoved", "CursorMovedI",
-            args: "bufnr()", "mode()", "getcursorcharpos()",
+            args: "bufnr()", "mode()", "getcharpos('.')", "getcharpos('v')",
             unpack: { params -> (BufferHandle, Cursor)? in
                 guard
-                    params.count == 3,
+                    params.count == 4,
                     let buffer: BufferHandle = params[0].intValue,
                     let mode = params[1].stringValue,
-                    let cursorParams = params[2].arrayValue,
-                    cursorParams.count == 5,
-                    let line = cursorParams[1].intValue,
-                    let col = cursorParams[2].intValue
+                    let position = BuiltinFunctions.GetposResult(params[2]),
+                    let visual = BuiltinFunctions.GetposResult(params[3])
                 else {
                     return nil
                 }
 
                 let cursor = Cursor(
-                    position: BufferPosition(line: line - 1, column: col - 1),
-                    mode: Mode(rawValue: mode) ?? .normal
+                    mode: Mode(rawValue: mode) ?? .normal,
+                    position: position.position,
+                    visual: visual.position
                 )
                 return (buffer, cursor)
             }
@@ -501,18 +516,18 @@ public final class AppMediator {
         return delegate.appMediator(self, nameForElement: element)
     }
 
-    private func shouldIgnoreKeyEvent(_ event: KeyEvent) -> Bool {
+    private func shouldIgnoreEvent(_ event: InputEvent) -> Bool {
         guard let delegate = delegate else {
             return false
         }
-        return delegate.appMediator(self, shouldIgnoreKeyEvent: event)
+        return delegate.appMediator(self, shouldIgnoreEvent: event)
     }
 
-    private func willHandleKeyEvent(_ event: KeyEvent) -> KeyEvent? {
+    private func willHandleEvent(_ event: InputEvent) -> InputEvent? {
         guard let delegate = delegate else {
             return event
         }
-        return delegate.appMediator(self, willHandleKeyEvent: event)
+        return delegate.appMediator(self, willHandleEvent: event)
     }
 }
 

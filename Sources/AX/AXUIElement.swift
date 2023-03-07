@@ -338,6 +338,21 @@ public extension AXUIElement {
         (try? get(.children, logErrors: false)) ?? []
     }
 
+    func position() -> CGPoint? {
+        try? get(.position)
+    }
+
+    func size() -> CGSize? {
+        try? get(.size)
+    }
+
+    func frame() -> CGRect? {
+        guard let origin = position(), let size = size() else {
+            return nil
+        }
+        return CGRect(origin: origin, size: size)
+    }
+
     func document() -> String? {
         guard let document = try? get(.document) as String? else {
             return parent()?.document()

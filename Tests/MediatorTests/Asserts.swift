@@ -15,19 +15,16 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+import Difference
 import Foundation
-import Nvim
+import XCTest
 
-extension BufferSelection {
-    init(
-        startLine: LineIndex,
-        col startColumn: ColumnIndex,
-        endLine: LineIndex,
-        col endColumn: ColumnIndex
-    ) {
-        self.init(
-            start: BufferPosition(line: startLine, column: startColumn),
-            end: BufferPosition(line: endLine, column: endColumn)
-        )
+public func XCTAssertEqual<T: Equatable>(_ expected: @autoclosure () throws -> T, _ received: @autoclosure () throws -> T, file: StaticString = #filePath, line: UInt = #line) {
+    do {
+        let expected = try expected()
+        let received = try received()
+        XCTAssertTrue(expected == received, "Found difference for \n" + diff(expected, received).joined(separator: ", "), file: file, line: line)
+    } catch {
+        XCTFail("Caught error while testing: \(error)", file: file, line: line)
     }
 }

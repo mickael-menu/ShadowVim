@@ -21,6 +21,7 @@ let package = Package(
         .package(url: "https://github.com/a2/MessagePack.swift.git", from: "4.0.0"),
         .package(url: "https://github.com/fpillet/NSLogger.git", branch: "master"),
         .package(url: "https://github.com/Clipy/Sauce.git", from: "2.3.0"),
+        .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.0"),
     ],
     targets: [
         .target(
@@ -41,6 +42,7 @@ let package = Package(
             name: "MediatorTests",
             dependencies: [
                 "Mediator",
+                .product(name: "Difference", package: "Difference"),
             ]
         ),
         .target(
@@ -54,6 +56,7 @@ let package = Package(
             name: "NvimTests",
             dependencies: [
                 "Nvim",
+                .product(name: "Difference", package: "Difference"),
             ]
         ),
         .target(
@@ -64,6 +67,7 @@ let package = Package(
             name: "ToolkitTests",
             dependencies: [
                 "Toolkit",
+                .product(name: "Difference", package: "Difference"),
             ]
         ),
         .target(
