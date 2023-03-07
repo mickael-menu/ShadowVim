@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+* Support for Visual and Select modes feedback.
+    * Block-wise selection (<kbd>C-v</kbd>) is displayed as character-wise because of a limitation with the Xcode accessibility APIs.
 * Use `SVPress` to trigger click events from Neovim bindings.
     ```viml
     " Show the Quick Help pop-up for the symbol at the caret location (<kbd>⌥ + Left Click</kbd>).
