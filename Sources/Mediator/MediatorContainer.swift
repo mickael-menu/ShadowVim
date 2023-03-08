@@ -57,10 +57,9 @@ public final class MediatorContainer {
         )
     }
 
-    func appMediator(app: NSRunningApplication) throws -> AppMediator {
+    func appMediator(app: NSRunningApplication) -> AppMediator {
         let nvim = nvimContainer.nvim()
-        try nvim.start()
-        return try AppMediator(
+        return AppMediator(
             app: app,
             nvim: nvim,
             buffers: NvimBuffers(

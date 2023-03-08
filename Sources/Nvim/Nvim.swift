@@ -91,7 +91,7 @@ public final class Nvim {
     }
 
     /// Starts the Nvim process.
-    public func start() throws {
+    public func start(headless: Bool = false) throws {
         try $state.write {
             guard case .stopped = $0 else {
                 throw NvimError.alreadyStarted
@@ -106,17 +106,24 @@ public final class Nvim {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
 
-            process.arguments = [
+            var args = [
                 "nvim",
-                "--headless",
                 "--embed",
                 "-n", // Ignore swap files.
-                // This will prevent using packages.
-                //            "--clean", // Don't load default config and plugins.
+
+                // Don't load default config and plugins.
+                // Commented as this would prevent using packages.
+                // "--clean", 
+
                 // Using `--cmd` instead of `-c` makes the statements available in the `init.vim`.
                 "--cmd", "let g:shadowvim = v:true",
             ]
 
+            if headless {
+                args.append("--headless")
+            }
+
+            process.arguments = args
             process.standardInput = input
             process.standardOutput = output
             process.loadEnvironment()

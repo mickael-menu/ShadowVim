@@ -88,7 +88,7 @@ public enum AppMediatorError: LocalizedError {
 }
 
 public final class AppMediator {
-    public typealias Factory = (_ app: NSRunningApplication) throws -> AppMediator
+    public typealias Factory = (_ app: NSRunningApplication) -> AppMediator
 
     public weak var delegate: AppMediatorDelegate?
 
@@ -129,41 +129,6 @@ public final class AppMediator {
         self.resetShadowVim = resetShadowVim
 
         nvim.delegate = self
-
-        setupUserCommands()
-
-        // nvim.vim?.api.uiAttach(
-        //     width: 1000,
-        //     height: 100,
-        //     options: API.UIOptions(
-        //         extCmdline: true,
-        //         extHlState: true,
-        //         extLineGrid: true,
-        //         extMessages: true,
-        //         extMultigrid: true,
-        //         extPopupMenu: true,
-        //         extTabline: true,
-        //         extTermColors: true
-        //     )
-        // )
-        // .forwardErrorToDelegate(of: self)
-        // .run()
-
-        // nvim.publisher(for: "redraw")
-        //     .assertNoFailure()
-        //     .sink { params in
-        //         for v in params {
-        //             guard
-        //             let a = v.arrayValue,
-        //             let k = a.first?.stringValue,
-        //             k.hasPrefix("msg_")
-        //             else {
-        //                 continue
-        //             }
-        //             print(a)
-        //         }
-        //     }
-        //     .store(in: &subscriptions)
     }
 
     private func setupUserCommands() {
@@ -240,18 +205,64 @@ public final class AppMediator {
     private func on(_ event: AppState.Event) {
         precondition(Thread.isMainThread)
         for action in state.on(event, logger: logger) {
-            perform(action)
+            do {
+                switch action {
+                case .start:
+                    try performStart()
+                case .stop:
+                    performStop()
+                }
+            } catch {
+                delegate?.appMediator(self, didFailWithError: error)
+            }
         }
     }
 
-    private func perform(_ action: AppState.Action) {
-        switch action {
-        case .start:
-            setupFocusSync()
-            delegate?.appMediatorWillStart(self)
-        case .stop:
-            performStop()
-        }
+    private func performStart() throws {
+        try eventSource.start()
+        try nvim.start()
+        buffers.start()
+        
+        
+        nvim.vim?.api.uiAttach(
+            width: 1000,
+            height: 100,
+            options: API.UIOptions(
+                extCmdline: true,
+                extHlState: true,
+                extLineGrid: true,
+                extMessages: true,
+                extMultigrid: true,
+                extPopupMenu: true,
+                extTabline: true,
+                extTermColors: true
+            )
+        )
+        .forwardErrorToDelegate(of: self)
+        .run()
+
+        nvim.publisher(for: "redraw")
+            .assertNoFailure()
+            .sink { params in
+                print("redraw")
+                for v in params {
+                    guard
+                        let a = v.arrayValue,
+                        let k = a.first?.stringValue
+                        // k.hasPrefix("msg_")
+                    else {
+                        continue
+                    }
+                    print("   ", k, a)
+                }
+            }
+            .store(in: &subscriptions)
+            
+        
+        setupUserCommands()
+        setupFocusSync()
+
+        delegate?.appMediatorWillStart(self)
     }
 
     private func performStop() {
