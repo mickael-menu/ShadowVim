@@ -135,11 +135,8 @@ public final class BufferMediator {
         do {
             uiElement = element
 
-            try on(.uiBufferDidChange(lines: element.lines()))
+            try on(.uiDidFocus(lines: element.lines(), selection: element.selection()))
 
-            if let selection = try element.selection() {
-                on(.uiSelectionDidChange(selection))
-            }
         } catch AX.AXError.invalidUIElement {
             uiElement = nil
         } catch {
@@ -202,16 +199,16 @@ public final class BufferMediator {
     private func perform(_ action: BufferState.Action) {
         do {
             switch action {
-            case let .updateNvim(_, diff: diff, cursorPosition: cursorPosition):
-                updateNvim(diff: diff, cursorPosition: cursorPosition)
+            case let .updateNvimLines(_, diff: diff):
+                updateNvimLines(diff: diff)
             case let .moveNvimCursor(position):
                 moveNvimCursor(position: position)
             case let .startNvimVisual(start: start, end: end):
                 startNvimVisual(from: start, to: end)
             case .stopNvimVisual:
                 stopNvimVisual()
-            case let .updateUI(_, diff: diff, selections: selections):
-                try updateUI(diff: diff, selections: selections)
+            case let .updateUILines(_, diff: diff):
+                try updateUILines(diff: diff)
             case let .updateUIPartialLines(event: event):
                 try updateUIPartialLines(with: event)
             case let .updateUISelections(selections):
@@ -232,7 +229,7 @@ public final class BufferMediator {
         }
     }
 
-    private func updateNvim(diff: CollectionDifference<String>, cursorPosition: BufferPosition) {
+    private func updateNvimLines(diff: CollectionDifference<String>) {
         nvim.vim?.atomic(in: nvimBuffer) { [self] vim in
             withAsyncGroup { group in
                 for change in diff {
@@ -253,10 +250,6 @@ public final class BufferMediator {
                         .eraseToAnyError()
                         .add(to: group)
                 }
-
-                vim.api.winSetCursor(position: cursorPosition, failOnInvalidPosition: false)
-                    .eraseToAnyError()
-                    .add(to: group)
             }
         }
         .get(onFailure: fail)
@@ -299,7 +292,7 @@ public final class BufferMediator {
         .get(onFailure: fail)
     }
 
-    private func updateUI(diff: CollectionDifference<String>, selections: [UISelection]) throws {
+    private func updateUILines(diff: CollectionDifference<String>) throws {
         guard let uiElement = uiElement else {
             return
         }
@@ -338,8 +331,6 @@ public final class BufferMediator {
                 }
             }
         }
-
-        try updateUISelections(selections)
     }
 
     private func updateUIPartialLines(with event: BufLinesEvent) throws {

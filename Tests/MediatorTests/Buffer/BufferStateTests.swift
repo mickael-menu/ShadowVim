@@ -82,15 +82,17 @@ final class BufferStateTests: XCTestCase {
             on: .tokenDidTimeout,
             expected: initialState.copy(token: .synchronizing),
             actions: [
-                .updateUI(
+                .startTokenTimeout,
+                .updateUILines(
                     lines: nvimLines,
-                    diff: nvimLines.difference(from: uiLines),
-                    selections: [UISelection(
+                    diff: nvimLines.difference(from: uiLines)
+                ),
+                .updateUISelections([
+                    UISelection(
                         start: UIPosition(nvimCursor.position),
                         end: UIPosition(nvimCursor.position.moving(column: +1))
-                    )]
-                ),
-                .startTokenTimeout,
+                    )
+                ]),
             ]
         )
 
@@ -99,12 +101,12 @@ final class BufferStateTests: XCTestCase {
             on: .tokenDidTimeout,
             expected: initialState.copy(token: .synchronizing),
             actions: [
-                .updateNvim(
-                    lines: uiLines,
-                    diff: uiLines.difference(from: nvimLines),
-                    cursorPosition: BufferPosition(uiSelection.start)
-                ),
                 .startTokenTimeout,
+                .updateNvimLines(
+                    lines: uiLines,
+                    diff: uiLines.difference(from: nvimLines)
+                ),
+                .moveNvimCursor(BufferPosition(uiSelection.start)),
             ]
         )
     }
@@ -153,15 +155,17 @@ final class BufferStateTests: XCTestCase {
             on: .didRequestRefresh(source: .nvim),
             expected: initialState.copy(token: .synchronizing),
             actions: [
-                .updateUI(
+                .startTokenTimeout,
+                .updateUILines(
                     lines: nvimLines,
-                    diff: nvimLines.difference(from: uiLines),
-                    selections: [UISelection(
+                    diff: nvimLines.difference(from: uiLines)
+                ),
+                .updateUISelections([
+                    UISelection(
                         start: UIPosition(nvimCursor.position),
                         end: UIPosition(nvimCursor.position.moving(column: +1))
-                    )]
-                ),
-                .startTokenTimeout,
+                    )
+                ]),
             ]
         )
 
@@ -170,12 +174,12 @@ final class BufferStateTests: XCTestCase {
             on: .didRequestRefresh(source: .ui),
             expected: initialState.copy(token: .synchronizing),
             actions: [
-                .updateNvim(
-                    lines: uiLines,
-                    diff: uiLines.difference(from: nvimLines),
-                    cursorPosition: BufferPosition(uiSelection.start)
-                ),
                 .startTokenTimeout,
+                .updateNvimLines(
+                    lines: uiLines,
+                    diff: uiLines.difference(from: nvimLines)
+                ),
+                .moveNvimCursor(BufferPosition(uiSelection.start)),
             ]
         )
     }
@@ -398,11 +402,11 @@ final class BufferStateTests: XCTestCase {
             ),
             actions: [
                 .startTokenTimeout,
-                .updateNvim(
+                .updateNvimLines(
                     lines: newLines,
-                    diff: newLines.difference(from: nvimLines),
-                    cursorPosition: BufferPosition(newSelection.start)
+                    diff: newLines.difference(from: nvimLines)
                 ),
+                .moveNvimCursor(BufferPosition(newSelection.start)),
             ]
         )
     }
@@ -422,11 +426,11 @@ final class BufferStateTests: XCTestCase {
             ),
             actions: [
                 .startTokenTimeout,
-                .updateNvim(
+                .updateNvimLines(
                     lines: newLines,
-                    diff: newLines.difference(from: nvimLines),
-                    cursorPosition: BufferPosition(newSelection.start)
+                    diff: newLines.difference(from: nvimLines)
                 ),
+                .moveNvimCursor(BufferPosition(newSelection.start)),
             ]
         )
     }
@@ -465,6 +469,59 @@ final class BufferStateTests: XCTestCase {
         )
     }
 
+    // No updates needed if the UI state is the same.
+    func testUIDidFocusNoChanges() {
+        let state = initialState.copy(token: .free)
+
+        assert(
+            initial: state,
+            on: .uiDidFocus(lines: state.ui.lines, selection: state.ui.selection),
+            expected: state,
+            actions: []
+        )
+    }
+
+    // Only UI lines changed.
+    func testUIDidFocusOnlyLinesChanges() {
+        let state = initialState.copy(token: .free)
+        let newLines = uiLines + ["An addition"]
+
+        assert(
+            initial: state,
+            on: .uiDidFocus(lines: newLines, selection: state.ui.selection),
+            expected: state.copy(
+                token: .acquired(owner: .ui),
+                uiLines: newLines
+            ),
+            actions: [
+                .startTokenTimeout,
+                .updateNvimLines(
+                    lines: newLines,
+                    diff: newLines.difference(from: nvimLines)
+                )
+            ]
+        )
+    }
+
+    // Only UI selection changed.
+    func testUIDidFocusOnlySelectionChange() {
+        let state = initialState.copy(token: .free)
+        let newSelection = uiSelection.copy(startLine: 42)
+
+        assert(
+            initial: state,
+            on: .uiDidFocus(lines: state.ui.lines, selection: newSelection),
+            expected: initialState.copy(
+                token: .acquired(owner: .ui),
+                uiSelection: newSelection
+            ),
+            actions: [
+                .startTokenTimeout,
+                .moveNvimCursor(BufferPosition(newSelection.start)),
+            ]
+        )
+    }
+
     // MARK: - UI buffer changes
 
     // The token is acquired when free and the update sent to the Nvim buffer.
@@ -480,11 +537,10 @@ final class BufferStateTests: XCTestCase {
             ),
             actions: [
                 .startTokenTimeout,
-                .updateNvim(
+                .updateNvimLines(
                     lines: newLines,
-                    diff: newLines.difference(from: nvimLines),
-                    cursorPosition: BufferPosition(uiSelection.start)
-                ),
+                    diff: newLines.difference(from: nvimLines)
+                )
             ]
         )
     }
@@ -502,11 +558,10 @@ final class BufferStateTests: XCTestCase {
             ),
             actions: [
                 .startTokenTimeout,
-                .updateNvim(
+                .updateNvimLines(
                     lines: newLines,
-                    diff: newLines.difference(from: nvimLines),
-                    cursorPosition: BufferPosition(uiSelection.start)
-                ),
+                    diff: newLines.difference(from: nvimLines)
+                )
             ]
         )
     }
@@ -523,6 +578,18 @@ final class BufferStateTests: XCTestCase {
             actions: []
         )
     }
+
+    // Changes are ignored if they are identical to the current UI state.
+    func testUIBufferDidChangeIgnoredWhenSameLines() {
+        let state = initialState.copy(token: .free)
+        assert(
+            initial: state,
+            on: .uiBufferDidChange(lines: state.ui.lines),
+            expected: state,
+            actions: []
+        )
+    }
+
 
     // MARK: - UI selection changes
 
