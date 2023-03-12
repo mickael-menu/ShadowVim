@@ -91,7 +91,7 @@ final class BufferStateTests: XCTestCase {
                     UISelection(
                         start: UIPosition(nvimCursor.position),
                         end: UIPosition(nvimCursor.position.moving(column: +1))
-                    )
+                    ),
                 ]),
             ]
         )
@@ -164,7 +164,7 @@ final class BufferStateTests: XCTestCase {
                     UISelection(
                         start: UIPosition(nvimCursor.position),
                         end: UIPosition(nvimCursor.position.moving(column: +1))
-                    )
+                    ),
                 ]),
             ]
         )
@@ -498,7 +498,7 @@ final class BufferStateTests: XCTestCase {
                 .updateNvimLines(
                     lines: newLines,
                     diff: newLines.difference(from: nvimLines)
-                )
+                ),
             ]
         )
     }
@@ -540,7 +540,7 @@ final class BufferStateTests: XCTestCase {
                 .updateNvimLines(
                     lines: newLines,
                     diff: newLines.difference(from: nvimLines)
-                )
+                ),
             ]
         )
     }
@@ -561,7 +561,7 @@ final class BufferStateTests: XCTestCase {
                 .updateNvimLines(
                     lines: newLines,
                     diff: newLines.difference(from: nvimLines)
-                )
+                ),
             ]
         )
     }
@@ -589,7 +589,6 @@ final class BufferStateTests: XCTestCase {
             actions: []
         )
     }
-
 
     // MARK: - UI selection changes
 
