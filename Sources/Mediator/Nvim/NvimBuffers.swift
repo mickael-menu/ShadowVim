@@ -39,9 +39,9 @@ public final class NvimBuffers {
         self.logger = logger
         lock = AsyncLock(name: "NvimBuffers", logger: logger?.domain("lock"))
     }
-    
+
     public func start() {
-        self.nvim.autoCmdPublisher(for: "BufEnter", args: "expand('<abuf>')")
+        nvim.autoCmdPublisher(for: "BufEnter", args: "expand('<abuf>')")
             .assertNoFailure()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] data in
@@ -54,7 +54,7 @@ public final class NvimBuffers {
             .ignoreFailure()
     }
 
-    func edit(name: String, contents: @escaping @autoclosure () -> String, with vim: Vim) -> Async<NvimBuffer, NvimError> {
+    func edit(name: String, contents: @escaping () -> String, with vim: Vim) -> Async<NvimBuffer, NvimError> {
         lock.acquire()
             .setFailureType(to: NvimError.self)
             .flatMap(on: .main) { [self] in

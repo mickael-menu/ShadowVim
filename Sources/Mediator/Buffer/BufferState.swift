@@ -19,6 +19,12 @@ import Foundation
 import Nvim
 import Toolkit
 
+/// Identifiers the owner of a live buffer.
+enum BufferHost: String, Equatable {
+    case nvim
+    case ui
+}
+
 /// State machine handling the state of a single buffer synchronized between the
 /// UI and Nvim.
 ///
@@ -81,7 +87,7 @@ struct BufferState: Equatable {
 
         /// One buffer acquired the token and became the source of truth for
         /// the content.
-        case acquired(owner: Host)
+        case acquired(owner: BufferHost)
 
         /// The main buffer released the token and is now synchronizing the full
         /// content with the subalternate buffer.
@@ -89,12 +95,6 @@ struct BufferState: Equatable {
         /// The token will revert to `free` when receiving the next token
         /// timeout.
         case synchronizing
-    }
-
-    /// Identifiers the owner of a live buffer.
-    enum Host: String, Equatable {
-        case nvim
-        case ui
     }
 
     /// Represents the current state of the Nvim buffer.
@@ -175,13 +175,15 @@ struct BufferState: Equatable {
 
         /// The user requested to resynchronize the buffers using the given
         /// `source` host for the source of truth of the content.
-        case didRequestRefresh(source: Host)
+        case didRequestRefresh(source: BufferHost)
 
         /// The Nvim buffer changed and sent a `BufLinesEvent`.
         case nvimBufferDidChange(lines: [String], event: BufLinesEvent)
 
         /// The Nvim cursor moved or changed its mode.
         case nvimCursorDidChange(Cursor)
+
+        case nvimDidFlush
 
         /// The UI buffer regained focus.
         ///
@@ -391,6 +393,9 @@ struct BufferState: Equatable {
 
         case let .didFail(error):
             perform(.alert(error))
+
+        default:
+            break
         }
 
         // Syntactic sugar.
@@ -400,7 +405,7 @@ struct BufferState: Equatable {
 
         /// Try to acquire the edition token for the given `host` to modify the
         /// shared virtual buffer.
-        func tryEdition(from host: Host) -> Bool {
+        func tryEdition(from host: BufferHost) -> Bool {
             switch token {
             case .free, .acquired(owner: host):
                 token = .acquired(owner: host)
@@ -415,7 +420,7 @@ struct BufferState: Equatable {
         }
 
         /// Synchronizes the whole buffer using the given `source` of truth.
-        func synchronize(source: Host) {
+        func synchronize(source: BufferHost) {
             // Some apps (like Xcode) systematically add an empty line at
             // the end of a document. To make sure the comparison won't
             // fail in this case, we add an empty line in the Nvim buffer
@@ -431,11 +436,15 @@ struct BufferState: Equatable {
 
             switch source {
             case .nvim:
-                assert(tryEdition(from: .nvim))
+                guard tryEdition(from: .nvim) else {
+                    return
+                }
                 synchronizeUILines()
                 synchronizeUISelections()
             case .ui:
-                assert(tryEdition(from: .ui))
+                guard tryEdition(from: .ui) else {
+                    return
+                }
                 synchronizeNvimLines()
                 synchronizeNvimCursor()
             }
@@ -562,6 +571,8 @@ extension BufferState.Event: LogPayloadConvertible {
             return "nvimBufferDidChange"
         case .nvimCursorDidChange:
             return "nvimCursorDidChange"
+        case .nvimDidFlush:
+            return "nvimDidFlush"
         case .uiDidFocus:
             return "uiDidFocus"
         case .uiBufferDidChange:
@@ -579,7 +590,7 @@ extension BufferState.Event: LogPayloadConvertible {
 
     func logPayload() -> [LogKey: LogValueConvertible] {
         switch self {
-        case .tokenDidTimeout:
+        case .tokenDidTimeout, .nvimDidFlush:
             return [.name: name]
         case let .didRequestRefresh(source: source):
             return [.name: name, "source": source.rawValue]
