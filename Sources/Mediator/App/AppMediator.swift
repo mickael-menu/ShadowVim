@@ -57,7 +57,7 @@ public extension AppMediatorDelegate {
     }
 
     func appMediator(_ mediator: AppMediator, nameForElement element: AXUIElement) -> String? {
-        element.document()
+        element.bufferName()
     }
 
     func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: InputEvent) -> Bool {
@@ -66,6 +66,14 @@ public extension AppMediatorDelegate {
 
     func appMediator(_ mediator: AppMediator, willHandleEvent event: InputEvent) -> InputEvent? {
         event
+    }
+}
+
+private extension AXUIElement {
+    func bufferName() -> String? {
+        document()?
+            .removingPrefix("file://")
+            .removingPercentEncoding
     }
 }
 
@@ -311,7 +319,7 @@ public final class AppMediator {
 
     private func nameForElement(_ element: AXUIElement) -> String? {
         guard let delegate = delegate else {
-            return element.document()
+            return element.bufferName()
         }
         return delegate.appMediator(self, nameForElement: element)
     }

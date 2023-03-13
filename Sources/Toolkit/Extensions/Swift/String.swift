@@ -26,6 +26,24 @@ public extension String {
         indent + split(separator: "\n", omittingEmptySubsequences: false)
             .joined(separator: "\n" + indent)
     }
+    
+    /// Returns a copy of the string after removing the given `prefix`, when
+    /// present.
+    func removingPrefix(_ prefix: String) -> String {
+        guard hasPrefix(prefix) else {
+            return self
+        }
+        return String(dropFirst(prefix.count))
+    }
+
+    /// Returns a copy of the string after removing the given `suffix`, when
+    /// present.
+    func removingSuffix(_ suffix: String) -> String {
+        guard hasSuffix(suffix) else {
+            return self
+        }
+        return String(dropLast(suffix.count))
+    }
 }
 
 public extension Range where Bound == String.Index {
