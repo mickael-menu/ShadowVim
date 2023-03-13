@@ -76,38 +76,43 @@ final class NvimController {
     }
 
     func start() throws {
-        try nvim.start(headless: true)
+        try nvim.start(headless: false)
         buffers.start()
 
         withAsyncGroup { group in
             setupUserCommands()
                 .add(to: group)
 
-            // nvim.vim?.api.uiAttach(
-            //     width: 1000,
-            //     height: 100,
-            //     options: API.UIOptions(
-            //         extCmdline: true,
-            //         extHlState: false,
-            //         extLineGrid: true,
-            //         extMessages: true,
-            //         extMultigrid: true,
-            //         extPopupMenu: true,
-            //         extTabline: false,
-            //         extTermColors: false
-            //     )
-            // )
-            // .add(to: group)
+             nvim.vim?.api.uiAttach(
+                 width: 1000,
+                 height: 100,
+                 options: API.UIOptions(
+                     extCmdline: true,
+                     extHlState: false,
+                     extLineGrid: true,
+                     extMessages: true,
+                     extMultigrid: true,
+                     extPopupMenu: true,
+                     extTabline: false,
+                     extTermColors: false
+                 )
+             )
+             .add(to: group)
         }
         .forwardErrorToDelegate(of: self)
         .run()
-
-        // nvim.redrawPublisher()
-        //     .assertNoFailure()
-        //     .sink { [unowned self] event in
-        //         print(event)
-        //     }
-        //     .store(in: &subscriptions)
+        
+        nvim.redrawPublisher()
+            .assertNoFailure()
+            .sink { [unowned self] event in
+                switch event {
+                case .flush:
+                    break
+                default:
+                    print(event)
+                }
+            }
+            .store(in: &subscriptions)
     }
 
     func stop() {
