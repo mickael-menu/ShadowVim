@@ -240,9 +240,7 @@ public final class AppMediator {
     // MARK: - Focus synchronization
 
     private func setupFocusSync() {
-        if let focusedElement = appElement[.focusedUIElement] as AXUIElement? {
-            focusedUIElementDidChange(focusedElement)
-        }
+        focusedUIElementDidChange()
 
         appElement.publisher(for: .focusedUIElementChanged)
             .receive(on: DispatchQueue.main)
@@ -250,15 +248,18 @@ public final class AppMediator {
                 onFailure: { [unowned self] error in
                     delegate?.appMediator(self, didFailWithError: error)
                 },
-                receiveValue: { [unowned self] element in
-                    focusedUIElementDidChange(element)
+                receiveValue: { [unowned self] _ in
+                    // We ignore the event element because the focused element
+                    // might have changed by the time we execute the following.
+                    focusedUIElementDidChange()
                 }
             )
             .store(in: &subscriptions)
     }
 
-    private func focusedUIElementDidChange(_ element: AXUIElement) {
+    private func focusedUIElementDidChange() {
         guard
+            let element = appElement.focusedUIElement(),
             element.isValid,
             (try? element.get(.role)) == AXRole.textArea,
             let name = nameForElement(element),
