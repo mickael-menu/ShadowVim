@@ -25,22 +25,22 @@ public final class NvimBuffers {
     public private(set) var editedBuffer: BufferHandle = 0
 
     @Published private(set) var buffers: [BufferHandle: NvimBuffer] = [:]
-    private let bufLinesPublisher: AnyPublisher<BufLinesEvent, Never>
+    private var bufLinesPublisher: AnyPublisher<BufLinesEvent, Never>!
 
-    private var subscriptions: Set<AnyCancellable> = []
+    private let nvim: Nvim
     private let logger: Logger?
+    private var subscriptions: Set<AnyCancellable> = []
 
     /// Lock protecting access to the `buffers`.
     private let lock: AsyncLock
 
     public init(nvim: Nvim, logger: Logger?) {
+        self.nvim = nvim
         self.logger = logger
         lock = AsyncLock(name: "NvimBuffers", logger: logger?.domain("lock"))
+    }
 
-        bufLinesPublisher = nvim.bufLinesPublisher()
-            .breakpointOnError()
-            .ignoreFailure()
-
+    public func start() {
         nvim.autoCmdPublisher(for: "BufEnter", args: "expand('<abuf>')")
             .assertNoFailure()
             .receive(on: DispatchQueue.main)
@@ -48,9 +48,13 @@ public final class NvimBuffers {
                 self?.editedBuffer = Int(data.first?.stringValue ?? "0") ?? 0
             }
             .store(in: &subscriptions)
+
+        bufLinesPublisher = nvim.bufLinesPublisher()
+            .breakpointOnError()
+            .ignoreFailure()
     }
 
-    func edit(name: String, contents: @escaping @autoclosure () -> String, with vim: Vim) -> Async<NvimBuffer, NvimError> {
+    func edit(name: String, contents: @escaping () -> String, with vim: Vim) -> Async<NvimBuffer, NvimError> {
         lock.acquire()
             .setFailureType(to: NvimError.self)
             .flatMap(on: .main) { [self] in

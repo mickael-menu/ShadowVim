@@ -22,29 +22,30 @@ import Toolkit
 
 enum AppState {
     case stopped
+    case starting
     case idle
     case focused(buffer: BufferMediator)
 
     enum Event {
-        case start
-        case stop
+        case willStart
+        case didStart
+        case didStop
         case focus(buffer: BufferMediator)
         case unfocus
     }
 
-    enum Action {
-        case start
-        case stop
-    }
-
-    mutating func on(_ event: Event, logger: Logger? = nil) -> [Action] {
+    mutating func on(_ event: Event, logger: Logger? = nil) {
         let oldState = self
-        var actions: [Action] = []
 
         switch (self, event) {
-        case (.stopped, .start):
+        case (.stopped, .willStart):
+            self = .starting
+
+        case (.starting, .didStart):
             self = .idle
-            perform(.start)
+
+        case (_, .didStop):
+            self = .stopped
 
         case let (.idle, .focus(buffer: buffer)):
             self = .focused(buffer: buffer)
@@ -55,16 +56,8 @@ enum AppState {
         case (.focused, .unfocus):
             self = .idle
 
-        case (_, .stop):
-            self = .stopped
-            perform(.stop)
-
         default:
             break
-        }
-
-        func perform(_ action: Action...) {
-            actions.append(contentsOf: action)
         }
 
         let newState = self
@@ -72,9 +65,7 @@ enum AppState {
             "event": event,
             "oldState": oldState,
             "newState": newState,
-            "actions": actions,
         ])
-        return actions
     }
 }
 
@@ -85,6 +76,8 @@ extension AppState: LogPayloadConvertible {
         switch self {
         case .stopped:
             return [.name: "stopped"]
+        case .starting:
+            return [.name: "starting"]
         case .idle:
             return [.name: "idle"]
         case let .focused(buffer: buffer):
@@ -96,10 +89,12 @@ extension AppState: LogPayloadConvertible {
 extension AppState.Event: LogPayloadConvertible {
     var name: String {
         switch self {
-        case .start:
-            return "start"
-        case .stop:
-            return "stop"
+        case .willStart:
+            return "willStart"
+        case .didStart:
+            return "didStart"
+        case .didStop:
+            return "didStop"
         case .focus:
             return "focus"
         case .unfocus:
@@ -109,25 +104,10 @@ extension AppState.Event: LogPayloadConvertible {
 
     func logPayload() -> [LogKey: LogValueConvertible] {
         switch self {
-        case .start:
-            return [.name: name]
-        case .stop:
+        case .willStart, .didStart, .didStop, .unfocus:
             return [.name: name]
         case let .focus(buffer: buffer):
             return [.name: name, .buffer: buffer]
-        case .unfocus:
-            return [.name: name]
-        }
-    }
-}
-
-extension AppState.Action: LogPayloadConvertible {
-    func logPayload() -> [LogKey: LogValueConvertible] {
-        switch self {
-        case .start:
-            return [.name: "start"]
-        case .stop:
-            return [.name: "stop"]
         }
     }
 }

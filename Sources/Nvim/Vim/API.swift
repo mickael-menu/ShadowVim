@@ -366,6 +366,7 @@ public class API {
         }
     }
 
+    /// Activates UI events on the channel.
     /// https://neovim.io/doc/user/api.html#nvim_ui_attach()
     public func uiAttach(width: Int, height: Int, options: UIOptions) -> Async<Void, NvimError> {
         request("nvim_ui_attach", with: [

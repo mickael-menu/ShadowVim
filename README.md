@@ -72,10 +72,13 @@ The `SVPress` user command triggers a keyboard shortcut or mouse click in Xcode.
 
 ```viml
 " Jump to Definition (⌃⌘J).
-nmap gd <Cmd>SVPress <LT>C-D-j><CR>
+map gd <Cmd>SVPress <LT>C-D-j><CR>
+
+" Find Selected Symbol in Workspace (⌃⇧⌘J).
+map gr <Cmd>SVPress <LT>C-S-D-f><CR>
 
 " Show the Quick Help pop-up for the symbol at the caret location (<kbd>⌥ + Left Click</kbd>).
-nmap K <Cmd>SVPress <LT>M-LeftMouse><CR>
+map K <Cmd>SVPress <LT>M-LeftMouse><CR>
 ```
 
 :warning: The first `<` needs to be escaped as `<LT>` when calling `SVPress` from a key binding.
@@ -129,15 +132,15 @@ map <A-`> <Cmd>SVPress <LT>A-`><CR>
 Cross-buffers navigation is not yet supported with ShadowVim. Therefore, it is recommended to override the <kbd>C-o</kbd> and <kbd>C-i</kbd> mappings to use Xcode's navigation instead.
 
 ```viml
-nmap <C-o> <Cmd>SVPress <LT>C-D-Left><CR>
-nmap <C-i> <Cmd>SVPress <LT>C-D-Right><CR>
+map <C-o> <Cmd>SVPress <LT>C-D-Left><CR>
+map <C-i> <Cmd>SVPress <LT>C-D-Right><CR>
 ```
 
 Unfortunately, this won't work in read-only source editors. As a workaround, you can rebind **Go back** to <kbd>⌃O</kbd> and **Go forward** to <kbd>⌃I</kbd> in Xcode's **Key Bindings** preferences, then in Neovim:
 
 ```viml
-nmap <C-o> <Cmd>SVPress <LT>C-o><CR>
-nmap <C-i> <Cmd>SVPress <LT>C-i><CR>
+map <C-o> <Cmd>SVPress <LT>C-o><CR>
+map <C-i> <Cmd>SVPress <LT>C-i><CR>
 ```
 
 As `SVPress` is not recursive, this will perform the native Xcode navigation.
@@ -153,8 +156,8 @@ As the default Xcode shortcut to trigger the completion (<kbd>⎋</kbd>) is alre
 You cannot jump between placeholders in a completion snippet using <kbd>tab</kbd>, as it is handled by Neovim. As a workaround, you can use these custom Neovim key bindings to select or modify the next placeholder:
 
 ```viml
-nmap gp /<LT>#.\{-}#><CR>gn
-nmap cap /<LT>#.\{-}#><CR>cgn
+map gp /<LT>#.\{-}#><CR>gn
+map cap /<LT>#.\{-}#><CR>cgn
 ```
 
 ### Mouse clicks
@@ -163,10 +166,10 @@ Here are some useful bindings simulating mouse clicks.
 
 ```viml
 " Show the Quick Help pop-up for the symbol at the caret location (<kbd>⌥ + Left Click</kbd>).
-nmap K <Cmd>SVPress <LT>M-LeftMouse><CR>
+map K <Cmd>SVPress <LT>M-LeftMouse><CR>
 
 " Perform a right click at the caret location.
-nmap gr <Cmd>SVPress <LT>RightMouse><CR>
+map gR <Cmd>SVPress <LT>RightMouse><CR>
 ```
 
 ### Window management
@@ -202,10 +205,10 @@ map <C-w>w <Cmd>SVPress <LT>C-`><CR>
 Xcode's folding capabilities are limited, but you get the basics with these bindings:
 
 ```viml
-nmap zc <Cmd>SVPress <LT>M-D-Left><CR>
-nmap zo <Cmd>SVPress <LT>M-D-Right><CR>
-nmap zM <Cmd>SVPress <LT>M-S-D-Left><CR>
-nmap zR <Cmd>SVPress <LT>M-S-D-Right><CR>
+map zc <Cmd>SVPress <LT>M-D-Left><CR>
+map zo <Cmd>SVPress <LT>M-D-Right><CR>
+map zM <Cmd>SVPress <LT>M-S-D-Left><CR>
+map zR <Cmd>SVPress <LT>M-S-D-Right><CR>
 ```
 
 ### Opening third-party applications
@@ -213,7 +216,7 @@ nmap zR <Cmd>SVPress <LT>M-S-D-Right><CR>
 You can get pretty creative with key bindings. Here's one opening [Sourcetree](https://www.sourcetreeapp.com/) with <kbd>&lt;leader>st</kbd> for the current Git repository, using `!` to execute a shell command and `%` to get the path of the edited file.
 
 ```viml
-nmap <leader>st <Cmd>!stree %<CR>
+map <leader>st <Cmd>!stree %<CR>
 ```
 
 ## Attributions

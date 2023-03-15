@@ -363,6 +363,10 @@ public extension AXUIElement {
     func focusedApplication() throws -> AXUIElement? {
         try get(.focusedApplication)
     }
+
+    func focusedUIElement() -> AXUIElement? {
+        try? get(.focusedUIElement)
+    }
 }
 
 extension AXUIElement: CustomStringConvertible {

@@ -19,6 +19,12 @@ import Foundation
 import Nvim
 import Toolkit
 
+/// Identifiers the owner of a live buffer.
+enum BufferHost: String, Equatable {
+    case nvim
+    case ui
+}
+
 /// State machine handling the state of a single buffer synchronized between the
 /// UI and Nvim.
 ///
@@ -81,7 +87,7 @@ struct BufferState: Equatable {
 
         /// One buffer acquired the token and became the source of truth for
         /// the content.
-        case acquired(owner: Host)
+        case acquired(owner: BufferHost)
 
         /// The main buffer released the token and is now synchronizing the full
         /// content with the subalternate buffer.
@@ -89,12 +95,6 @@ struct BufferState: Equatable {
         /// The token will revert to `free` when receiving the next token
         /// timeout.
         case synchronizing
-    }
-
-    /// Identifiers the owner of a live buffer.
-    enum Host: String, Equatable {
-        case nvim
-        case ui
     }
 
     /// Represents the current state of the Nvim buffer.
@@ -175,7 +175,7 @@ struct BufferState: Equatable {
 
         /// The user requested to resynchronize the buffers using the given
         /// `source` host for the source of truth of the content.
-        case didRequestRefresh(source: Host)
+        case didRequestRefresh(source: BufferHost)
 
         /// The Nvim buffer changed and sent a `BufLinesEvent`.
         case nvimBufferDidChange(lines: [String], event: BufLinesEvent)
@@ -183,11 +183,13 @@ struct BufferState: Equatable {
         /// The Nvim cursor moved or changed its mode.
         case nvimCursorDidChange(Cursor)
 
+        case nvimDidFlush
+
         /// The UI buffer regained focus.
         ///
         /// The current `lines` and `selection` are given in case they were
         /// changed by a third party.
-        case uiDidFocus(lines: [String], selection: UISelection)
+        case uiDidFocus(lines: [String], selection: UISelection?)
 
         /// The UI buffer changed with the given new `lines`.
         case uiBufferDidChange(lines: [String])
@@ -211,11 +213,10 @@ struct BufferState: Equatable {
     /// Actions produced by the state machine when receiving an event. They
     /// are executed by the `BufferMediator`.
     enum Action: Equatable {
-        /// Update the content of the Nvim buffer with the new `lines` and
-        /// cursor position.
+        /// Update the content of the Nvim buffer with the new `lines`.
         ///
         /// The `diff` contains the changes from the current Nvim `lines`.
-        case updateNvim(lines: [String], diff: CollectionDifference<String>, cursorPosition: BufferPosition)
+        case updateNvimLines(lines: [String], diff: CollectionDifference<String>)
 
         /// Update the position of the Nvim cursor.
         case moveNvimCursor(BufferPosition)
@@ -226,11 +227,10 @@ struct BufferState: Equatable {
         /// Exits the Neovim Visual mode.
         case stopNvimVisual
 
-        /// Update the content of the UI buffer with the new `lines` and text
-        /// `selection`.
+        /// Update the content of the UI buffer with the new `lines`.
         ///
         /// The `diff` contains the changes from the current UI `lines`.
-        case updateUI(lines: [String], diff: CollectionDifference<String>, selections: [UISelection])
+        case updateUILines(lines: [String], diff: CollectionDifference<String>)
 
         /// Update a portion of the UI buffer using the given `BufLinesEvent`
         /// from Nvim.
@@ -299,18 +299,32 @@ struct BufferState: Equatable {
             }
 
         case let .uiDidFocus(lines: lines, selection: selection):
-            ui.lines = lines
-            ui.selection = selection
+            if ui.lines != lines {
+                ui.lines = lines
 
-            if tryEdition(from: .ui) {
-                synchronizeNvim()
+                if tryEdition(from: .ui) {
+                    synchronizeNvimLines()
+                }
+            }
+
+            let selection = selection ?? .init()
+            if ui.selection != selection {
+                ui.selection = selection
+
+                if tryEdition(from: .ui) {
+                    synchronizeNvimCursor()
+                }
             }
 
         case let .uiBufferDidChange(lines: lines):
+            guard ui.lines != lines else {
+                break
+            }
+
             ui.lines = lines
 
             if tryEdition(from: .ui) {
-                synchronizeNvim()
+                synchronizeNvimLines()
             }
 
         case let .uiSelectionDidChange(selection):
@@ -379,6 +393,9 @@ struct BufferState: Equatable {
 
         case let .didFail(error):
             perform(.alert(error))
+
+        default:
+            break
         }
 
         // Syntactic sugar.
@@ -388,11 +405,14 @@ struct BufferState: Equatable {
 
         /// Try to acquire the edition token for the given `host` to modify the
         /// shared virtual buffer.
-        func tryEdition(from host: Host) -> Bool {
+        func tryEdition(from host: BufferHost) -> Bool {
             switch token {
             case .free, .acquired(owner: host):
                 token = .acquired(owner: host)
-                perform(.startTokenTimeout)
+
+                if !actions.contains(.startTokenTimeout) {
+                    perform(.startTokenTimeout)
+                }
                 return true
             default:
                 return false
@@ -400,7 +420,7 @@ struct BufferState: Equatable {
         }
 
         /// Synchronizes the whole buffer using the given `source` of truth.
-        func synchronize(source: Host) {
+        func synchronize(source: BufferHost) {
             // Some apps (like Xcode) systematically add an empty line at
             // the end of a document. To make sure the comparison won't
             // fail in this case, we add an empty line in the Nvim buffer
@@ -416,39 +436,54 @@ struct BufferState: Equatable {
 
             switch source {
             case .nvim:
-                synchronizeUI()
+                guard tryEdition(from: .nvim) else {
+                    return
+                }
+                synchronizeUILines()
+                synchronizeUISelections()
             case .ui:
-                synchronizeNvim()
+                guard tryEdition(from: .ui) else {
+                    return
+                }
+                synchronizeNvimLines()
+                synchronizeNvimCursor()
             }
 
             token = .synchronizing
-            perform(.startTokenTimeout)
+
+            if !actions.contains(.startTokenTimeout) {
+                perform(.startTokenTimeout)
+            }
         }
 
-        func synchronizeUI() {
-            perform(.updateUI(
-                lines: nvim.lines,
-                diff: nvim.lines.difference(from: ui.lines),
-                selections: nvim.uiSelections()
-            ))
-        }
-
-        func synchronizeNvim() {
-            perform(.updateNvim(
+        func synchronizeNvimLines() {
+            precondition(token == .acquired(owner: .ui))
+            perform(.updateNvimLines(
                 lines: ui.lines,
-                diff: ui.lines.difference(from: nvim.lines),
-                cursorPosition: BufferPosition(ui.selection.start)
+                diff: ui.lines.difference(from: nvim.lines)
             ))
         }
 
         /// Moves the Nvim cursor to match the current UI selection.
         func synchronizeNvimCursor() {
             precondition(token == .acquired(owner: .ui))
-
             let start = BufferPosition(ui.selection.start)
             if nvim.cursor.position != start {
                 perform(.moveNvimCursor(start))
             }
+        }
+
+        func synchronizeUILines() {
+            precondition(token == .acquired(owner: .nvim))
+            perform(.updateUILines(
+                lines: nvim.lines,
+                diff: nvim.lines.difference(from: ui.lines)
+            ))
+        }
+
+        func synchronizeUISelections() {
+            precondition(token == .acquired(owner: .nvim))
+            perform(.updateUISelections(nvim.uiSelections()))
         }
 
         /// Adjusts the current UI selection to match the Nvim mode, then
@@ -536,6 +571,8 @@ extension BufferState.Event: LogPayloadConvertible {
             return "nvimBufferDidChange"
         case .nvimCursorDidChange:
             return "nvimCursorDidChange"
+        case .nvimDidFlush:
+            return "nvimDidFlush"
         case .uiDidFocus:
             return "uiDidFocus"
         case .uiBufferDidChange:
@@ -553,7 +590,7 @@ extension BufferState.Event: LogPayloadConvertible {
 
     func logPayload() -> [LogKey: LogValueConvertible] {
         switch self {
-        case .tokenDidTimeout:
+        case .tokenDidTimeout, .nvimDidFlush:
             return [.name: name]
         case let .didRequestRefresh(source: source):
             return [.name: name, "source": source.rawValue]
@@ -580,16 +617,16 @@ extension BufferState.Event: LogPayloadConvertible {
 extension BufferState.Action: LogPayloadConvertible {
     func logPayload() -> [LogKey: LogValueConvertible] {
         switch self {
-        case let .updateNvim(lines: lines, diff: diff, cursorPosition: cursorPosition):
-            return [.name: "updateNvim", "lines": lines, "diff": diff, "cursorPosition": cursorPosition]
+        case let .updateNvimLines(lines: lines, diff: diff):
+            return [.name: "updateNvimLines", "lines": lines, "diff": diff]
         case let .moveNvimCursor(cursor):
             return [.name: "moveNvimCursor", "cursor": cursor]
         case let .startNvimVisual(start: start, end: end):
             return [.name: "startNvimVisual", "start": start, "end": end]
         case .stopNvimVisual:
             return [.name: "stopNvimVisual"]
-        case let .updateUI(lines: lines, diff: diff, selections: selections):
-            return [.name: "updateUI", "lines": lines, "diff": diff, "selections": selections]
+        case let .updateUILines(lines: lines, diff: diff):
+            return [.name: "updateUILines", "lines": lines, "diff": diff]
         case let .updateUIPartialLines(event: event):
             return [.name: "updateUIPartialLines", "event": event]
         case let .updateUISelections(selections):

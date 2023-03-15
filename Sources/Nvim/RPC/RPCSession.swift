@@ -26,7 +26,6 @@ public enum RPCError: Error {
     case unknownRequestId(UInt64)
     case responseError(Value)
     case ioFailure(Error)
-    case unpackFailure(Error)
     case noHandlerForRequest(method: String)
 }
 
@@ -136,11 +135,9 @@ final class RPCSession {
 
                 } catch MessagePackError.insufficientData {
                     data += receive()
-
                 } catch {
-                    let error = RPCError.unpackFailure(error)
-                    logger?.e(error)
-                    delegate?.session(self, didFailWithError: error)
+                    logger?.e(error, "Failed to unpack MessagePack payload", ["data": data.base64EncodedString()])
+                    data = receive()
                 }
 
                 if data.isEmpty {
