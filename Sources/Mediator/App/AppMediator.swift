@@ -116,12 +116,28 @@ public final class AppMediator {
         stop()
     }
 
-    public func start() {
-        on(.start)
+    @MainActor
+    public func start() async {
+        do {
+            on(.willStart)
+            delegate?.appMediatorWillStart(self)
+
+            try await nvimController.start()
+            try eventSource.start()
+            setupCursorSync()
+            setupFocusSync()
+
+            on(.didStart)
+
+        } catch {
+            delegate?.appMediator(self, didFailWithError: error)
+        }
     }
 
     public func stop() {
-        on(.stop)
+        nvimController.stop()
+        subscriptions.removeAll()
+        delegate?.appMediatorDidStop(self)
     }
 
     public func didToggleKeysPassthrough(enabled: Bool) {
@@ -132,44 +148,7 @@ public final class AppMediator {
 
     private func on(_ event: AppState.Event) {
         precondition(Thread.isMainThread)
-        for action in state.on(event, logger: logger) {
-            do {
-                switch action {
-                case .start:
-                    try performStart()
-                case .stop:
-                    performStop()
-                }
-            } catch {
-                delegate?.appMediator(self, didFailWithError: error)
-            }
-        }
-    }
-
-    private func performStart() throws {
-        delegate?.appMediatorWillStart(self)
-
-        try eventSource.start()
-        try nvimController.start()
-        setupFocusSync()
-
-        nvimController.cursorPublisher()
-            .receive(on: DispatchQueue.main)
-            .sink(
-                onFailure: { [unowned self] error in
-                    delegate?.appMediator(self, didFailWithError: error)
-                },
-                receiveValue: { [unowned self] buffer, cursor in
-                    bufferMediator(for: buffer)?.nvimCursorDidChange(cursor)
-                }
-            )
-            .store(in: &subscriptions)
-    }
-
-    private func performStop() {
-        nvimController.stop()
-        subscriptions.removeAll()
-        delegate?.appMediatorDidStop(self)
+        state.on(event, logger: logger)
     }
 
     private func synchronizeFocusedBuffer(source: BufferHost) {
@@ -235,6 +214,22 @@ public final class AppMediator {
                 delegate?.appMediator(self, didFailWithError: error)
             }
         }
+    }
+
+    // MARK: - Cursor synchronization
+
+    private func setupCursorSync() {
+        nvimController.cursorPublisher()
+            .receive(on: DispatchQueue.main)
+            .sink(
+                onFailure: { [unowned self] error in
+                    delegate?.appMediator(self, didFailWithError: error)
+                },
+                receiveValue: { [unowned self] buffer, cursor in
+                    bufferMediator(for: buffer)?.nvimCursorDidChange(cursor)
+                }
+            )
+            .store(in: &subscriptions)
     }
 
     // MARK: - Focus synchronization

@@ -26,7 +26,7 @@ public extension String {
         indent + split(separator: "\n", omittingEmptySubsequences: false)
             .joined(separator: "\n" + indent)
     }
-    
+
     /// Returns a copy of the string after removing the given `prefix`, when
     /// present.
     func removingPrefix(_ prefix: String) -> String {
