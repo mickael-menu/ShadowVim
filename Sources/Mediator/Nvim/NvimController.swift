@@ -40,8 +40,11 @@ enum NvimControllerError: LocalizedError {
 }
 
 protocol NvimControllerDelegate: AnyObject {
+    /// An error occurred.
     func nvimController(_ nvimController: NvimController, didFailWithError error: Error)
 
+    /// The user requested to synchronize the buffers using `source` as the
+    /// source of truth.
     func nvimController(_ nvimController: NvimController, synchronizeFocusedBufferUsing source: BufferHost)
 
     /// Simulates a key combo or mouse press in the app using an Nvim notation.
@@ -75,44 +78,13 @@ final class NvimController {
         nvim.delegate = self
     }
 
-    func start() throws {
+    func start() async throws {
         try nvim.start(headless: false)
         buffers.start()
 
-        withAsyncGroup { group in
-            setupUserCommands()
-                .add(to: group)
-
-             nvim.vim?.api.uiAttach(
-                 width: 1000,
-                 height: 100,
-                 options: API.UIOptions(
-                     extCmdline: true,
-                     extHlState: false,
-                     extLineGrid: true,
-                     extMessages: true,
-                     extMultigrid: true,
-                     extPopupMenu: true,
-                     extTabline: false,
-                     extTermColors: false
-                 )
-             )
-             .add(to: group)
-        }
-        .forwardErrorToDelegate(of: self)
-        .run()
-        
-        nvim.redrawPublisher()
-            .assertNoFailure()
-            .sink { [unowned self] event in
-                switch event {
-                case .flush:
-                    break
-                default:
-                    print(event)
-                }
-            }
-            .store(in: &subscriptions)
+        try await setupUserCommands()
+            .flatMap { self.attachUI() }
+            .async()
     }
 
     func stop() {
@@ -172,6 +144,24 @@ final class NvimController {
             }
             .add(to: group)
         }
+    }
+
+    private func attachUI() -> Async<Void, NvimError> {
+        // Must be observed before attaching the UI, as the user configuration
+        // might perform blocking prompts.
+        nvim.redrawPublisher()
+            .assertNoFailure()
+            .sink { [unowned self] event in
+                switch event {
+                case .flush:
+                    break
+                default:
+                    print(event)
+                }
+            }
+            .store(in: &subscriptions)
+
+        return nvim.attachUI()
     }
 
     /// This publisher is used to observe the Neovim selection and mode

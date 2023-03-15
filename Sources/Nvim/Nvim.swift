@@ -47,6 +47,7 @@ public protocol NvimDelegate: AnyObject {
 }
 
 public final class Nvim {
+    public typealias RequestHandler = ([Value]) throws -> Value
     typealias RunningStateFactory = (Process, (input: FileHandle, output: FileHandle)) -> RunningState
 
     public weak var delegate: NvimDelegate?
@@ -87,7 +88,12 @@ public final class Nvim {
         let session: RPCSession
         let vim: Vim
         let events: EventDispatcher
-        var userCommands: [String: ([Value]) throws -> Value] = [:]
+        private(set) var requestHandlers: [String: RequestHandler] = [:]
+
+        mutating func addRequestHandler(for request: String, handler: @escaping RequestHandler) {
+            precondition(requestHandlers[request] == nil)
+            requestHandlers[request] = handler
+        }
     }
 
     /// Starts the Nvim process.
@@ -113,7 +119,7 @@ public final class Nvim {
 
                 // Don't load default config and plugins.
                 // Commented as this would prevent using packages.
-                // "--clean", 
+                // "--clean",
 
                 // Using `--cmd` instead of `-c` makes the statements available in the `init.vim`.
                 "--cmd", "let g:shadowvim = v:true",
@@ -214,24 +220,23 @@ public final class Nvim {
             .eraseToAnyPublisher()
     }
 
-    // MARK: User commands
+    // MARK: User commands and RPC requests
 
     /// Adds a new user command executing the given action.
     public func add(
         command: String,
         args: ExCommands.ArgsCardinality = .none,
-        action: @escaping ([Value]) throws -> Value
+        action: @escaping RequestHandler
     ) -> Async<Void, NvimError> {
-        $state.write {
-            guard case var .started(state) = $0 else {
+        $state.write { state in
+            guard case var .started(runningState) = state else {
                 return .failure(.notStarted)
             }
 
-            precondition(state.userCommands[command] == nil)
-            state.userCommands[command] = action
-            $0 = .started(state)
+            runningState.addRequestHandler(for: command, handler: action)
+            state = .started(runningState)
 
-            return state.vim.cmd
+            return runningState.vim.cmd
                 .command(
                     cmd: command,
                     bang: true,
@@ -239,6 +244,18 @@ public final class Nvim {
                     repl: "call rpcrequest(1, '\(command)', <f-args>)"
                 )
                 .discardResult()
+        }
+    }
+
+    /// Adds a new RPC request handler.
+    public func addRequestHandler(for request: String, handler: @escaping RequestHandler) -> Result<Void, NvimError> {
+        $state.write { state in
+            guard case var .started(runningState) = state else {
+                return .failure(.notStarted)
+            }
+            runningState.addRequestHandler(for: request, handler: handler)
+            state = .started(runningState)
+            return .success(())
         }
     }
 
@@ -283,13 +300,13 @@ extension Nvim: RPCSessionDelegate {
     func session(_ session: RPCSession, didReceiveRequest method: String, with params: [Value]) -> Result<Value, Error>? {
         guard
             case let .started(state) = state,
-            let command = state.userCommands[method]
+            let handler = state.requestHandlers[method]
         else {
             return delegate?.nvim(self, didRequest: method, with: params)
         }
 
         do {
-            return try .success(command(params))
+            return try .success(handler(params))
         } catch {
             return .failure(error)
         }

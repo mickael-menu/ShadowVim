@@ -131,7 +131,7 @@ public final class MainMediator {
 
         let mediator = appMediatorFactory(app)
         mediator.delegate = appDelegates[id] ?? self
-        mediator.start()
+        Task { await mediator.start() }
         apps[app.processIdentifier] = mediator
         return mediator
     }
