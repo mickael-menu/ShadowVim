@@ -312,6 +312,7 @@ struct BufferState: Equatable {
                 ui.selection = selection
 
                 if tryEdition(from: .ui) {
+                    adjustUISelection(to: nvim.cursor.mode)
                     synchronizeNvimCursor()
                 }
             }
@@ -486,8 +487,7 @@ struct BufferState: Equatable {
             perform(.updateUISelections(nvim.uiSelections()))
         }
 
-        /// Adjusts the current UI selection to match the Nvim mode, then
-        /// move the Nvim cursor to it.
+        /// Adjusts the current UI selection to match the given Nvim `mode`.
         func adjustUISelection(to mode: Mode) {
             precondition(token == .acquired(owner: .ui))
 

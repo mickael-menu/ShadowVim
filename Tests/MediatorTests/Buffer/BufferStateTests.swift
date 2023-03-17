@@ -522,6 +522,43 @@ final class BufferStateTests: XCTestCase {
         )
     }
 
+    // The UI selection is adjusted to match the current Nvim mode
+    func testUIDidFocusAdjustsUISelectionToNvimMode() {
+        let state = initialState.copy(
+            token: .free,
+            nvimCursor: Cursor(mode: .normal),
+            uiSelection: UISelection()
+        )
+
+        assert(
+            initial: state,
+            on: .uiDidFocus(
+                lines: state.ui.lines,
+                selection: UISelection(
+                    start: UIPosition(line: 2, column: 4),
+                    end: UIPosition(line: 2, column: 4)
+                )
+            ),
+            expected: state.copy(
+                token: .acquired(owner: .ui),
+                uiSelection: UISelection(
+                    start: UIPosition(line: 2, column: 4),
+                    end: UIPosition(line: 2, column: 5)
+                )
+            ),
+            actions: [
+                .startTokenTimeout,
+                .updateUISelections([
+                    UISelection(
+                        start: UIPosition(line: 2, column: 4),
+                        end: Mediator.UIPosition(line: 2, column: 5)
+                    )
+                ]),
+                .moveNvimCursor(BufferPosition(line: 3, column: 5)),
+            ]
+        )
+    }
+
     // MARK: - UI buffer changes
 
     // The token is acquired when free and the update sent to the Nvim buffer.
