@@ -389,13 +389,21 @@ struct BufferState: Equatable {
         /// Try to acquire the edition token for the given `host` to modify the
         /// shared virtual buffer.
         func tryEdition(from host: BufferHost) -> Bool {
+            guard allowEdition(from: host) else {
+                return false
+            }
+
+            token = .acquired(owner: host)
+
+            if !actions.contains(.startTokenTimeout) {
+                perform(.startTokenTimeout)
+            }
+            return true
+        }
+
+        func allowEdition(from host: BufferHost) -> Bool {
             switch token {
             case .free, .acquired(owner: host):
-                token = .acquired(owner: host)
-
-                if !actions.contains(.startTokenTimeout) {
-                    perform(.startTokenTimeout)
-                }
                 return true
             default:
                 return false
@@ -415,7 +423,7 @@ struct BufferState: Equatable {
                 synchronizing = updateNvimCursor() || synchronizing
             }
 
-            setToken(synchronizing ? .synchronizing : .free)
+            setToken(.free)
         }
 
         func setToken(_ token: EditionToken) {
@@ -455,7 +463,7 @@ struct BufferState: Equatable {
         @discardableResult
         func updateNvimCursor() -> Bool {
             let start = BufferPosition(ui.selection.start)
-            guard start != nvim.cursor.position, tryEdition(from: .ui) else {
+            guard start != nvim.cursor.position, allowEdition(from: .ui) else {
                 return false
             }
             perform(.moveNvimCursor(start))
@@ -501,7 +509,7 @@ struct BufferState: Equatable {
                 return ui.selection.adjust(to: mode, lines: ui.lines)
             }()
 
-            if ui.selection != adjustedSelection, tryEdition(from: .ui) {
+            if ui.selection != adjustedSelection, allowEdition(from: .ui) {
                 ui.selection = adjustedSelection
                 perform(.updateUISelections([ui.selection]))
             }
@@ -535,7 +543,7 @@ struct BufferState: Equatable {
                 // If it's not a selection, we don't need to scroll the UI as
                 // the cursor will already be visible.
                 nvim.cursor.position.line != nvim.cursor.visual.line,
-                tryEdition(from: .nvim)
+                allowEdition(from: .nvim)
             else {
                 return
             }
