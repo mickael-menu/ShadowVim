@@ -260,6 +260,8 @@ public final class BufferMediator {
         }
 
         if !diff.isEmpty {
+            let currentRange: CFRange? = try uiElement.get(.selectedTextRange)
+
             for change in diff {
                 let eof = try (uiElement.get(.numberOfCharacters) as Int?) ?? 0
 
@@ -292,6 +294,10 @@ public final class BufferMediator {
                     try uiElement.set(.selectedText, value: "")
                 }
             }
+
+            if let range = currentRange {
+                try uiElement.set(.selectedTextRange, value: range)
+            }
         }
     }
 
@@ -316,8 +322,14 @@ public final class BufferMediator {
             return
         }
 
+        let currentRange: CFRange? = try element.get(.selectedTextRange)
+
         try element.set(.selectedTextRange, value: range.cfRange(in: content))
         try element.set(.selectedText, value: replacement)
+
+        if let currentRange = currentRange {
+            try element.set(.selectedTextRange, value: currentRange)
+        }
     }
 
     // Optimizes changing only the tail of a line, to avoid refreshing the whole
@@ -346,8 +358,14 @@ public final class BufferMediator {
             replacement = ""
         }
 
+        let currentRange: CFRange? = try element.get(.selectedTextRange)
+
         try element.set(.selectedTextRange, value: range)
         try element.set(.selectedText, value: replacement)
+
+        if let currentRange = currentRange {
+            try element.set(.selectedTextRange, value: currentRange)
+        }
     }
 
     private func updateUISelections(_ selections: [UISelection]) throws {
