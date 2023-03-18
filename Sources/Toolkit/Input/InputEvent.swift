@@ -57,14 +57,23 @@ public struct KeyEvent {
 }
 
 public struct MouseEvent {
-    public enum Kind: Equatable {
+    public enum Kind: Equatable, CustomDebugStringConvertible {
         case down(Button)
         case up(Button)
         case dragged(Button)
         case moved
+
+        public var debugDescription: String {
+            switch self {
+            case .down(let button): return "\(button.rawValue) down"
+            case .dragged(let button): return "\(button.rawValue) dragged"
+            case .moved: return "moved"
+            case .up(let button): return "\(button.rawValue) up"
+            }
+        }
     }
 
-    public enum Button: Equatable {
+    public enum Button: String, Equatable {
         case left
         case right
         case other
