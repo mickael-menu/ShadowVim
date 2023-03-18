@@ -201,7 +201,7 @@ final class NvimController {
         return buffers.edit(name: name, contents: contents, with: vim)
     }
 
-    func setLines(in buffer: NvimBuffer, diff: CollectionDifference<String>) -> Async<Void, NvimError> {
+    func setLines(in buffer: NvimBuffer, diff: CollectionDifference<String>, cursorPosition: BufferPosition) -> Async<Void, NvimError> {
         guard let vim = nvim.vim else {
             return .failure(.notStarted)
         }
@@ -225,6 +225,9 @@ final class NvimController {
                     vim.api.bufSetLines(buffer: buffer.handle, start: start, end: end, replacement: replacement)
                         .add(to: group)
                 }
+
+                vim.api.winSetCursor(position: cursorPosition, failOnInvalidPosition: false)
+                    .add(to: group)
             }
         }
     }

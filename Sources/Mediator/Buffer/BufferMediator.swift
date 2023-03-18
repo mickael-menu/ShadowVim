@@ -126,7 +126,7 @@ public final class BufferMediator {
         do {
             uiElement = element
 
-            try on(.uiDidFocus(lines: element.lines(), selection: element.selection()))
+            try on(.uiDidFocus(lines: element.lines(), selection: element.selection() ?? .init()))
 
         } catch AX.AXError.invalidUIElement {
             uiElement = nil
@@ -210,8 +210,8 @@ public final class BufferMediator {
     private func perform(_ action: BufferState.Action) {
         do {
             switch action {
-            case let .updateNvimLines(_, diff: diff):
-                nvimController.setLines(in: nvimBuffer, diff: diff)
+            case let .updateNvim(lines: _, diff: diff, cursorPosition: cursorPosition):
+                nvimController.setLines(in: nvimBuffer, diff: diff, cursorPosition: cursorPosition)
                     .get(onFailure: fail)
 
             case let .moveNvimCursor(position):
@@ -226,8 +226,9 @@ public final class BufferMediator {
                 nvimController.stopVisual()
                     .get(onFailure: fail)
 
-            case let .updateUILines(_, diff: diff):
+            case let .updateUI(lines: _, diff: diff, selections: selections):
                 try updateUILines(diff: diff)
+                try updateUISelections(selections)
 
             case let .updateUIPartialLines(event: event):
                 try updateUIPartialLines(with: event)
