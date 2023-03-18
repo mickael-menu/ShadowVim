@@ -100,7 +100,7 @@ struct BufferState: Equatable {
             switch self {
             case .free:
                 return "free"
-            case .acquired(let owner):
+            case let .acquired(owner):
                 return "acquired(by: \(owner.rawValue))"
             case .synchronizing:
                 return "synchronizing"
@@ -158,9 +158,8 @@ struct BufferState: Equatable {
                 var start = min(position, visual)
                 var end = max(position, visual)
                 start.column = 0
-                if lines.indices.contains(end.line) {
-                    end.column = lines[end.line].count + 1
-                }
+                end.line += 1
+                end.column = 0
                 return [UISelection(start: start, end: end)]
 
             case .cmdline, .hitEnterPrompt, .shell, .terminal:
@@ -553,7 +552,7 @@ struct BufferState: Equatable {
             "newState": newState,
             "actions": actions,
         ])
-        
+
         if oldState.token != newState.token {
             logger?.t("token changed: \(newState.token)")
         }
@@ -625,28 +624,28 @@ extension BufferState.Event: LogPayloadConvertible {
 
     var shortArg: String? {
         switch self {
-        case .didRequestRefresh(source: let source):
+        case let .didRequestRefresh(source: source):
             return source.rawValue
         case .nvimBufferDidChange(lines: _, event: let event):
             return "\(event.firstLine)-\(event.lastLine) (\(event.lineData.count) lines)"
-        case .nvimCursorDidChange(let cursor):
-            return "\(cursor.mode.rawValue) .\(cursor.position.line):\(cursor.position.column) v\(cursor.position.line):\(cursor.position.column)"
-        case .uiSelectionDidChange(let selection):
-            return "\(selection.start.line):\(selection.end.line)...\(selection.end.line):\(selection.end.column)"
-        case .uiDidReceiveMouseEvent(let kind, bufferPoint: let bufferPoint):
+        case let .nvimCursorDidChange(cursor):
+            return "\(cursor.mode.rawValue) .\(cursor.position.line):\(cursor.position.column) v\(cursor.visual.line):\(cursor.visual.column)"
+        case let .uiSelectionDidChange(selection):
+            return "\(selection.start.line):\(selection.start.column)...\(selection.end.line):\(selection.end.column)"
+        case let .uiDidReceiveMouseEvent(kind, bufferPoint: bufferPoint):
             if let bufferPoint = bufferPoint {
                 return "\(kind) @\(bufferPoint.x),\(bufferPoint.y)"
             } else {
                 return "\(kind) outside buffer"
             }
-        case .didToggleKeysPassthrough(enabled: let enabled):
+        case let .didToggleKeysPassthrough(enabled: enabled):
             return "\(enabled)"
-        case .didFail(let error):
+        case let .didFail(error):
             return error.error.localizedDescription
         default:
             return nil
         }
-    } 
+    }
 
     func logPayload() -> [LogKey: LogValueConvertible] {
         switch self {

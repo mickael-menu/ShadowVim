@@ -148,7 +148,7 @@ final class NvimStateTests: XCTestCase {
                 [
                     UISelection(
                         start: UIPosition(line: 1, column: 0),
-                        end: UIPosition(line: 1, column: 26)
+                        end: UIPosition(line: 2, column: 0)
                     ),
                 ]
             )
@@ -160,7 +160,7 @@ final class NvimStateTests: XCTestCase {
                 [
                     UISelection(
                         start: UIPosition(line: 0, column: 0),
-                        end: UIPosition(line: 1, column: 26)
+                        end: UIPosition(line: 2, column: 0)
                     ),
                 ]
             )
@@ -172,7 +172,7 @@ final class NvimStateTests: XCTestCase {
                 [
                     UISelection(
                         start: UIPosition(line: 1, column: 0),
-                        end: UIPosition(line: 2, column: 16)
+                        end: UIPosition(line: 3, column: 0)
                     ),
                 ]
             )

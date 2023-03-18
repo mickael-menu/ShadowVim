@@ -253,7 +253,7 @@ final class BufferStateTests: XCTestCase {
         let state = initialState.copy(
             nvimLines: uiLines,
             nvimCursor: Cursor(
-                mode: .visual, 
+                mode: .visual,
                 position: BufferPosition(line: 2, column: 6),
                 visual: BufferPosition(line: 3, column: 8)
             )
@@ -601,7 +601,7 @@ final class BufferStateTests: XCTestCase {
                     UISelection(
                         start: UIPosition(line: 2, column: 4),
                         end: Mediator.UIPosition(line: 2, column: 5)
-                    )
+                    ),
                 ]),
                 .moveNvimCursor(BufferPosition(line: 3, column: 5)),
             ]

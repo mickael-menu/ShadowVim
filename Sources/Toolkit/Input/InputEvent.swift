@@ -65,10 +65,10 @@ public struct MouseEvent {
 
         public var debugDescription: String {
             switch self {
-            case .down(let button): return "\(button.rawValue) down"
-            case .dragged(let button): return "\(button.rawValue) dragged"
+            case let .down(button): return "\(button.rawValue) down"
+            case let .dragged(button): return "\(button.rawValue) dragged"
             case .moved: return "moved"
-            case .up(let button): return "\(button.rawValue) up"
+            case let .up(button): return "\(button.rawValue) up"
             }
         }
     }
