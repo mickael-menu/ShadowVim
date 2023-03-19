@@ -48,6 +48,10 @@ struct BufferState: Equatable {
 
     /// Indicates whether the user is currently selecting text with the mouse.
     private(set) var isSelecting: Bool
+    
+    /// Indicates whether an automatic keys passthrough is enabled in insert
+    /// mode. This helps improve performance.
+    private let keysPassthroughOnInsert: Bool
 
     init(
         token: EditionToken = .free,
@@ -55,7 +59,8 @@ struct BufferState: Equatable {
         ui: UIState = UIState(),
         isKeysPassthroughEnabled: Bool = false,
         isLeftMouseButtonDown: Bool = false,
-        isSelecting: Bool = false
+        isSelecting: Bool = false,
+        keysPassthroughOnInsert: Bool = true
     ) {
         self.token = token
         self.nvim = nvim
@@ -63,6 +68,7 @@ struct BufferState: Equatable {
         self.isKeysPassthroughEnabled = isKeysPassthroughEnabled
         self.isLeftMouseButtonDown = isLeftMouseButtonDown
         self.isSelecting = isSelecting
+        self.keysPassthroughOnInsert = keysPassthroughOnInsert
     }
 
     /// The edition token indicates which buffer is the current source of truth
@@ -364,16 +370,25 @@ struct BufferState: Equatable {
 
         case let .uiDidReceiveKeyEvent(kc, character: character):
             switch kc {
+            case .escape:
+                perform(.nvimInput("<Esc>"))
+
             case .cmdZ:
                 perform(.nvimUndo)
             case .cmdShiftZ:
                 perform(.nvimRedo)
+
             case .cmdV:
                 // We override the system paste behavior to improve performance
                 // and nvim's undo history.
                 perform(.nvimPaste)
 
             default:
+                // Passthrough in insert mode, for improved performance.
+                guard !keysPassthroughOnInsert || nvim.cursor.mode != .insert else {
+                    break
+                }
+
                 let mods = kc.modifiers
                 // Passthrough for ⌘-based keyboard shortcuts.
                 guard !mods.contains(.command) else {
@@ -572,6 +587,7 @@ struct BufferState: Equatable {
 }
 
 private extension KeyCombo {
+    static let escape = KeyCombo(.escape)
     static let cmdZ = KeyCombo(.z, modifiers: .command)
     static let cmdShiftZ = KeyCombo(.z, modifiers: [.command, .shift])
     static let cmdV = KeyCombo(.v, modifiers: [.command])
