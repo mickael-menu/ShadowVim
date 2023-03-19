@@ -210,33 +210,33 @@ public final class BufferMediator {
     private func perform(_ action: BufferState.Action) {
         do {
             switch action {
-            case let .updateNvim(lines: _, diff: diff, cursorPosition: cursorPosition):
+            case let .nvimUpdate(lines: _, diff: diff, cursorPosition: cursorPosition):
                 nvimController.setLines(in: nvimBuffer, diff: diff, cursorPosition: cursorPosition)
                     .get(onFailure: fail)
 
-            case let .moveNvimCursor(position):
+            case let .nvimMoveCursor(position):
                 nvimController.setCursor(in: nvimBuffer, at: position)
                     .get(onFailure: fail)
 
-            case let .startNvimVisual(start: start, end: end):
+            case let .nvimStartVisual(start: start, end: end):
                 nvimController.startVisual(in: nvimBuffer, from: start, to: end)
                     .get(onFailure: fail)
 
-            case .stopNvimVisual:
+            case .nvimStopVisual:
                 nvimController.stopVisual()
                     .get(onFailure: fail)
 
-            case let .updateUI(lines: _, diff: diff, selections: selections):
+            case let .uiUpdate(lines: _, diff: diff, selections: selections):
                 try updateUILines(diff: diff)
                 try updateUISelections(selections)
 
-            case let .updateUIPartialLines(event: event):
+            case let .uiUpdatePartialLines(event: event):
                 try updateUIPartialLines(with: event)
 
-            case let .updateUISelections(selections):
+            case let .uiUpdateSelections(selections):
                 try updateUISelections(selections)
 
-            case let .scrollUI(visibleSelection: visibleSelection):
+            case let .uiScroll(visibleSelection: visibleSelection):
                 try scrollUI(to: visibleSelection)
 
             case .startTokenTimeout:

@@ -19,7 +19,7 @@ import CoreGraphics
 import Foundation
 
 /// A key combined with optional modifiers.
-public struct KeyCombo: Hashable {
+public struct KeyCombo: Hashable, CustomStringConvertible {
     public let key: Key
     public let modifiers: InputModifiers
 
@@ -27,12 +27,16 @@ public struct KeyCombo: Hashable {
         self.key = key
         self.modifiers = modifiers
     }
+
+    public var description: String {
+        modifiers.description + key.rawValue
+    }
 }
 
 /// Virtual keyboard keys.
 ///
 /// This is largely inspired by Sauce.
-public enum Key: Hashable {
+public enum Key: String, Hashable {
     case escape
     case `return`
     case tab

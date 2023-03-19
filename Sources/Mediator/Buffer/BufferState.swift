@@ -207,6 +207,9 @@ struct BufferState: Equatable {
         /// The UI selection changed.
         case uiSelectionDidChange(UISelection)
 
+        /// The user pressed keyboard keys.
+        case uiDidReceiveKeyEvent(KeyCombo, character: String?)
+
         /// The user interacted with the mouse.
         ///
         /// `bufferPoint` is the event location in the UI buffer coordinates.
@@ -227,32 +230,32 @@ struct BufferState: Equatable {
         /// cursor position.
         ///
         /// The `diff` contains the changes from the current Nvim `lines`.
-        case updateNvim(lines: [String], diff: CollectionDifference<String>, cursorPosition: BufferPosition)
+        case nvimUpdate(lines: [String], diff: CollectionDifference<String>, cursorPosition: BufferPosition)
 
         /// Update the position of the Nvim cursor.
-        case moveNvimCursor(BufferPosition)
+        case nvimMoveCursor(BufferPosition)
 
         /// Create a new visual selection in the Nvim buffer.
-        case startNvimVisual(start: BufferPosition, end: BufferPosition)
+        case nvimStartVisual(start: BufferPosition, end: BufferPosition)
 
         /// Exits the Neovim Visual mode.
-        case stopNvimVisual
+        case nvimStopVisual
 
         /// Update the content of the UI buffer with the new `lines` and text
         /// `selection`.
         ///
         /// The `diff` contains the changes from the current UI `lines`.
-        case updateUI(lines: [String], diff: CollectionDifference<String>, selections: [UISelection])
+        case uiUpdate(lines: [String], diff: CollectionDifference<String>, selections: [UISelection])
 
         /// Update a portion of the UI buffer using the given `BufLinesEvent`
         /// from Nvim.
-        case updateUIPartialLines(event: BufLinesEvent)
+        case uiUpdatePartialLines(event: BufLinesEvent)
 
         /// Update the current selections in the UI buffer.
-        case updateUISelections([UISelection])
+        case uiUpdateSelections([UISelection])
 
         /// Scrolls the UI to make the given selection visible.
-        case scrollUI(visibleSelection: UISelection)
+        case uiScroll(visibleSelection: UISelection)
 
         /// Start a new timeout for the edition token. Any on-going timeout
         /// should be cancelled.
@@ -293,20 +296,20 @@ struct BufferState: Equatable {
             nvim.lines = lines
 
             if tryEdition(from: .nvim) {
-                perform(.updateUIPartialLines(event: event))
-                perform(.updateUISelections(nvim.uiSelections()))
+                perform(.uiUpdatePartialLines(event: event))
+                perform(.uiUpdateSelections(nvim.uiSelections()))
             }
 
         case let .nvimCursorDidChange(cursor):
             nvim.cursor = cursor
 
             if tryEdition(from: .nvim) {
-                perform(.updateUISelections(nvim.uiSelections()))
+                perform(.uiUpdateSelections(nvim.uiSelections()))
                 // Ensures the cursor is always visible by scrolling the UI.
                 if cursor.position.line != cursor.visual.line {
                     let cursorPosition = UIPosition(cursor.position)
                     let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
-                    perform(.scrollUI(visibleSelection: visibleSelection))
+                    perform(.uiScroll(visibleSelection: visibleSelection))
                 }
             }
 
@@ -356,7 +359,7 @@ struct BufferState: Equatable {
             // > If Visual mode is active it is stopped.
             // > :help LeftMouse
             if tryEdition(from: .ui) {
-                perform(.stopNvimVisual)
+                perform(.nvimStopVisual)
             }
 
         case .uiDidReceiveMouseEvent(.up(.left), bufferPoint: _):
@@ -385,14 +388,14 @@ struct BufferState: Equatable {
             isKeysPassthroughEnabled = enabled
 
             if enabled {
-                perform(.stopNvimVisual)
+                perform(.nvimStopVisual)
             }
 
             let selection = ui.selection.adjust(
                 to: enabled ? .insert : nvim.cursor.mode,
                 lines: ui.lines
             )
-            perform(.updateUISelections([selection]))
+            perform(.uiUpdateSelections([selection]))
 
         case let .didFail(error):
             perform(.alert(error))
@@ -444,7 +447,7 @@ struct BufferState: Equatable {
         }
 
         func synchronizeUI() {
-            perform(.updateUI(
+            perform(.uiUpdate(
                 lines: nvim.lines,
                 diff: nvim.lines.difference(from: ui.lines),
                 selections: nvim.uiSelections()
@@ -452,7 +455,7 @@ struct BufferState: Equatable {
         }
 
         func synchronizeNvim() {
-            perform(.updateNvim(
+            perform(.nvimUpdate(
                 lines: ui.lines,
                 diff: ui.lines.difference(from: nvim.lines),
                 cursorPosition: BufferPosition(ui.selection.start)
@@ -465,7 +468,7 @@ struct BufferState: Equatable {
 
             let start = BufferPosition(ui.selection.start)
             if nvim.cursor.position != start {
-                perform(.moveNvimCursor(start))
+                perform(.nvimMoveCursor(start))
             }
         }
 
@@ -482,7 +485,7 @@ struct BufferState: Equatable {
 
             if ui.selection != adjustedSelection {
                 ui.selection = adjustedSelection
-                perform(.updateUISelections([ui.selection]))
+                perform(.uiUpdateSelections([ui.selection]))
             }
         }
 
@@ -490,7 +493,7 @@ struct BufferState: Equatable {
         func startNvimVisual(using selection: UISelection) {
             precondition(token == .acquired(owner: .ui))
 
-            perform(.startNvimVisual(
+            perform(.nvimStartVisual(
                 start: BufferPosition(selection.start),
                 // In Visual mode the end character is included in
                 // the selection, so we need to shift it.
@@ -575,6 +578,8 @@ extension BufferState.Event: LogPayloadConvertible {
             return "uiBufferDidChange"
         case .uiSelectionDidChange:
             return "uiSelectionDidChange"
+        case .uiDidReceiveKeyEvent:
+            return "uiDidReceiveKeyEvent"
         case .uiDidReceiveMouseEvent:
             return "uiDidReceiveMouseEvent"
         case .didToggleKeysPassthrough:
@@ -594,6 +599,8 @@ extension BufferState.Event: LogPayloadConvertible {
             return "\(cursor.mode.rawValue) .\(cursor.position.line):\(cursor.position.column) v\(cursor.visual.line):\(cursor.visual.column)"
         case let .uiSelectionDidChange(selection):
             return "\(selection.start.line):\(selection.start.column)...\(selection.end.line):\(selection.end.column)"
+        case let .uiDidReceiveKeyEvent(kc, character: _):
+            return "\(kc)"
         case let .uiDidReceiveMouseEvent(kind, bufferPoint: bufferPoint):
             if let bufferPoint = bufferPoint {
                 return "\(kind) @\(bufferPoint.x),\(bufferPoint.y)"
@@ -625,6 +632,8 @@ extension BufferState.Event: LogPayloadConvertible {
             return [.name: name, "lines": lines]
         case let .uiSelectionDidChange(selection):
             return [.name: name, "selection": selection]
+        case let .uiDidReceiveKeyEvent(kc, character: character):
+            return [.name: name, "keyCombo": kc.description, "character": character]
         case let .uiDidReceiveMouseEvent(kind, bufferPoint: bufferPoint):
             return [.name: name, "kind": String(reflecting: kind), "bufferPoint": bufferPoint]
         case let .didToggleKeysPassthrough(enabled: enabled):
@@ -638,21 +647,21 @@ extension BufferState.Event: LogPayloadConvertible {
 extension BufferState.Action: LogPayloadConvertible {
     func logPayload() -> [LogKey: LogValueConvertible] {
         switch self {
-        case let .updateNvim(lines: lines, diff: diff, cursorPosition: cursorPosition):
+        case let .nvimUpdate(lines: lines, diff: diff, cursorPosition: cursorPosition):
             return [.name: "updateNvim", "lines": lines, "diff": diff, "cursorPosition": cursorPosition]
-        case let .moveNvimCursor(cursor):
+        case let .nvimMoveCursor(cursor):
             return [.name: "moveNvimCursor", "cursor": cursor]
-        case let .startNvimVisual(start: start, end: end):
+        case let .nvimStartVisual(start: start, end: end):
             return [.name: "startNvimVisual", "start": start, "end": end]
-        case .stopNvimVisual:
+        case .nvimStopVisual:
             return [.name: "stopNvimVisual"]
-        case let .updateUI(lines: lines, diff: diff, selections: selections):
+        case let .uiUpdate(lines: lines, diff: diff, selections: selections):
             return [.name: "updateUI", "lines": lines, "diff": diff, "selections": selections]
-        case let .updateUIPartialLines(event: event):
+        case let .uiUpdatePartialLines(event: event):
             return [.name: "updateUIPartialLines", "event": event]
-        case let .updateUISelections(selections):
+        case let .uiUpdateSelections(selections):
             return [.name: "updateUISelection", "selections": selections]
-        case let .scrollUI(visibleSelection: visibleSelection):
+        case let .uiScroll(visibleSelection: visibleSelection):
             return [.name: "scrollUI", "visibleSelection": visibleSelection]
         case .startTokenTimeout:
             return [.name: "startTokenTimeout"]

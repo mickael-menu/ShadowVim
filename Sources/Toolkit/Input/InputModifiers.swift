@@ -18,7 +18,7 @@
 import CoreGraphics
 import Foundation
 
-public struct InputModifiers: OptionSet, Hashable {
+public struct InputModifiers: OptionSet, Hashable, CustomStringConvertible {
     public static let none = InputModifiers([])
     public static let shift = InputModifiers(rawValue: 1 << 3)
     public static let control = InputModifiers(rawValue: 1 << 0)
@@ -29,5 +29,22 @@ public struct InputModifiers: OptionSet, Hashable {
 
     public init(rawValue: Int) {
         self.rawValue = rawValue
+    }
+
+    public var description: String {
+        var desc = ""
+        if contains(.control) {
+            desc += "⌃"
+        }
+        if contains(.option) {
+            desc += "⌥"
+        }
+        if contains(.shift) {
+            desc += "⇧"
+        }
+        if contains(.command) {
+            desc += "⌘"
+        }
+        return desc
     }
 }
