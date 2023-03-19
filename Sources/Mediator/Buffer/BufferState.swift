@@ -238,8 +238,20 @@ struct BufferState: Equatable {
         /// Create a new visual selection in the Nvim buffer.
         case nvimStartVisual(start: BufferPosition, end: BufferPosition)
 
-        /// Exits the Neovim Visual mode.
+        /// Exit the Nvim Visual mode.
         case nvimStopVisual
+
+        /// Undo one Nvim change.
+        case nvimUndo
+
+        /// Redo last undone Nvim change.
+        case nvimRedo
+
+        /// Paste the content of the system clipboard in the Nvim buffer.
+        case nvimPaste
+
+        /// Send input keys to Nvim.
+        case nvimInput(String)
 
         /// Update the content of the UI buffer with the new `lines` and text
         /// `selection`.
@@ -348,6 +360,39 @@ struct BufferState: Equatable {
                 }
                 adjustUISelection(to: nvim.cursor.mode)
                 synchronizeNvimCursor()
+            }
+
+        case let .uiDidReceiveKeyEvent(kc, character: character):
+            switch kc {
+            case .cmdZ:
+                perform(.nvimUndo)
+            case .cmdShiftZ:
+                perform(.nvimRedo)
+            case .cmdV:
+                // We override the system paste behavior to improve performance
+                // and nvim's undo history.
+                perform(.nvimPaste)
+
+            default:
+                let mods = kc.modifiers
+                // Passthrough for ⌘-based keyboard shortcuts.
+                guard !mods.contains(.command) else {
+                    break
+                }
+
+                // If the user pressed control, we send the key combo as is to
+                // be able to remap this keyboard shortcut in Nvim.
+                // Otherwise, we send the unicode character for this event.
+                // See Documentation/Research/Keyboard.md.
+                if
+                    !mods.contains(.control),
+                    !kc.key.isNonPrintableCharacter,
+                    let character = character
+                {
+                    perform(.nvimInput(character))
+                } else if let notation = kc.nvimNotation {
+                    perform(.nvimInput(notation))
+                }
             }
 
         case let .uiDidReceiveMouseEvent(.down(.left), bufferPoint: bufferPoint):
@@ -526,6 +571,12 @@ struct BufferState: Equatable {
     }
 }
 
+private extension KeyCombo {
+    static let cmdZ = KeyCombo(.z, modifiers: .command)
+    static let cmdShiftZ = KeyCombo(.z, modifiers: [.command, .shift])
+    static let cmdV = KeyCombo(.v, modifiers: [.command])
+}
+
 // MARK: - Logging
 
 extension BufferState.EditionToken: LogValueConvertible {
@@ -648,21 +699,29 @@ extension BufferState.Action: LogPayloadConvertible {
     func logPayload() -> [LogKey: LogValueConvertible] {
         switch self {
         case let .nvimUpdate(lines: lines, diff: diff, cursorPosition: cursorPosition):
-            return [.name: "updateNvim", "lines": lines, "diff": diff, "cursorPosition": cursorPosition]
+            return [.name: "nvimUpdate", "lines": lines, "diff": diff, "cursorPosition": cursorPosition]
         case let .nvimMoveCursor(cursor):
-            return [.name: "moveNvimCursor", "cursor": cursor]
+            return [.name: "nvimMoveCursor", "cursor": cursor]
         case let .nvimStartVisual(start: start, end: end):
-            return [.name: "startNvimVisual", "start": start, "end": end]
+            return [.name: "nvimStartVisual", "start": start, "end": end]
         case .nvimStopVisual:
-            return [.name: "stopNvimVisual"]
+            return [.name: "nvimStopVisual"]
+        case .nvimUndo:
+            return [.name: "nvimUndo"]
+        case .nvimRedo:
+            return [.name: "nvimRedo"]
+        case .nvimPaste:
+            return [.name: "nvimPaste"]
+        case let .nvimInput(keys):
+            return [.name: "nvimInput", "keys": keys]
         case let .uiUpdate(lines: lines, diff: diff, selections: selections):
-            return [.name: "updateUI", "lines": lines, "diff": diff, "selections": selections]
+            return [.name: "uiUpdate", "lines": lines, "diff": diff, "selections": selections]
         case let .uiUpdatePartialLines(event: event):
-            return [.name: "updateUIPartialLines", "event": event]
+            return [.name: "uiUpdatePartialLines", "event": event]
         case let .uiUpdateSelections(selections):
-            return [.name: "updateUISelection", "selections": selections]
+            return [.name: "uiUpdateSelection", "selections": selections]
         case let .uiScroll(visibleSelection: visibleSelection):
-            return [.name: "scrollUI", "visibleSelection": visibleSelection]
+            return [.name: "uiScroll", "visibleSelection": visibleSelection]
         case .startTokenTimeout:
             return [.name: "startTokenTimeout"]
         case .bell:

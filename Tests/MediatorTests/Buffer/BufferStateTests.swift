@@ -524,7 +524,7 @@ final class BufferStateTests: XCTestCase {
                     lines: uiLines,
                     diff: uiLines.difference(from: nvimLines),
                     cursorPosition: BufferPosition(line: 3, column: 5)
-                )
+                ),
             ]
         )
     }

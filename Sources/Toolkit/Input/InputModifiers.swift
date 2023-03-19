@@ -39,11 +39,11 @@ public struct InputModifiers: OptionSet, Hashable, CustomStringConvertible {
         if contains(.option) {
             desc += "⌥"
         }
-        if contains(.shift) {
-            desc += "⇧"
-        }
         if contains(.command) {
             desc += "⌘"
+        }
+        if contains(.shift) {
+            desc += "⇧"
         }
         return desc
     }

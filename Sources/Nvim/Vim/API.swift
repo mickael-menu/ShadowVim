@@ -239,11 +239,6 @@ public class API {
         }
     }
 
-    public func input(_ keyCombo: KeyCombo) -> Async<Int, NvimError> {
-        request("nvim_input", with: keyCombo.nvimNotation)
-            .checkedUnpacking { $0.intValue }
-    }
-
     public func input(_ keys: String) -> Async<Int, NvimError> {
         var keys = keys
         // Note: keycodes like <CR> are translated, so "<" is special.

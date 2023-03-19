@@ -138,14 +138,10 @@ public final class BufferMediator {
     func didReceiveEvent(_ event: InputEvent) -> Bool {
         switch event {
         case let .key(event):
-            return handle(event)
+            return on(.uiDidReceiveKeyEvent(event.keyCombo, character: event.character))
         case let .mouse(event):
             return handle(event)
         }
-    }
-
-    private func handle(_ event: KeyEvent) -> Bool {
-        nvimController.handle(event, in: nvimBuffer)
     }
 
     private func handle(_ event: MouseEvent) -> Bool {
@@ -199,12 +195,16 @@ public final class BufferMediator {
             .store(in: &uiSubscriptions)
     }
 
-    private func on(_ event: BufferState.Event) {
+    /// Returns whether the event triggered actions.
+    @discardableResult
+    private func on(_ event: BufferState.Event) -> Bool {
         precondition(Thread.isMainThread)
         let actions = state.on(event, logger: logger)
         for action in actions {
             perform(action)
         }
+
+        return !actions.isEmpty
     }
 
     private func perform(_ action: BufferState.Action) {
@@ -224,6 +224,24 @@ public final class BufferMediator {
 
             case .nvimStopVisual:
                 nvimController.stopVisual()
+                    .get(onFailure: fail)
+
+            case .nvimUndo:
+                nvimController.undo(in: nvimBuffer)
+                    .get(onFailure: fail)
+
+            case .nvimRedo:
+                nvimController.redo(in: nvimBuffer)
+                    .get(onFailure: fail)
+
+            case .nvimPaste:
+                if let text = NSPasteboard.get() {
+                    nvimController.paste(text, in: nvimBuffer)
+                        .get(onFailure: fail)
+                }
+
+            case let .nvimInput(keys):
+                nvimController.input(keys, in: nvimBuffer)
                     .get(onFailure: fail)
 
             case let .uiUpdate(lines: _, diff: diff, selections: selections):

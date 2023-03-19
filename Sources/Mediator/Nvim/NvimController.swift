@@ -202,11 +202,7 @@ final class NvimController {
     }
 
     func setLines(in buffer: NvimBuffer, diff: CollectionDifference<String>, cursorPosition: BufferPosition) -> Async<Void, NvimError> {
-        guard let vim = nvim.vim else {
-            return .failure(.notStarted)
-        }
-
-        return vim.atomic(in: buffer) { vim in
+        vimAtomic(in: buffer) { vim in
             withAsyncGroup { group in
                 for change in diff {
                     var start: LineIndex
@@ -233,11 +229,7 @@ final class NvimController {
     }
 
     func setCursor(in buffer: NvimBuffer, at position: BufferPosition) -> Async<Void, NvimError> {
-        guard let vim = nvim.vim else {
-            return .failure(.notStarted)
-        }
-
-        return vim.atomic(in: buffer) { vim in
+        vimAtomic(in: buffer) { vim in
             vim.api.winSetCursor(position: position, failOnInvalidPosition: false)
         }
         .discardResult()
@@ -246,11 +238,7 @@ final class NvimController {
     /// Starts the Neovim Visual mode and selects from the given `start` and
     /// `end` positions.
     func startVisual(in buffer: NvimBuffer, from start: BufferPosition, to end: BufferPosition) -> Async<Void, NvimError> {
-        guard let vim = nvim.vim else {
-            return .failure(.notStarted)
-        }
-
-        return vim.atomic(in: buffer) { vim in
+        vimAtomic(in: buffer) { vim in
             vim.cmd(
                 """
                 " Exit the current mode, hopefully.
@@ -278,73 +266,44 @@ final class NvimController {
         .discardResult()
     }
 
-    // MARK: - Input handling
-
-    private let cmdZ = KeyCombo(.z, modifiers: .command)
-    private let cmdShiftZ = KeyCombo(.z, modifiers: [.command, .shift])
-    private let cmdV = KeyCombo(.v, modifiers: [.command])
-
-    func handle(_ event: KeyEvent, in buffer: NvimBuffer) -> Bool {
-        switch event.keyCombo {
-        case cmdZ:
-            nvim.vim?.atomic(in: buffer) { vim in
-                vim.cmd.undo()
-            }
-            .discardResult()
-            .forwardErrorToDelegate(of: self)
-            .run()
-
-        case cmdShiftZ:
-            nvim.vim?.atomic(in: buffer) { vim in
-                vim.cmd.redo()
-            }
-            .discardResult()
-            .forwardErrorToDelegate(of: self)
-            .run()
-
-        case cmdV:
-            // We override the system paste behavior to improve performance and
-            // nvim's undo history.
-            guard let text = NSPasteboard.get() else {
-                break
-            }
-            nvim.vim?.atomic(in: buffer) { vim in
-                vim.api.paste(text)
-            }
-            .discardResult()
-            .forwardErrorToDelegate(of: self)
-            .run()
-
-        default:
-            let mods = event.keyCombo.modifiers
-
-            // Passthrough for ⌘-based keyboard shortcuts.
-            guard
-                !mods.contains(.command)
-            else {
-                return false
-            }
-
-            nvim.vim?.atomic(in: buffer) { vim in
-                // If the user pressed control, we send the key combo as is to
-                // be able to remap this keyboard shortcut in Nvim.
-                // Otherwise, we send the unicode character for this event.
-                // See Documentation/Research/Keyboard.md.
-                if
-                    !mods.contains(.control),
-                    !event.keyCombo.key.isNonPrintableCharacter,
-                    let character = event.character
-                {
-                    return vim.api.input(character)
-                } else {
-                    return vim.api.input(event.keyCombo)
-                }
-            }
-            .discardResult()
-            .forwardErrorToDelegate(of: self)
-            .run()
+    /// Undoes one Nvim change.
+    func undo(in buffer: NvimBuffer) -> Async<Void, NvimError> {
+        vimAtomic(in: buffer) { vim in
+            vim.cmd.undo()
         }
-        return true
+        .discardResult()
+    }
+
+    /// Redoes last undone Nvim change.
+    func redo(in buffer: NvimBuffer) -> Async<Void, NvimError> {
+        vimAtomic(in: buffer) { vim in
+            vim.cmd.redo()
+        }
+        .discardResult()
+    }
+
+    /// Paste the content of the system clipboard in the Nvim buffer.
+    func paste(_ text: String, in buffer: NvimBuffer) -> Async<Void, NvimError> {
+        vimAtomic(in: buffer) { vim in
+            vim.api.paste(text)
+        }
+        .discardResult()
+    }
+
+    /// Send input keys to Nvim.
+    func input(_ keys: String, in buffer: NvimBuffer) -> Async<Void, NvimError> {
+        vimAtomic(in: buffer) { vim in
+            vim.api.input(keys)
+        }
+        .discardResult()
+    }
+
+    private func vimAtomic<Result>(in buffer: NvimBuffer, block: @escaping (Vim) -> Async<Result, NvimError>) -> Async<Result, NvimError> {
+        guard let vim = nvim.vim else {
+            return .failure(.notStarted)
+        }
+
+        return vim.atomic(in: buffer, block: block)
     }
 }
 
