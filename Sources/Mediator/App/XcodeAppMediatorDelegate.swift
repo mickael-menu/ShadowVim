@@ -44,6 +44,9 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
 
     /// This will adjust existing Xcode settings to prevent conflicts with ShadowVim.
     /// For example, auto-indenting and pairing.
+    ///
+    /// The commented-out settings are needed when the Insert mode is handled by
+    /// Neovim directly, but not when Xcode handles it.
     private func updateXcodeSettings() {
         guard let defaults = xcodeDefaults else {
             logger?.e("Cannot modify Xcode's defaults")
@@ -51,13 +54,13 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
         }
 
         let expectedSettings = XcodeSettings(
-            keyBindingsMode: "Default",
-            textAutoCloseBlockComment: false,
-            textAutoInsertCloseBrace: false,
-            textEditorTrimTrailingWhitespace: false,
-            textEnableTypeOverCompletions: false,
-            textIndentCaseInC: false,
-            textUsesSyntaxAwareIndenting: false
+            keyBindingsMode: "Default"
+            // textAutoCloseBlockComment: false,
+            // textAutoInsertCloseBrace: false,
+            // textEditorTrimTrailingWhitespace: false,
+            // textEnableTypeOverCompletions: false,
+            // textIndentCaseInC: false,
+            // textUsesSyntaxAwareIndenting: false
         )
 
         let currentSettings = XcodeSettings(defaults: defaults)
@@ -160,51 +163,51 @@ public class XcodeAppMediatorDelegate: AppMediatorDelegate {
 
 private struct XcodeSettings: Equatable {
     var keyBindingsMode: String?
-    var textAutoCloseBlockComment: Bool?
-    var textAutoInsertCloseBrace: Bool?
-    var textEditorTrimTrailingWhitespace: Bool?
-    var textEnableTypeOverCompletions: Bool?
-    var textIndentCaseInC: Bool?
-    var textUsesSyntaxAwareIndenting: Bool?
+    // var textAutoCloseBlockComment: Bool?
+    // var textAutoInsertCloseBrace: Bool?
+    // var textEditorTrimTrailingWhitespace: Bool?
+    // var textEnableTypeOverCompletions: Bool?
+    // var textIndentCaseInC: Bool?
+    // var textUsesSyntaxAwareIndenting: Bool?
 
     init(
-        keyBindingsMode: String? = nil,
-        textAutoCloseBlockComment: Bool? = nil,
-        textAutoInsertCloseBrace: Bool? = nil,
-        textEditorTrimTrailingWhitespace: Bool? = nil,
-        textEnableTypeOverCompletions: Bool? = nil,
-        textIndentCaseInC: Bool? = nil,
-        textUsesSyntaxAwareIndenting: Bool? = nil
+        keyBindingsMode: String? = nil
+        // textAutoCloseBlockComment: Bool? = nil,
+        // textAutoInsertCloseBrace: Bool? = nil,
+        // textEditorTrimTrailingWhitespace: Bool? = nil,
+        // textEnableTypeOverCompletions: Bool? = nil,
+        // textIndentCaseInC: Bool? = nil,
+        // textUsesSyntaxAwareIndenting: Bool? = nil
     ) {
         self.keyBindingsMode = keyBindingsMode
-        self.textAutoCloseBlockComment = textAutoCloseBlockComment
-        self.textAutoInsertCloseBrace = textAutoInsertCloseBrace
-        self.textEditorTrimTrailingWhitespace = textEditorTrimTrailingWhitespace
-        self.textEnableTypeOverCompletions = textEnableTypeOverCompletions
-        self.textIndentCaseInC = textIndentCaseInC
-        self.textUsesSyntaxAwareIndenting = textUsesSyntaxAwareIndenting
+        // self.textAutoCloseBlockComment = textAutoCloseBlockComment
+        // self.textAutoInsertCloseBrace = textAutoInsertCloseBrace
+        // self.textEditorTrimTrailingWhitespace = textEditorTrimTrailingWhitespace
+        // self.textEnableTypeOverCompletions = textEnableTypeOverCompletions
+        // self.textIndentCaseInC = textIndentCaseInC
+        // self.textUsesSyntaxAwareIndenting = textUsesSyntaxAwareIndenting
     }
 
     init(defaults: UserDefaults) {
         self.init(
-            keyBindingsMode: defaults.keyBindingsMode,
-            textAutoCloseBlockComment: defaults.textAutoCloseBlockComment,
-            textAutoInsertCloseBrace: defaults.textAutoInsertCloseBrace,
-            textEditorTrimTrailingWhitespace: defaults.textEditorTrimTrailingWhitespace,
-            textEnableTypeOverCompletions: defaults.textEnableTypeOverCompletions,
-            textIndentCaseInC: defaults.textIndentCaseInC,
-            textUsesSyntaxAwareIndenting: defaults.textUsesSyntaxAwareIndenting
+            keyBindingsMode: defaults.keyBindingsMode
+            // textAutoCloseBlockComment: defaults.textAutoCloseBlockComment,
+            // textAutoInsertCloseBrace: defaults.textAutoInsertCloseBrace,
+            // textEditorTrimTrailingWhitespace: defaults.textEditorTrimTrailingWhitespace,
+            // textEnableTypeOverCompletions: defaults.textEnableTypeOverCompletions,
+            // textIndentCaseInC: defaults.textIndentCaseInC,
+            // textUsesSyntaxAwareIndenting: defaults.textUsesSyntaxAwareIndenting
         )
     }
 
     func apply(to userDefaults: UserDefaults) {
         userDefaults.keyBindingsMode = keyBindingsMode
-        userDefaults.textAutoCloseBlockComment = textAutoCloseBlockComment
-        userDefaults.textAutoInsertCloseBrace = textAutoInsertCloseBrace
-        userDefaults.textEditorTrimTrailingWhitespace = textEditorTrimTrailingWhitespace
-        userDefaults.textEnableTypeOverCompletions = textEnableTypeOverCompletions
-        userDefaults.textIndentCaseInC = textIndentCaseInC
-        userDefaults.textUsesSyntaxAwareIndenting = textUsesSyntaxAwareIndenting
+        // userDefaults.textAutoCloseBlockComment = textAutoCloseBlockComment
+        // userDefaults.textAutoInsertCloseBrace = textAutoInsertCloseBrace
+        // userDefaults.textEditorTrimTrailingWhitespace = textEditorTrimTrailingWhitespace
+        // userDefaults.textEnableTypeOverCompletions = textEnableTypeOverCompletions
+        // userDefaults.textIndentCaseInC = textIndentCaseInC
+        // userDefaults.textUsesSyntaxAwareIndenting = textUsesSyntaxAwareIndenting
     }
 
     /// Returns the commands to run in a shell to apply the settings.
@@ -214,23 +217,23 @@ private struct XcodeSettings: Equatable {
         func cmd(key: String, value: Any?) {
             switch value {
             case nil:
-                commands.append("defaults delete -app Xcode \(key)")
+                commands.append("defaults delete com.apple.dt.Xcode \(key)")
             case let string as String:
-                commands.append("defaults write -app Xcode \(key) -string '\(string)'")
+                commands.append("defaults write com.apple.dt.Xcode \(key) -string '\(string)'")
             case let bool as Bool:
-                commands.append("defaults write -app Xcode \(key) -bool \(bool)")
+                commands.append("defaults write com.apple.dt.Xcode \(key) -bool \(bool)")
             default:
                 preconditionFailure("Invalid Xcode settings value type \(String(describing: value))")
             }
         }
 
         cmd(key: UserDefaults.Keys.keyBindingsMode, value: keyBindingsMode)
-        cmd(key: UserDefaults.Keys.textAutoCloseBlockComment, value: textAutoCloseBlockComment)
-        cmd(key: UserDefaults.Keys.textAutoInsertCloseBrace, value: textAutoInsertCloseBrace)
-        cmd(key: UserDefaults.Keys.textEditorTrimTrailingWhitespace, value: textEditorTrimTrailingWhitespace)
-        cmd(key: UserDefaults.Keys.textEnableTypeOverCompletions, value: textEnableTypeOverCompletions)
-        cmd(key: UserDefaults.Keys.textIndentCaseInC, value: textIndentCaseInC)
-        cmd(key: UserDefaults.Keys.textUsesSyntaxAwareIndenting, value: textUsesSyntaxAwareIndenting)
+        // cmd(key: UserDefaults.Keys.textAutoCloseBlockComment, value: textAutoCloseBlockComment)
+        // cmd(key: UserDefaults.Keys.textAutoInsertCloseBrace, value: textAutoInsertCloseBrace)
+        // cmd(key: UserDefaults.Keys.textEditorTrimTrailingWhitespace, value: textEditorTrimTrailingWhitespace)
+        // cmd(key: UserDefaults.Keys.textEnableTypeOverCompletions, value: textEnableTypeOverCompletions)
+        // cmd(key: UserDefaults.Keys.textIndentCaseInC, value: textIndentCaseInC)
+        // cmd(key: UserDefaults.Keys.textUsesSyntaxAwareIndenting, value: textUsesSyntaxAwareIndenting)
 
         return commands.joined(separator: "\n")
     }

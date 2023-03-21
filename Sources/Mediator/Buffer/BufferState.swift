@@ -48,7 +48,7 @@ struct BufferState: Equatable {
 
     /// Indicates whether the user is currently selecting text with the mouse.
     private(set) var isSelecting: Bool
-    
+
     /// Indicates whether an automatic keys passthrough is enabled in insert
     /// mode. This helps improve performance.
     private let keysPassthroughOnInsert: Bool
