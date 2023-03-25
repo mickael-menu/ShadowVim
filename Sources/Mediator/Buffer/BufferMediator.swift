@@ -35,7 +35,7 @@ public final class BufferMediator {
 
     weak var delegate: BufferMediatorDelegate?
 
-    private var state: BufferState
+    private var state: any BufferState
     private let nvimController: NvimController
     private let nvimBuffer: NvimBuffer
     private let logger: Logger?
@@ -70,7 +70,7 @@ public final class BufferMediator {
         self.uiElement = uiElement
         self.logger = logger
 
-        state = BufferState(
+        state = LegacyBufferState(
             nvim: .init(lines: nvimBuffer.lines),
             ui: .init(lines: (try? uiElement.lines()) ?? [])
         )
@@ -197,7 +197,7 @@ public final class BufferMediator {
 
     /// Returns whether the event triggered actions.
     @discardableResult
-    private func on(_ event: BufferState.Event) -> Bool {
+    private func on(_ event: BufferEvent) -> Bool {
         precondition(Thread.isMainThread)
         let actions = state.on(event, logger: logger)
         for action in actions {
@@ -207,7 +207,7 @@ public final class BufferMediator {
         return !actions.isEmpty
     }
 
-    private func perform(_ action: BufferState.Action) {
+    private func perform(_ action: BufferAction) {
         do {
             switch action {
             case let .nvimUpdate(lines: _, diff: diff, cursorPosition: cursorPosition):
