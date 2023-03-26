@@ -187,7 +187,7 @@ struct CooperativeBufferState: BufferState {
         var actions: [BufferAction] = []
 
         switch event {
-        case .tokenDidTimeout:
+        case .didTimeout:
             switch token {
             case .free:
                 break
@@ -219,21 +219,17 @@ struct CooperativeBufferState: BufferState {
 
             if tryEdition(from: .nvim) {
                 if hadPendingLines {
-                    perform(.uiUpdate(
-                        lines: nvim.lines,
-                        diff: nvim.lines.difference(from: ui.lines),
-                        selections: nvim.uiSelections()
-                    ))
-                } else if hadPendingCursor {
-                    perform(.uiUpdateSelections(nvim.uiSelections()))
+                    perform(.uiUpdateLines(nvim.lines))
                 }
 
                 if hadPendingCursor {
+                    perform(.uiUpdateSelections(nvim.uiSelections()))
+
                     // Ensures the cursor is always visible by scrolling the UI.
                     if nvim.cursor.position.line != nvim.cursor.visual.line {
                         let cursorPosition = UIPosition(nvim.cursor.position)
                         let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
-                        perform(.uiScroll(visibleSelection: visibleSelection))
+                        perform(.uiScroll(visibleSelection))
                     }
                 }
             }
@@ -406,19 +402,13 @@ struct CooperativeBufferState: BufferState {
         }
 
         func synchronizeUI() {
-            perform(.uiUpdate(
-                lines: nvim.lines,
-                diff: nvim.lines.difference(from: ui.lines),
-                selections: nvim.uiSelections()
-            ))
+            perform(.uiUpdateLines(nvim.lines))
+            perform(.uiUpdateSelections(nvim.uiSelections()))
         }
 
         func synchronizeNvim() {
-            perform(.nvimUpdate(
-                lines: ui.lines,
-                diff: ui.lines.difference(from: nvim.lines),
-                cursorPosition: BufferPosition(ui.selection.start)
-            ))
+            perform(.nvimUpdateLines(ui.lines))
+            perform(.nvimMoveCursor(BufferPosition(ui.selection.start)))
         }
 
         /// Moves the Nvim cursor to match the current UI selection.
@@ -463,8 +453,8 @@ struct CooperativeBufferState: BufferState {
         func setToken(_ token: EditionToken) {
             self.token = token
 
-            if token != .free, !actions.contains(.startTokenTimeout) {
-                perform(.startTokenTimeout)
+            if token != .free, !actions.contains(.startTimeout) {
+                perform(.startTimeout)
             }
         }
 

@@ -39,7 +39,7 @@ public final class BufferMediator {
     private let nvimController: NvimController
     private let nvimBuffer: NvimBuffer
     private let logger: Logger?
-    private let tokenTimeoutSubject = PassthroughSubject<Void, Never>()
+    private let timeoutSubject = PassthroughSubject<Void, Never>()
 
     private var subscriptions: Set<AnyCancellable> = []
     private var uiSubscriptions: Set<AnyCancellable> = []
@@ -87,10 +87,10 @@ public final class BufferMediator {
             )
             .store(in: &subscriptions)
 
-        tokenTimeoutSubject
+        timeoutSubject
             .receive(on: DispatchQueue.main)
             .debounce(for: .seconds(0.2), scheduler: DispatchQueue.main)
-            .sink { [weak self] in self?.on(.tokenDidTimeout) }
+            .sink { [weak self] in self?.on(.didTimeout) }
             .store(in: &subscriptions)
     }
 
@@ -214,8 +214,8 @@ public final class BufferMediator {
     private func perform(_ action: BufferAction) {
         do {
             switch action {
-            case let .nvimUpdate(lines: _, diff: diff, cursorPosition: cursorPosition):
-                nvimController.setLines(in: nvimBuffer, diff: diff, cursorPosition: cursorPosition)
+            case let .nvimUpdateLines(lines):
+                nvimController.setLines(lines, in: nvimBuffer)
                     .get(onFailure: fail)
 
             case let .nvimMoveCursor(position):
@@ -248,12 +248,8 @@ public final class BufferMediator {
                 nvimController.input(keys, in: nvimBuffer)
                     .get(onFailure: fail)
 
-            case let .uiUpdate(lines: _, diff: diff, selections: selections):
-                try updateUILines(diff: diff)
-                try updateUISelections(selections)
-
-            case let .uiUpdatePartialLines(event: event):
-                try updateUIPartialLines(with: event)
+            case let .uiUpdateLines(lines):
+                try updateUILines(lines)
 
             case let .uiUpdateSelections(selections):
                 try updateUISelections(selections)
@@ -261,8 +257,8 @@ public final class BufferMediator {
             case let .uiScroll(visibleSelection: visibleSelection):
                 try scrollUI(to: visibleSelection)
 
-            case .startTokenTimeout:
-                tokenTimeoutSubject.send(())
+            case .startTimeout:
+                timeoutSubject.send(())
 
             case .bell:
                 NSSound.beep()
@@ -277,13 +273,15 @@ public final class BufferMediator {
         }
     }
 
-    private func updateUILines(diff: CollectionDifference<String>) throws {
+    private func updateUILines(_ lines: [String]) throws {
         guard
-            !diff.isEmpty,
-            let uiElement = uiElement
+            let uiElement = uiElement,
+            let oldLines = uiElement.stringValue()?.lines
         else {
             return
         }
+
+        let diff = lines.difference(from: oldLines.map { String($0) })
 
         if let (offset, line) = diff.updatedSingleItem {
             try updateUIOneLine(
@@ -292,7 +290,7 @@ public final class BufferMediator {
                 content: uiElement.stringValue() ?? "",
                 replacement: line
             )
-        } else {
+        } else if !diff.isEmpty {
             try updateUIMultipleLines(diff: diff, in: uiElement)
         }
     }

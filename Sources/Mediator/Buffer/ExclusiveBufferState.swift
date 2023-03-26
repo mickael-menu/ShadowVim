@@ -118,16 +118,12 @@ struct ExclusiveBufferState: BufferState {
             nvim.flush()
 
             if source == .nvim {
-                let nvimSelections = nvim.uiSelections()
-
                 if hadPendingLines {
-                    perform(.uiUpdate(
-                        lines: nvim.lines,
-                        diff: nvim.lines.difference(from: ui.lines),
-                        selections: nvimSelections
-                    ))
-                } else if hadPendingCursorPosition || hadPendingVisualPosition, nvimSelections.first != ui.selection {
-                    perform(.uiUpdateSelections(nvimSelections))
+                    perform(.uiUpdateLines(nvim.lines))
+                }
+
+                if hadPendingCursorPosition || hadPendingVisualPosition {
+                    perform(.uiUpdateSelections(nvim.uiSelections()))
                 }
             }
 
@@ -142,12 +138,9 @@ struct ExclusiveBufferState: BufferState {
             let selection = selection.adjusted(to: nvim.mode, lines: lines)
 
             if ui.lines != lines {
-                perform(.nvimUpdate(
-                    lines: lines,
-                    diff: lines.difference(from: nvim.lines),
-                    cursorPosition: BufferPosition(selection.start)
-                ))
-            } else if ui.selection != selection {
+                perform(.nvimUpdateLines(lines))
+            }
+            if ui.selection != selection {
                 perform(.nvimMoveCursor(BufferPosition(selection.start)))
             }
 
@@ -156,11 +149,7 @@ struct ExclusiveBufferState: BufferState {
 
         case let .uiBufferDidChange(lines: lines):
             if source == .ui || areLinesSynchronized {
-                perform(.nvimUpdate(
-                    lines: lines,
-                    diff: lines.difference(from: nvim.lines),
-                    cursorPosition: BufferPosition(ui.selection.start)
-                ))
+                perform(.nvimUpdateLines(lines))
             }
 
             ui.lines = lines

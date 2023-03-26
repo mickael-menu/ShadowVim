@@ -36,8 +36,8 @@ enum BufferHost: String, Equatable {
 
 /// Events handled by the Buffer state machine.
 enum BufferEvent: Equatable {
-    /// The edition token timed out and needs to be reset.
-    case tokenDidTimeout
+    /// The requested timer timed out.
+    case didTimeout
 
     /// The user requested to resynchronize the buffers using the given
     /// `source` host for the source of truth of the content.
@@ -82,11 +82,8 @@ enum BufferEvent: Equatable {
 /// Actions produced by the Buffer state machine when receiving an event. They
 /// are executed by the `BufferMediator`.
 enum BufferAction: Equatable {
-    /// Update the content of the Nvim buffer with the new `lines` and
-    /// cursor position.
-    ///
-    /// The `diff` contains the changes from the current Nvim `lines`.
-    case nvimUpdate(lines: [String], diff: CollectionDifference<String>, cursorPosition: BufferPosition)
+    /// Update the content of the Nvim buffer with the new `lines`.
+    case nvimUpdateLines([String])
 
     /// Update the position of the Nvim cursor.
     case nvimMoveCursor(BufferPosition)
@@ -109,25 +106,17 @@ enum BufferAction: Equatable {
     /// Send input keys to Nvim.
     case nvimInput(String)
 
-    /// Update the content of the UI buffer with the new `lines` and text
-    /// `selection`.
-    ///
-    /// The `diff` contains the changes from the current UI `lines`.
-    case uiUpdate(lines: [String], diff: CollectionDifference<String>, selections: [UISelection])
-
-    /// Update a portion of the UI buffer using the given `BufLinesEvent`
-    /// from Nvim.
-    case uiUpdatePartialLines(event: BufLinesEvent)
+    /// Update the content of the UI buffer with the new `lines`.
+    case uiUpdateLines([String])
 
     /// Update the current selections in the UI buffer.
     case uiUpdateSelections([UISelection])
 
     /// Scrolls the UI to make the given selection visible.
-    case uiScroll(visibleSelection: UISelection)
+    case uiScroll(UISelection)
 
-    /// Start a new timeout for the edition token. Any on-going timeout
-    /// should be cancelled.
-    case startTokenTimeout
+    /// Start a new timeout. Any on-going timeout should be cancelled.
+    case startTimeout
 
     /// Emit a bell sound to the user.
     case bell
@@ -187,8 +176,8 @@ extension BufferHost: LogValueConvertible {
 extension BufferEvent: LogPayloadConvertible {
     var name: String {
         switch self {
-        case .tokenDidTimeout:
-            return "tokenDidTimeout"
+        case .didTimeout:
+            return "didTimeout"
         case .didRequestRefresh:
             return "userDidRequestRefresh"
         case .nvimBufferDidChange:
@@ -243,7 +232,7 @@ extension BufferEvent: LogPayloadConvertible {
 
     func logPayload() -> [LogKey: LogValueConvertible] {
         switch self {
-        case .tokenDidTimeout, .nvimDidFlush:
+        case .didTimeout, .nvimDidFlush:
             return [.name: name]
         case let .didRequestRefresh(source: source):
             return [.name: name, "source": source.rawValue]
@@ -272,8 +261,8 @@ extension BufferEvent: LogPayloadConvertible {
 extension BufferAction: LogPayloadConvertible {
     func logPayload() -> [LogKey: LogValueConvertible] {
         switch self {
-        case let .nvimUpdate(lines: lines, diff: diff, cursorPosition: cursorPosition):
-            return [.name: "nvimUpdate", "lines": lines, "diff": diff, "cursorPosition": cursorPosition]
+        case let .nvimUpdateLines(lines):
+            return [.name: "nvimUpdateLines", "lines": lines]
         case let .nvimMoveCursor(cursor):
             return [.name: "nvimMoveCursor", "cursor": cursor]
         case let .nvimStartVisual(start: start, end: end):
@@ -288,16 +277,14 @@ extension BufferAction: LogPayloadConvertible {
             return [.name: "nvimPaste"]
         case let .nvimInput(keys):
             return [.name: "nvimInput", "keys": keys]
-        case let .uiUpdate(lines: lines, diff: diff, selections: selections):
-            return [.name: "uiUpdate", "lines": lines, "diff": diff, "selections": selections]
-        case let .uiUpdatePartialLines(event: event):
-            return [.name: "uiUpdatePartialLines", "event": event]
+        case let .uiUpdateLines(lines):
+            return [.name: "uiUpdateLines", "lines": lines]
         case let .uiUpdateSelections(selections):
             return [.name: "uiUpdateSelection", "selections": selections]
-        case let .uiScroll(visibleSelection: visibleSelection):
+        case let .uiScroll(visibleSelection):
             return [.name: "uiScroll", "visibleSelection": visibleSelection]
-        case .startTokenTimeout:
-            return [.name: "startTokenTimeout"]
+        case .startTimeout:
+            return [.name: "startTimeout"]
         case .bell:
             return [.name: "bell"]
         case let .alert(error):
