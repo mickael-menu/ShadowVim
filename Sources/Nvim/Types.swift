@@ -105,6 +105,14 @@ public struct Cursor: Equatable {
     }
 }
 
+// MARK: - Logging
+
+extension Mode: LogValueConvertible {
+    public var logValue: LogValue {
+        .string(rawValue)
+    }
+}
+
 extension BufferPosition: LogPayloadConvertible {
     public func logPayload() -> [LogKey: LogValueConvertible] {
         ["line": line, "column": column]

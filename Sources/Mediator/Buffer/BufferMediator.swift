@@ -70,10 +70,10 @@ public final class BufferMediator {
         self.uiElement = uiElement
         self.logger = logger
 
-        state = LegacyBufferState(
+        state = CooperativeBufferState(
             nvim: .init(lines: nvimBuffer.lines),
             ui: .init(lines: (try? uiElement.lines()) ?? [])
-        )
+        ).loggable(logger)
 
         subscribeToElementChanges(uiElement)
 
@@ -162,6 +162,10 @@ public final class BufferMediator {
 
         // Don't override default system behavior
         return false
+    }
+
+    func nvimDidFlush() {
+        on(.nvimDidFlush)
     }
 
     func nvimCursorDidChange(_ cursor: Cursor) {

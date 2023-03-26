@@ -342,6 +342,17 @@ extension AppMediator: BufferMediatorDelegate {
 }
 
 extension AppMediator: NvimControllerDelegate {
+    func nvimController(_ nvimController: NvimController, didReceiveUIEvent event: UIEvent) {
+        switch event {
+        case .flush:
+            for (_, buffer) in bufferMediators {
+                buffer.nvimDidFlush()
+            }
+        default:
+            print(event)
+        }
+    }
+
     func nvimController(_ nvimController: NvimController, didFailWithError error: Error) {
         delegate?.appMediator(self, didFailWithError: error)
     }

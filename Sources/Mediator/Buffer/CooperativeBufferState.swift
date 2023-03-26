@@ -19,12 +19,12 @@ import Foundation
 import Nvim
 import Toolkit
 
-/// State machine handling the state of a single buffer synchronized between the
-/// UI and Nvim.
+/// A `BufferState` where key input on both Normal and Insert modes are handled
+/// by Nvim.
 ///
-/// It is owned and executed by a `BufferMediator` which binds to the events of
-/// the actual Nvim and UI buffers.
-struct LegacyBufferState: BufferState {
+/// Nvim et UI buffers alternate being the source of truth cooperatively thanks
+/// to a shared `EditionToken`.
+struct CooperativeBufferState: BufferState {
     /// Indicates which buffer is the current source of truth for the content.
     private(set) var token: EditionToken
 
@@ -43,18 +43,13 @@ struct LegacyBufferState: BufferState {
     /// Indicates whether the user is currently selecting text with the mouse.
     private(set) var isSelecting: Bool
 
-    /// Indicates whether an automatic keys passthrough is enabled in insert
-    /// mode. This helps improve performance.
-    private let keysPassthroughOnInsert: Bool
-
     init(
         token: EditionToken = .free,
         nvim: NvimState = NvimState(),
         ui: UIState = UIState(),
         isKeysPassthroughEnabled: Bool = false,
         isLeftMouseButtonDown: Bool = false,
-        isSelecting: Bool = false,
-        keysPassthroughOnInsert: Bool = true
+        isSelecting: Bool = false
     ) {
         self.token = token
         self.nvim = nvim
@@ -62,7 +57,6 @@ struct LegacyBufferState: BufferState {
         self.isKeysPassthroughEnabled = isKeysPassthroughEnabled
         self.isLeftMouseButtonDown = isLeftMouseButtonDown
         self.isSelecting = isSelecting
-        self.keysPassthroughOnInsert = keysPassthroughOnInsert
     }
 
     /// The edition token indicates which buffer is the current source of truth
@@ -275,11 +269,6 @@ struct LegacyBufferState: BufferState {
                 perform(.nvimPaste)
 
             default:
-                // Passthrough in insert mode, for improved performance.
-                guard !keysPassthroughOnInsert || nvim.cursor.mode != .insert else {
-                    break
-                }
-
                 let mods = kc.modifiers
                 // Passthrough for ⌘-based keyboard shortcuts.
                 guard !mods.contains(.command) else {
@@ -342,7 +331,7 @@ struct LegacyBufferState: BufferState {
                 perform(.nvimStopVisual)
             }
 
-            let selection = ui.selection.adjust(
+            let selection = ui.selection.adjusted(
                 to: enabled ? .insert : nvim.cursor.mode,
                 lines: ui.lines
             )
@@ -431,7 +420,7 @@ struct LegacyBufferState: BufferState {
                 guard !isKeysPassthroughEnabled else {
                     return ui.selection
                 }
-                return ui.selection.adjust(to: mode, lines: ui.lines)
+                return ui.selection.adjusted(to: mode, lines: ui.lines)
             }()
 
             if ui.selection != adjustedSelection {
@@ -464,16 +453,9 @@ struct LegacyBufferState: BufferState {
     }
 }
 
-private extension KeyCombo {
-    static let escape = KeyCombo(.escape)
-    static let cmdZ = KeyCombo(.z, modifiers: .command)
-    static let cmdShiftZ = KeyCombo(.z, modifiers: [.command, .shift])
-    static let cmdV = KeyCombo(.v, modifiers: [.command])
-}
-
 // MARK: Logging
 
-extension LegacyBufferState.EditionToken: LogValueConvertible {
+extension CooperativeBufferState.EditionToken: LogValueConvertible {
     var logValue: LogValue {
         switch self {
         case .free:
@@ -486,19 +468,19 @@ extension LegacyBufferState.EditionToken: LogValueConvertible {
     }
 }
 
-extension LegacyBufferState: LogPayloadConvertible {
+extension CooperativeBufferState: LogPayloadConvertible {
     func logPayload() -> [LogKey: LogValueConvertible] {
         ["token": token, "nvim": nvim, "ui": ui]
     }
 }
 
-extension LegacyBufferState.NvimState: LogPayloadConvertible {
+extension CooperativeBufferState.NvimState: LogPayloadConvertible {
     func logPayload() -> [LogKey: LogValueConvertible] {
         ["lines": lines, "cursor": cursor]
     }
 }
 
-extension LegacyBufferState.UIState: LogPayloadConvertible {
+extension CooperativeBufferState.UIState: LogPayloadConvertible {
     func logPayload() -> [LogKey: LogValueConvertible] {
         ["lines": lines, "selection": selection]
     }

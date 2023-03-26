@@ -57,7 +57,6 @@ public final class NvimBuffer {
         self.delegate = delegate
 
         linesEventPublisher
-            .receive(on: DispatchQueue.main)
             .sink { [unowned self] event in
                 precondition(event.buf == handle)
 

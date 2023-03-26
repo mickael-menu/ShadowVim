@@ -40,6 +40,9 @@ enum NvimControllerError: LocalizedError {
 }
 
 protocol NvimControllerDelegate: AnyObject {
+    /// Nvim sent a UI event through the `redraw` notification.
+    func nvimController(_ nvimController: NvimController, didReceiveUIEvent event: UIEvent)
+
     /// An error occurred.
     func nvimController(_ nvimController: NvimController, didFailWithError error: Error)
 
@@ -150,15 +153,15 @@ final class NvimController {
         // Must be observed before attaching the UI, as the user configuration
         // might perform blocking prompts.
         nvim.redrawPublisher()
-            .assertNoFailure()
-            .sink { [unowned self] event in
-                switch event {
-                case .flush:
-                    break
-                default:
-                    print(event)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                onFailure: { [unowned self] in
+                    delegate?.nvimController(self, didFailWithError: $0)
+                },
+                receiveValue: { [unowned self] event in
+                    delegate?.nvimController(self, didReceiveUIEvent: event)
                 }
-            }
+            )
             .store(in: &subscriptions)
 
         return nvim.attachUI()

@@ -76,46 +76,96 @@ struct UISelection: Equatable {
         )
     }
 
+    func adjusted(to mode: Mode, lines: [String]) -> UISelection {
+        var adjusted = self
+        adjusted.adjust(to: mode, lines: lines)
+        return adjusted
+    }
+
     /// Adjusts this `BufferSelection` to match the given Nvim `mode`.
-    func adjust(to mode: Mode, lines: [String]) -> UISelection {
+    mutating func adjust(to mode: Mode, lines: [String]) {
         guard
             start.line == end.line,
             (start.column ... start.column + 1).contains(end.column),
             lines.indices.contains(start.line)
         else {
-            return self
+            return
         }
 
         switch mode {
         case .insert, .replace:
-            return UISelection(start: start, end: start)
+            end = start
 
         case .visual, .visualLine, .visualBlock, .select, .selectLine, .selectBlock:
             guard !isCollapsed else {
                 fallthrough
             }
-            return UISelection(start: start, end: end)
 
         default:
             let line = lines[start.line]
             if line.isEmpty {
-                return UISelection(
-                    start: start.copy(column: 0),
-                    end: start.copy(column: 1)
-                )
+                start = start.copy(column: 0)
+                end = start.copy(column: 1)
             } else {
-                var start = start
-                start.column = min(start.column, line.count - 1)
-                return UISelection(
-                    start: start,
-                    end: start.moving(column: +1)
-                )
+                start = start.copy(column: min(start.column, line.count - 1))
+                end = start.moving(column: +1)
             }
         }
     }
 }
 
 extension Array where Element == UISelection {
+    /// Converts the given Nvim cursor and visual positions to a list of UI
+    /// selections
+    init(mode: Mode, cursor: BufferPosition, visual: BufferPosition) {
+        switch mode {
+        case .normal:
+            let end = BufferPosition(line: cursor.line, column: cursor.column + 1)
+            self = [UISelection(start: UIPosition(cursor), end: UIPosition(end))]
+
+        case .insert, .replace:
+            let position = UIPosition(cursor)
+            self = [UISelection(start: position, end: position)]
+
+        case .visualBlock, .selectBlock:
+            // Block selections could be implemented using AX's
+            // `selectedTextRanges` (plural). Unfortunately it doesn't seem
+            // to be writable in Xcode... For now blocks are handled as
+            // regular character selection, to see where the blocks start
+            // and end.
+            fallthrough
+
+        case .visual, .select:
+            // FIXME: Only the default `selection` option of `inclusive` is currently supported for the selection feedback. (https://neovim.io/doc/user/options.html#'selection')
+            let start: UIPosition
+            let end: UIPosition
+
+            let cursor = UIPosition(cursor)
+            let visual = UIPosition(visual)
+            if cursor >= visual {
+                start = visual
+                end = cursor.moving(column: +1)
+            } else {
+                start = cursor
+                end = visual.moving(column: +1)
+            }
+            self = [UISelection(start: start, end: end)]
+
+        case .visualLine, .selectLine:
+            let cursor = UIPosition(cursor)
+            let visual = UIPosition(visual)
+            var start = Swift.min(cursor, visual)
+            var end = Swift.max(cursor, visual)
+            start.column = 0
+            end.line += 1
+            end.column = 0
+            self = [UISelection(start: start, end: end)]
+
+        case .cmdline, .hitEnterPrompt, .shell, .terminal:
+            self = []
+        }
+    }
+
     /// Joins noncontiguous selections into a single selection.
     func joined() -> UISelection? {
         guard count > 1 else {

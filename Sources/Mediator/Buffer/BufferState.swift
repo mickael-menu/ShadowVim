@@ -19,6 +19,11 @@ import Foundation
 import Nvim
 import Toolkit
 
+/// State machine handling the state of a single buffer synchronized between the
+/// UI and Nvim.
+///
+/// It is owned and executed by a `BufferMediator` which binds to the events of
+/// the actual Nvim and UI buffers.
 protocol BufferState: Equatable, LogPayloadConvertible {
     mutating func on(_ event: BufferEvent, logger: Logger?) -> [BufferAction]
 }
@@ -170,6 +175,12 @@ struct LoggableBufferState<S: BufferState>: BufferState {
 extension BufferState {
     func loggable(_ logger: Logger?) -> some BufferState {
         LoggableBufferState(state: self, logger: logger)
+    }
+}
+
+extension BufferHost: LogValueConvertible {
+    var logValue: LogValue {
+        .string(rawValue)
     }
 }
 
