@@ -16,6 +16,101 @@
 //
 
 import Foundation
+import Toolkit
+
+enum LinesDiffChange {
+    case insert(index: LineIndex, lines: [String])
+    case remove(indices: ClosedRange<LineIndex>)
+}
+
+extension LinesDiffChange: LogPayloadConvertible {
+    func logPayload() -> [LogKey: LogValueConvertible] {
+        switch self {
+        case let .insert(index, lines):
+            return ["@type": "insert", "index": index, "lines": lines]
+        case let .remove(indices):
+            return ["@type": "remove", "indices": "\(indices.lowerBound)...\(indices.upperBound)"]
+        }
+    }
+}
+
+extension CollectionDifference where ChangeElement == String {
+    func coalesceChanges() -> [LinesDiffChange] {
+        guard !isEmpty else {
+            return []
+        }
+
+        var changes: [LinesDiffChange] = []
+        var firstOffset: Int? = nil
+        var lastOffset: Int? = nil
+        var lines: [String] = []
+
+        for change in removals.reversed() {
+            guard case let .remove(offset, _, _) = change else {
+                assertionFailure("Unexpected change in removals")
+                continue
+            }
+            print(change)
+
+            if offset + 1 == firstOffset {
+                firstOffset = offset
+            } else {
+                flushRemove()
+
+                firstOffset = offset
+                lastOffset = offset
+            }
+        }
+        flushRemove()
+
+        for change in insertions {
+            guard case let .insert(offset, line, _) = change else {
+                assertionFailure("Unexpected change in insertions")
+                continue
+            }
+
+            print(change)
+            if offset - 1 == lastOffset {
+                lastOffset = offset
+                lines.append(line)
+            } else {
+                flushInsert()
+
+                firstOffset = offset
+                lastOffset = offset
+                lines.append(line)
+            }
+        }
+        flushInsert()
+
+        func flushInsert() {
+            guard
+                let first = firstOffset,
+                !lines.isEmpty
+            else {
+                return
+            }
+            changes.append(.insert(index: first, lines: lines))
+            firstOffset = nil
+            lastOffset = nil
+            lines = []
+        }
+
+        func flushRemove() {
+            guard
+                let first = firstOffset,
+                let last = lastOffset
+            else {
+                return
+            }
+            changes.append(.remove(indices: first ... last))
+            firstOffset = nil
+            lastOffset = nil
+        }
+
+        return changes
+    }
+}
 
 extension CollectionDifference {
     /// Returns the offset and new value of the updated item, if there's only

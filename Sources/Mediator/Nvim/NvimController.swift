@@ -214,18 +214,18 @@ final class NvimController {
                         return vim.api.bufSetLines(start: offset, end: offset + 1, replacement: [line])
                     } else {
                         return withAsyncGroup { group in
-                            for change in diff {
+                            for change in diff.coalesceChanges() {
                                 var start: LineIndex
                                 var end: LineIndex
                                 var replacement: [String]
                                 switch change {
-                                case let .insert(offset: offset, element: element, _):
-                                    start = offset
-                                    end = offset
-                                    replacement = [element]
-                                case let .remove(offset: offset, _, _):
-                                    start = offset
-                                    end = offset + 1
+                                case let .insert(index, lines):
+                                    start = index
+                                    end = index
+                                    replacement = lines
+                                case let .remove(indices):
+                                    start = indices.lowerBound
+                                    end = indices.upperBound + 1
                                     replacement = []
                                 }
                                 vim.api.bufSetLines(buffer: buffer.handle, start: start, end: end, replacement: replacement)

@@ -298,28 +298,37 @@ public final class BufferMediator {
     private func updateUIMultipleLines(diff: CollectionDifference<String>, in uiElement: AXUIElement) throws {
         let currentRange: CFRange? = try uiElement.get(.selectedTextRange)
 
-        for change in diff {
+        for change in diff.coalesceChanges() {
             let eof = try (uiElement.get(.numberOfCharacters) as Int?) ?? 0
 
             switch change {
-            case .insert(offset: let offset, element: var element, _):
-                guard let range: CFRange = try uiElement.get(.rangeForLine, with: offset) else {
-                    logger?.w("Failed to insert line at \(offset)")
+            case let .insert(index, lines):
+                var content = lines.joinedLines()
+                guard let range: CFRange = try uiElement.get(.rangeForLine, with: index) else {
+                    logger?.w("Failed to insert lines at \(index)")
                     return
                 }
                 // If the line is not inserted at the end of the file, then
                 // we append a newline to separate it from the next line.
                 if range.location + range.length < eof {
-                    element += "\n"
+                    content += "\n"
                 }
                 try uiElement.set(.selectedTextRange, value: CFRange(location: range.location, length: 0))
-                try uiElement.set(.selectedText, value: element)
+                try uiElement.set(.selectedText, value: content)
 
-            case let .remove(offset: offset, _, _):
-                guard var range: CFRange = try uiElement.get(.rangeForLine, with: offset) else {
-                    logger?.w("Failed to remove line at \(offset)")
+            case let .remove(indices):
+                guard var range: CFRange = try uiElement.get(.rangeForLine, with: indices.lowerBound) else {
+                    logger?.w("Failed to remove lines at \(indices.lowerBound)...\(indices.upperBound)")
                     return
                 }
+                if indices.lowerBound != indices.upperBound {
+                    guard let lastLineRange: CFRange = try uiElement.get(.rangeForLine, with: indices.upperBound) else {
+                        logger?.w("Failed to remove lines at \(indices.lowerBound)...\(indices.upperBound)")
+                        return
+                    }
+                    range = CFRange(location: range.location, length: (lastLineRange.location + lastLineRange.length) - range.location)
+                }
+
                 // If we're removing the last line, then the previous
                 // newline is also removed to avoid keeping an empty
                 // ghost line.
