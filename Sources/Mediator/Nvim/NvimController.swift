@@ -207,22 +207,27 @@ final class NvimController {
     func setLines(in buffer: NvimBuffer, diff: CollectionDifference<String>, cursorPosition: BufferPosition) -> Async<Void, NvimError> {
         vimAtomic(in: buffer) { vim in
             withAsyncGroup { group in
-                for change in diff {
-                    var start: LineIndex
-                    var end: LineIndex
-                    var replacement: [String]
-                    switch change {
-                    case let .insert(offset: offset, element: element, _):
-                        start = offset
-                        end = offset
-                        replacement = [element]
-                    case let .remove(offset: offset, _, _):
-                        start = offset
-                        end = offset + 1
-                        replacement = []
-                    }
-                    vim.api.bufSetLines(buffer: buffer.handle, start: start, end: end, replacement: replacement)
+                if let (offset, line) = diff.updatedSingleItem {
+                    vim.api.bufSetLines(start: offset, end: offset + 1, replacement: [line])
                         .add(to: group)
+                } else {
+                    for change in diff {
+                        var start: LineIndex
+                        var end: LineIndex
+                        var replacement: [String]
+                        switch change {
+                        case let .insert(offset: offset, element: element, _):
+                            start = offset
+                            end = offset
+                            replacement = [element]
+                        case let .remove(offset: offset, _, _):
+                            start = offset
+                            end = offset + 1
+                            replacement = []
+                        }
+                        vim.api.bufSetLines(buffer: buffer.handle, start: start, end: end, replacement: replacement)
+                            .add(to: group)
+                    }
                 }
 
                 vim.api.winSetCursor(position: cursorPosition, failOnInvalidPosition: false)
