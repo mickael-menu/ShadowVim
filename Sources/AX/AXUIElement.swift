@@ -330,6 +330,14 @@ public extension AXUIElement {
         try get(.identifier)
     }
 
+    func value<T>() throws -> T? {
+        try get(.value)
+    }
+
+    func stringValue() -> String? {
+        try? get(.value)
+    }
+
     func parent() -> AXUIElement? {
         try? get(.parent)
     }

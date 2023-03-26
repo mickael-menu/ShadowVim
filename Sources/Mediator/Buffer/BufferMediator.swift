@@ -278,49 +278,63 @@ public final class BufferMediator {
     }
 
     private func updateUILines(diff: CollectionDifference<String>) throws {
-        guard let uiElement = uiElement else {
+        guard
+            !diff.isEmpty,
+            let uiElement = uiElement
+        else {
             return
         }
 
-        if !diff.isEmpty {
-            let currentRange: CFRange? = try uiElement.get(.selectedTextRange)
+        if let (offset, line) = diff.updatedSingleItem {
+            try updateUIOneLine(
+                at: offset,
+                in: uiElement,
+                content: uiElement.stringValue() ?? "",
+                replacement: line
+            )
+        } else {
+            try updateUIMultipleLines(diff: diff, in: uiElement)
+        }
+    }
 
-            for change in diff {
-                let eof = try (uiElement.get(.numberOfCharacters) as Int?) ?? 0
+    private func updateUIMultipleLines(diff: CollectionDifference<String>, in uiElement: AXUIElement) throws {
+        let currentRange: CFRange? = try uiElement.get(.selectedTextRange)
 
-                switch change {
-                case .insert(offset: let offset, element: var element, _):
-                    guard let range: CFRange = try uiElement.get(.rangeForLine, with: offset) else {
-                        logger?.w("Failed to insert line at \(offset)")
-                        return
-                    }
-                    // If the line is not inserted at the end of the file, then
-                    // we append a newline to separate it from the next line.
-                    if range.location + range.length < eof {
-                        element += "\n"
-                    }
-                    try uiElement.set(.selectedTextRange, value: CFRange(location: range.location, length: 0))
-                    try uiElement.set(.selectedText, value: element)
+        for change in diff {
+            let eof = try (uiElement.get(.numberOfCharacters) as Int?) ?? 0
 
-                case let .remove(offset: offset, _, _):
-                    guard var range: CFRange = try uiElement.get(.rangeForLine, with: offset) else {
-                        logger?.w("Failed to remove line at \(offset)")
-                        return
-                    }
-                    // If we're removing the last line, then the previous
-                    // newline is also removed to avoid keeping an empty
-                    // ghost line.
-                    if range.location + range.length == eof, range.location > 0 {
-                        range = CFRange(location: range.location - 1, length: range.length + 1)
-                    }
-                    try uiElement.set(.selectedTextRange, value: range)
-                    try uiElement.set(.selectedText, value: "")
+            switch change {
+            case .insert(offset: let offset, element: var element, _):
+                guard let range: CFRange = try uiElement.get(.rangeForLine, with: offset) else {
+                    logger?.w("Failed to insert line at \(offset)")
+                    return
                 }
-            }
+                // If the line is not inserted at the end of the file, then
+                // we append a newline to separate it from the next line.
+                if range.location + range.length < eof {
+                    element += "\n"
+                }
+                try uiElement.set(.selectedTextRange, value: CFRange(location: range.location, length: 0))
+                try uiElement.set(.selectedText, value: element)
 
-            if let range = currentRange {
+            case let .remove(offset: offset, _, _):
+                guard var range: CFRange = try uiElement.get(.rangeForLine, with: offset) else {
+                    logger?.w("Failed to remove line at \(offset)")
+                    return
+                }
+                // If we're removing the last line, then the previous
+                // newline is also removed to avoid keeping an empty
+                // ghost line.
+                if range.location + range.length == eof, range.location > 0 {
+                    range = CFRange(location: range.location - 1, length: range.length + 1)
+                }
                 try uiElement.set(.selectedTextRange, value: range)
+                try uiElement.set(.selectedText, value: "")
             }
+        }
+
+        if let range = currentRange {
+            try uiElement.set(.selectedTextRange, value: range)
         }
     }
 

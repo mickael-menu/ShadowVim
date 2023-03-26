@@ -110,6 +110,17 @@ struct CooperativeBufferState: BufferState {
         /// Buffer content lines.
         var lines: [String] = []
 
+        var pendingCursor: Cursor? = nil
+        var pendingLines: [String]? = nil
+
+        mutating func flush() {
+            cursor = pendingCursor ?? cursor
+            lines = pendingLines ?? lines
+
+            pendingCursor = nil
+            pendingLines = nil
+        }
+
         /// Converts the current cursor position and visual selection as a
         /// list of selection ranges in the UI buffer.
         func uiSelections() -> [UISelection] {
@@ -196,23 +207,34 @@ struct CooperativeBufferState: BufferState {
             }
 
         case let .nvimBufferDidChange(lines: lines, event: event):
-            nvim.lines = lines
-
-            if tryEdition(from: .nvim) {
-                perform(.uiUpdatePartialLines(event: event))
-                perform(.uiUpdateSelections(nvim.uiSelections()))
-            }
+            nvim.pendingLines = lines
 
         case let .nvimCursorDidChange(cursor):
-            nvim.cursor = cursor
+            nvim.pendingCursor = cursor
+
+        case .nvimDidFlush:
+            let hadPendingLines = nvim.pendingLines != nil
+            let hadPendingCursor = nvim.pendingCursor != nil
+            nvim.flush()
 
             if tryEdition(from: .nvim) {
-                perform(.uiUpdateSelections(nvim.uiSelections()))
-                // Ensures the cursor is always visible by scrolling the UI.
-                if cursor.position.line != cursor.visual.line {
-                    let cursorPosition = UIPosition(cursor.position)
-                    let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
-                    perform(.uiScroll(visibleSelection: visibleSelection))
+                if hadPendingLines {
+                    perform(.uiUpdate(
+                        lines: nvim.lines,
+                        diff: nvim.lines.difference(from: ui.lines),
+                        selections: nvim.uiSelections()
+                    ))
+                } else if hadPendingCursor {
+                    perform(.uiUpdateSelections(nvim.uiSelections()))
+                }
+
+                if hadPendingCursor {
+                    // Ensures the cursor is always visible by scrolling the UI.
+                    if nvim.cursor.position.line != nvim.cursor.visual.line {
+                        let cursorPosition = UIPosition(nvim.cursor.position)
+                        let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
+                        perform(.uiScroll(visibleSelection: visibleSelection))
+                    }
                 }
             }
 
@@ -339,9 +361,6 @@ struct CooperativeBufferState: BufferState {
 
         case let .didFail(error):
             perform(.alert(error))
-
-        default:
-            break
         }
 
         // Syntactic sugar.
