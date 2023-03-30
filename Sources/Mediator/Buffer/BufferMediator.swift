@@ -37,7 +37,7 @@ public final class BufferMediator {
 
     private var state: any BufferState
     private let nvimController: NvimController
-    private let nvimBuffer: NvimBuffer
+    public let nvimBuffer: NvimBuffer
     private let logger: Logger?
     private let timeoutSubject = PassthroughSubject<Void, Never>()
 

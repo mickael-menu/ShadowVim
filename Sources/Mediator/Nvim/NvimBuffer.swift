@@ -25,17 +25,17 @@ protocol BufferDelegate: AnyObject {
 }
 
 /// Represents a live buffer in Nvim.
-public final class NvimBuffer {
+public final class NvimBuffer: ObservableObject {
     typealias ChangeEvent = (lines: [String], event: BufLinesEvent)
 
     /// Nvim buffer handle.
-    let handle: BufferHandle
+    public let handle: BufferHandle
 
     /// Name of the buffer.
-    var name: String?
+    public private(set) var name: String?
 
     /// Current content lines.
-    var lines: [String] = []
+    @Published public private(set) var lines: [String] = []
 
     private let didChangeSubject = PassthroughSubject<ChangeEvent, Never>()
 
@@ -57,6 +57,7 @@ public final class NvimBuffer {
         self.delegate = delegate
 
         linesEventPublisher
+            .receive(on: DispatchQueue.main)
             .sink { [unowned self] event in
                 precondition(event.buf == handle)
 

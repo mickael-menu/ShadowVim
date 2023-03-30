@@ -27,6 +27,11 @@ import Toolkit
 class ShadowVim: ObservableObject {
     @Published var keysPassthrough: Bool = false
 
+    @Published var focusedNvimBuffer: NvimBuffer? = nil
+    private var focusedNvimBufferSubscription: AnyCancellable? = nil
+    @Published var nvimSelectedRanges: [NSRange] = []
+    private var nvimSelectedRangesSubscription: AnyCancellable? = nil
+
     private var mediator: MainMediator?
     private let eventTap = EventTap()
 
@@ -254,6 +259,21 @@ extension ShadowVim: MainMediatorDelegate {
 
             self.presentAlert(error: error, style: critical ? .critical : .warning)
         }
+    }
+
+    func mainMediator(_ mediator: MainMediator, didStartApp app: AppMediator) {
+        focusedNvimBufferSubscription = app.focusedNvimBufferPublisher
+            .receive(on: DispatchQueue.main)
+            .assign(to: \.focusedNvimBuffer, on: self)
+
+        nvimSelectedRangesSubscription = app.nvimSelectedRangesPublisher
+            .receive(on: DispatchQueue.main)
+            .assign(to: \.nvimSelectedRanges, on: self)
+    }
+
+    func mainMediator(_ mediator: MainMediator, didStopApp app: AppMediator) {
+        focusedNvimBufferSubscription = nil
+        nvimSelectedRangesSubscription = nil
     }
 }
 

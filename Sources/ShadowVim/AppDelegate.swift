@@ -16,6 +16,7 @@
 //
 
 import Cocoa
+import Toolkit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private let container = Container()
@@ -28,6 +29,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 //        let cmdline = CmdlineController(frame: NSRect(x: 0, y: 0, width: 480, height: 44))
 //        cmdline.show()
+
+        if Debug.isDebugging {
+            BufferPreviewController(
+                frame: NSRect(x: 0, y: 0, width: 800, height: 500),
+                shadowVim: shadowVim
+            ).show()
+        }
 
         shadowVim.didLaunch()
     }

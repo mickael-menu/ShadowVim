@@ -23,6 +23,8 @@ import Toolkit
 
 public protocol MainMediatorDelegate: AnyObject {
     func mainMediator(_ mediator: MainMediator, didFailWithError error: Error)
+    func mainMediator(_ mediator: MainMediator, didStartApp app: AppMediator)
+    func mainMediator(_ mediator: MainMediator, didStopApp app: AppMediator)
 }
 
 private typealias BundleID = String
@@ -87,6 +89,7 @@ public final class MainMediator {
 
         for (_, app) in apps {
             app.stop()
+            delegate?.mainMediator(self, didStopApp: app)
         }
 
         subscriptions = []
@@ -131,15 +134,21 @@ public final class MainMediator {
 
         let mediator = appMediatorFactory(app)
         mediator.delegate = appDelegates[id] ?? self
-        Task { await mediator.start() }
+        Task {
+            await mediator.start()
+            delegate?.mainMediator(self, didStartApp: mediator)
+        }
         apps[app.processIdentifier] = mediator
         return mediator
     }
 
     private func terminate(app: NSRunningApplication) {
         precondition(Thread.isMainThread)
-        let mediator = apps.removeValue(forKey: app.processIdentifier)
-        mediator?.stop()
+        guard let mediator = apps.removeValue(forKey: app.processIdentifier) else {
+            return
+        }
+        mediator.stop()
+        delegate?.mainMediator(self, didStopApp: mediator)
     }
 }
 

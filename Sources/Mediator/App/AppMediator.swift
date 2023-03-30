@@ -149,6 +149,14 @@ public final class AppMediator {
     private func on(_ event: AppState.Event) {
         precondition(Thread.isMainThread)
         state.on(event, logger: logger)
+
+        focusedNvimBuffer.value = {
+            if case let .focused(buffer) = state {
+                return buffer.nvimBuffer
+            } else {
+                return nil
+            }
+        }()
     }
 
     private func synchronizeFocusedBuffer(source: BufferHost) {
@@ -156,6 +164,27 @@ public final class AppMediator {
             buffer.synchronize(source: source)
         }
     }
+
+    // MARK: - Focused buffer and cursor
+
+    private let focusedNvimBuffer = CurrentValueSubject<NvimBuffer?, Never>(nil)
+    public lazy var focusedNvimBufferPublisher: AnyPublisher<NvimBuffer?, Never> =
+        focusedNvimBuffer.eraseToAnyPublisher()
+
+    public lazy var nvimSelectedRangesPublisher: AnyPublisher<[NSRange], Never> =
+        nvimController.cursorPublisher()
+            .map { [weak self] _, cursor in
+                guard let lines = self?.focusedNvimBuffer.value?.lines else {
+                    return []
+                }
+
+                return [UISelection](
+                    mode: cursor.mode,
+                    cursor: cursor.position,
+                    visual: cursor.visual
+                ).compactMap { $0.range(in: lines) }
+            }
+            .ignoreFailure()
 
     // MARK: - Input handling
 
