@@ -16,12 +16,20 @@
 //
 
 import Cocoa
+import Combine
 import Toolkit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private let container = Container()
 
     var shadowVim: ShadowVim { container.shadowVim }
+
+    lazy var bufferPreviewController = BufferPreviewController(
+        frame: NSRect(x: 0, y: 0, width: 800, height: 500),
+        shadowVim: shadowVim
+    )
+
+    private var subscriptions = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Prevent showing the menu bar and dock icon.
@@ -30,12 +38,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 //        let cmdline = CmdlineController(frame: NSRect(x: 0, y: 0, width: 480, height: 44))
 //        cmdline.show()
 
-        if Debug.isDebugging {
-            BufferPreviewController(
-                frame: NSRect(x: 0, y: 0, width: 800, height: 500),
-                shadowVim: shadowVim
-            ).show()
-        }
+        shadowVim.$showNvimBufferPreview
+            .sink { [bufferPreviewController] show in
+                if show {
+                    bufferPreviewController.show()
+                } else {
+                    bufferPreviewController.close()
+                }
+            }
+            .store(in: &subscriptions)
 
         shadowVim.didLaunch()
     }

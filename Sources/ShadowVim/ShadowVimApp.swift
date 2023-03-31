@@ -50,7 +50,8 @@ struct ShadowVimApp: SwiftUI.App {
 
             if Debug.isDebugging {
                 Button("Verbose logging") { shadowVim.setVerboseLogger() }
-                    .keyboardShortcut("/", modifiers: [.control, .option, .command])
+
+                PreviewNvimBufferButton(shadowVim: shadowVim)
             }
 
             Divider()
@@ -68,6 +69,14 @@ struct ShadowVimApp: SwiftUI.App {
             Button("Quit ShadowVim") { shadowVim.quit() }
                 .keyboardShortcut("q")
         }
+    }
+}
+
+struct PreviewNvimBufferButton: View {
+    @ObservedObject var shadowVim: ShadowVim
+
+    var body: some View {
+        Toggle("Preview Nvim Buffer", isOn: $shadowVim.showNvimBufferPreview)
     }
 }
 

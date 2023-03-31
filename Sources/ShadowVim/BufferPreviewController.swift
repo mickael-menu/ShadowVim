@@ -113,7 +113,10 @@ struct TextView: NSViewRepresentable {
             return
         }
 
-        textView.string = buffer.lines.joinedLines() + "∅"
+        let content = buffer.lines.joinedLines() + "∅"
+        if textView.string != content {
+            textView.string = content
+        }
 
         DispatchQueue.main.async {
             if !selectedRanges.isEmpty {
