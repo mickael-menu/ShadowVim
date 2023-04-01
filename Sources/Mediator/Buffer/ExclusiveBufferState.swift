@@ -84,8 +84,9 @@ struct ExclusiveBufferState: BufferState {
     /// Represents the current state of the UI buffer, accessed through the
     /// accessibility APIs (AX).
     struct UIState: Equatable {
-        var selection: UISelection = .init()
         var lines: [String] = []
+        var selection: UISelection = .init()
+        var pendingSelection: UISelection? = nil
     }
 
     /// Some apps (like Xcode) systematically add an empty line at the end of a
@@ -103,8 +104,8 @@ struct ExclusiveBufferState: BufferState {
         var actions: [BufferAction] = []
 
         switch event {
-        case let .nvimBufferDidChange(lines: lines, event: event):
-            nvim.pendingLines = lines
+        case let .nvimLinesDidChange(event):
+            nvim.pendingLines = event.applyChanges(in: nvim.pendingLines ?? nvim.lines)
 
         case let .nvimCursorDidChange(cursor):
             nvim.pendingMode = cursor.mode
@@ -123,7 +124,11 @@ struct ExclusiveBufferState: BufferState {
                 }
 
                 if hadPendingCursorPosition || hadPendingVisualPosition {
-                    perform(.uiUpdateSelections(nvim.uiSelections()))
+                    let selections = nvim.uiSelections()
+                    if let selection = selections.first, ui.selection != selection {
+                        ui.pendingSelection = selection
+                        perform(.uiUpdateSelections(selections))
+                    }
                 }
             }
 
@@ -155,17 +160,25 @@ struct ExclusiveBufferState: BufferState {
             ui.lines = lines
 
         case let .uiSelectionDidChange(selection):
-            // Ignore the selection change if it's identical, to avoid adjusting
-            // the selection several times in a row.
+            guard ui.pendingSelection != selection else {
+                ui.pendingSelection = nil
+                ui.selection = selection
+                break
+            }
             guard ui.selection != selection else {
                 break
             }
+
             if isLeftMouseButtonDown {
                 isSelecting = true
             } else {
-                ui.selection = selection.adjusted(to: nvim.mode, lines: ui.lines)
-
-                let start = BufferPosition(ui.selection.start)
+                let adjustedSelection = selection.adjusted(to: nvim.mode, lines: ui.lines)
+                if ui.selection != adjustedSelection {
+                    ui.pendingSelection = adjustedSelection
+                    perform(.uiUpdateSelections([adjustedSelection]))
+                }
+                
+                let start = BufferPosition(adjustedSelection.start)
                 if nvim.cursorPosition != start {
                     perform(.nvimMoveCursor(start))
                 }
@@ -256,7 +269,10 @@ struct ExclusiveBufferState: BufferState {
                 to: enabled ? .insert : nvim.mode,
                 lines: ui.lines
             )
-            perform(.uiUpdateSelections([selection]))
+            if ui.selection != selection {
+                ui.pendingSelection = selection
+                perform(.uiUpdateSelections([selection]))
+            }
 
         case let .didFail(error):
             perform(.alert(error))
@@ -310,6 +326,10 @@ extension ExclusiveBufferState.NvimState: LogPayloadConvertible {
 
 extension ExclusiveBufferState.UIState: LogPayloadConvertible {
     func logPayload() -> [LogKey: LogValueConvertible] {
-        ["lines": lines, "selection": selection]
+        [
+            "lines": lines,
+            "selection": selection,
+            "pendingSelection": pendingSelection
+        ]
     }
 }

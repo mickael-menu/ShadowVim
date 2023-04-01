@@ -206,8 +206,8 @@ struct CooperativeBufferState: BufferState {
                 synchronize(source: source)
             }
 
-        case let .nvimBufferDidChange(lines: lines, event: event):
-            nvim.pendingLines = lines
+        case let .nvimLinesDidChange(event):
+            nvim.pendingLines = event.applyChanges(in: nvim.pendingLines ?? nvim.lines)
 
         case let .nvimCursorDidChange(cursor):
             nvim.pendingCursor = cursor

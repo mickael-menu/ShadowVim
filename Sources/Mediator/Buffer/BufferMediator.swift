@@ -77,12 +77,12 @@ public final class BufferMediator {
 
         subscribeToElementChanges(uiElement)
 
-        nvimBuffer.didChangePublisher
+        nvimBuffer.linesEventPublisher
             .receive(on: DispatchQueue.main)
             .sink(
                 onFailure: { [unowned self] in fail($0) },
                 receiveValue: { [unowned self] in
-                    on(.nvimBufferDidChange(lines: $0.lines, event: $0.event))
+                    on(.nvimLinesDidChange($0))
                 }
             )
             .store(in: &subscriptions)

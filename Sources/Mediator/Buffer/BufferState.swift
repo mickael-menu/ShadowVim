@@ -43,8 +43,8 @@ enum BufferEvent: Equatable {
     /// `source` host for the source of truth of the content.
     case didRequestRefresh(source: BufferHost)
 
-    /// The Nvim buffer changed and sent a `BufLinesEvent`.
-    case nvimBufferDidChange(lines: [String], event: BufLinesEvent)
+    /// The Nvim buffer lines changed.
+    case nvimLinesDidChange(BufLinesEvent)
 
     /// The Nvim cursor moved or changed its mode.
     case nvimCursorDidChange(Cursor)
@@ -180,8 +180,8 @@ extension BufferEvent: LogPayloadConvertible {
             return "didTimeout"
         case .didRequestRefresh:
             return "userDidRequestRefresh"
-        case .nvimBufferDidChange:
-            return "nvimBufferDidChange"
+        case .nvimLinesDidChange:
+            return "nvimLinesDidChange"
         case .nvimCursorDidChange:
             return "nvimCursorDidChange"
         case .nvimDidFlush:
@@ -207,7 +207,7 @@ extension BufferEvent: LogPayloadConvertible {
         switch self {
         case let .didRequestRefresh(source: source):
             return source.rawValue
-        case .nvimBufferDidChange(lines: _, event: let event):
+        case let .nvimLinesDidChange(event):
             return "\(event.firstLine)-\(event.lastLine) (\(event.lineData.count) lines)"
         case let .nvimCursorDidChange(cursor):
             return "\(cursor.mode.rawValue) .\(cursor.position.line):\(cursor.position.column) v\(cursor.visual.line):\(cursor.visual.column)"
@@ -236,8 +236,8 @@ extension BufferEvent: LogPayloadConvertible {
             return [.name: name]
         case let .didRequestRefresh(source: source):
             return [.name: name, "source": source.rawValue]
-        case let .nvimBufferDidChange(lines: newLines, event: event):
-            return [.name: name, "newLines": newLines, "event": event]
+        case let .nvimLinesDidChange(event):
+            return [.name: name, "event": event]
         case let .nvimCursorDidChange(cursor):
             return [.name: name, "cursor": cursor]
         case let .uiDidFocus(lines: lines, selection: selection):

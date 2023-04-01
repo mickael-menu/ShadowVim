@@ -26,8 +26,6 @@ protocol BufferDelegate: AnyObject {
 
 /// Represents a live buffer in Nvim.
 public final class NvimBuffer: ObservableObject {
-    typealias ChangeEvent = (lines: [String], event: BufLinesEvent)
-
     /// Nvim buffer handle.
     public let handle: BufferHandle
 
@@ -37,14 +35,10 @@ public final class NvimBuffer: ObservableObject {
     /// Current content lines.
     @Published public private(set) var lines: [String] = []
 
-    private let didChangeSubject = PassthroughSubject<ChangeEvent, Never>()
-
-    lazy var didChangePublisher: AnyPublisher<ChangeEvent, Never> =
-        didChangeSubject.eraseToAnyPublisher()
-
-    private var subscriptions: Set<AnyCancellable> = []
+    public let linesEventPublisher: AnyPublisher<BufLinesEvent, Never>
 
     weak var delegate: BufferDelegate?
+    private var subscriptions = Set<AnyCancellable>()
 
     init(
         handle: BufferHandle,
@@ -55,17 +49,12 @@ public final class NvimBuffer: ObservableObject {
         self.handle = handle
         self.name = name
         self.delegate = delegate
-
+        self.linesEventPublisher = linesEventPublisher
+            
         linesEventPublisher
             .receive(on: DispatchQueue.main)
             .sink { [unowned self] event in
-                precondition(event.buf == handle)
-
                 lines = event.applyChanges(in: lines)
-                didChangeSubject.send((
-                    lines: lines,
-                    event: event
-                ))
             }
             .store(in: &subscriptions)
     }
