@@ -91,8 +91,8 @@ struct TextView: NSViewRepresentable {
         frame.size.width = 1000
 
         let textView = NSTextView(frame: frame)
-        textView.isEditable = false
-        textView.isSelectable = false
+        // textView.isEditable = false
+        // textView.isSelectable = false
         textView.autoresizingMask = [.height]
 
         textView.font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)

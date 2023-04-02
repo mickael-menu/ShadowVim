@@ -50,7 +50,7 @@ public final class NvimBuffer: ObservableObject {
         self.name = name
         self.delegate = delegate
         self.linesEventPublisher = linesEventPublisher
-            
+
         linesEventPublisher
             .receive(on: DispatchQueue.main)
             .sink { [unowned self] event in

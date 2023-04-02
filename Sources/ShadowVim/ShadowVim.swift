@@ -202,27 +202,26 @@ class ShadowVim: ObservableObject {
         sound.stop()
         sound.play()
     }
-    
+
     // MARK: - Nvim Buffer Preview
 
     @Published var focusedNvimBuffer: NvimBuffer? = nil
     @Published var nvimSelectedRanges: [NSRange] = []
-    
-    
+
     @Published var showNvimBufferPreview: Bool = false {
         didSet {
             Task { await setupNvimBufferPreview() }
         }
     }
-    
+
     private var app: AppMediator? = nil {
         didSet {
             Task { await setupNvimBufferPreview() }
         }
     }
-    
+
     private var nvimBufferPreviewSubscriptions = Set<AnyCancellable>()
-    
+
     @MainActor
     private func setupNvimBufferPreview() {
         if showNvimBufferPreview, let app = app {

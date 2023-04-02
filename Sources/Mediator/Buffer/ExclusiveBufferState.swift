@@ -114,8 +114,10 @@ struct ExclusiveBufferState: BufferState {
 
         case .nvimDidFlush:
             let hadPendingLines = nvim.pendingLines != nil
-            let hadPendingCursorPosition = nvim.pendingCursorPosition != nil
-            let hadPendingVisualPosition = nvim.pendingVisualPosition != nil
+            let hadPendingPositions =
+                nvim.pendingCursorPosition != nil ||
+                nvim.pendingVisualPosition != nil
+
             nvim.flush()
 
             if source == .nvim {
@@ -123,12 +125,10 @@ struct ExclusiveBufferState: BufferState {
                     perform(.uiUpdateLines(nvim.lines))
                 }
 
-                if hadPendingCursorPosition || hadPendingVisualPosition {
+                if hadPendingPositions {
                     let selections = nvim.uiSelections()
-                    if let selection = selections.first, ui.selection != selection {
-                        ui.pendingSelection = selection
-                        perform(.uiUpdateSelections(selections))
-                    }
+                    ui.pendingSelection = selections.first
+                    perform(.uiUpdateSelections(selections))
                 }
             }
 
@@ -177,7 +177,7 @@ struct ExclusiveBufferState: BufferState {
                     ui.pendingSelection = adjustedSelection
                     perform(.uiUpdateSelections([adjustedSelection]))
                 }
-                
+
                 let start = BufferPosition(adjustedSelection.start)
                 if nvim.cursorPosition != start {
                     perform(.nvimMoveCursor(start))
@@ -329,7 +329,7 @@ extension ExclusiveBufferState.UIState: LogPayloadConvertible {
         [
             "lines": lines,
             "selection": selection,
-            "pendingSelection": pendingSelection
+            "pendingSelection": pendingSelection,
         ]
     }
 }

@@ -70,9 +70,9 @@ public final class BufferMediator {
         self.uiElement = uiElement
         self.logger = logger
 
-        state = CooperativeBufferState(
+        state = ExclusiveBufferState(
             nvim: .init(lines: nvimBuffer.lines),
-            ui: .init(lines: (try? uiElement.lines()) ?? [])
+            ui: .init(lines: uiElement.lines())
         ).loggable(logger)
 
         subscribeToElementChanges(uiElement)
@@ -177,7 +177,7 @@ public final class BufferMediator {
 
         element.publisher(for: .valueChanged)
             .receive(on: DispatchQueue.main)
-            .tryMap { try $0.lines() }
+            .map { $0.lines() }
             .sink(
                 onFailure: { [unowned self] in fail($0) },
                 receiveValue: { [unowned self] in
@@ -296,11 +296,8 @@ public final class BufferMediator {
     }
 
     private func updateUIMultipleLines(diff: CollectionDifference<String>, in uiElement: AXUIElement) throws {
-        let currentRange: CFRange? = try uiElement.get(.selectedTextRange)
-
         for change in diff.coalesceChanges() {
             let eof = try (uiElement.get(.numberOfCharacters) as Int?) ?? 0
-
             switch change {
             case let .insert(index, lines):
                 var content = lines.joinedLines()
@@ -310,11 +307,12 @@ public final class BufferMediator {
                 }
                 // If the line is not inserted at the end of the file, then
                 // we append a newline to separate it from the next line.
-                if range.location + range.length < eof {
+                if range.location < eof {
                     content += "\n"
                 }
-                try uiElement.set(.selectedTextRange, value: CFRange(location: range.location, length: 0))
-                try uiElement.set(.selectedText, value: content)
+
+                let editRange = CFRange(location: range.location, length: 0)
+                try uiElement.replaceText(in: editRange, with: content)
 
             case let .remove(indices):
                 guard var range: CFRange = try uiElement.get(.rangeForLine, with: indices.lowerBound) else {
@@ -335,13 +333,8 @@ public final class BufferMediator {
                 if range.location + range.length == eof, range.location > 0 {
                     range = CFRange(location: range.location - 1, length: range.length + 1)
                 }
-                try uiElement.set(.selectedTextRange, value: range)
-                try uiElement.set(.selectedText, value: "")
+                try uiElement.replaceText(in: range, with: "")
             }
-        }
-
-        if let range = currentRange {
-            try uiElement.set(.selectedTextRange, value: range)
         }
     }
 
@@ -366,14 +359,7 @@ public final class BufferMediator {
             return
         }
 
-        let currentRange: CFRange? = try element.get(.selectedTextRange)
-
-        try element.set(.selectedTextRange, value: range.cfRange(in: content))
-        try element.set(.selectedText, value: replacement)
-
-        if let currentRange = currentRange {
-            try element.set(.selectedTextRange, value: currentRange)
-        }
+        try element.replaceText(in: range.cfRange(in: content), with: replacement)
     }
 
     // Optimizes changing only the tail of a line, to avoid refreshing the whole
@@ -402,14 +388,7 @@ public final class BufferMediator {
             replacement = ""
         }
 
-        let currentRange: CFRange? = try element.get(.selectedTextRange)
-
-        try element.set(.selectedTextRange, value: range)
-        try element.set(.selectedText, value: replacement)
-
-        if let currentRange = currentRange {
-            try element.set(.selectedTextRange, value: currentRange)
-        }
+        try element.replaceText(in: range, with: replacement)
     }
 
     private func updateUISelections(_ selections: [UISelection]) throws {
@@ -457,8 +436,12 @@ public final class BufferMediator {
 private extension AXUIElement {
     /// Returns the string value of the receiving accessibility element split as
     /// lines.
-    func lines() throws -> [String] {
-        try (get(.value) as String?).map { $0.lines.map { String($0) } } ?? []
+    func lines() -> [String] {
+        guard let text = stringValue() else {
+            return []
+        }
+
+        return text.lines.map { String($0) }
     }
 
     /// Returns the UI selection of the receiving accessibility element.
