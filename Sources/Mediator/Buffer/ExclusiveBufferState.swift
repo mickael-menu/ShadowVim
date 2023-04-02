@@ -131,11 +131,9 @@ struct ExclusiveBufferState: BufferState {
                     perform(.uiUpdateSelections(selections))
 
                     // Ensures the cursor is always visible by scrolling the UI.
-                    if nvim.cursorPosition.line != nvim.visualPosition.line {
-                        let cursorPosition = UIPosition(nvim.cursorPosition)
-                        let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
-                        perform(.uiScroll(visibleSelection))
-                    }
+                    let cursorPosition = UIPosition(nvim.cursorPosition)
+                    let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
+                    perform(.uiScroll(visibleSelection))
                 }
             }
 
@@ -175,16 +173,18 @@ struct ExclusiveBufferState: BufferState {
             guard ui.selection != selection else {
                 break
             }
+            ui.selection = selection
 
             if isLeftMouseButtonDown {
                 isSelecting = true
             } else {
                 let adjustedSelection = selection.adjusted(to: nvim.mode, lines: ui.lines)
-                if ui.selection != adjustedSelection {
-                    ui.pendingSelection = adjustedSelection
-                    perform(.uiUpdateSelections([adjustedSelection]))
+                guard ui.selection != adjustedSelection else {
+                    break
                 }
-
+                ui.pendingSelection = adjustedSelection
+                perform(.uiUpdateSelections([adjustedSelection]))
+            
                 let start = BufferPosition(adjustedSelection.start)
                 if nvim.cursorPosition != start {
                     perform(.nvimMoveCursor(start))
