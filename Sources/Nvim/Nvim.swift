@@ -209,6 +209,7 @@ public final class Nvim {
     /// When `unpack` is provided, the argument values will be unpacked to the
     /// expected types.
     public func autoCmdPublisher<UnpackedValue>(
+        name: String? = nil,
         for events: String...,
         args: String...,
         unpack: @escaping ([Value]) -> UnpackedValue? = { $0 }
@@ -216,7 +217,7 @@ public final class Nvim {
         guard case let .started(state) = state else {
             return .fail(.notStarted)
         }
-        return state.events.autoCmdPublisher(for: events, args: args, unpack: unpack)
+        return state.events.autoCmdPublisher(name: name, for: events, args: args, unpack: unpack)
             .eraseToAnyPublisher()
     }
 

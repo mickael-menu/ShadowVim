@@ -64,10 +64,11 @@ public class EventDispatcher {
     }
 
     public func autoCmdPublisher(
+        name: String? = nil,
         for events: [String],
         args: [String]
     ) -> AnyPublisher<[Value], NvimError> {
-        let eventName = "autocmd-\(UUID().uuidString)"
+        let eventName = "autocmd-\(name ?? UUID().uuidString)"
 
         var autocmdID: AutocmdID?
         let mediator = EventMediator(
@@ -110,11 +111,12 @@ public class EventDispatcher {
     }
 
     public func autoCmdPublisher<UnpackedValue>(
+        name: String? = nil,
         for events: [String],
         args: [String],
         unpack: @escaping ([Value]) -> UnpackedValue?
     ) -> AnyPublisher<UnpackedValue, NvimError> {
-        autoCmdPublisher(for: events, args: args)
+        autoCmdPublisher(name: name, for: events, args: args)
             .flatMap { data -> AnyPublisher<UnpackedValue, NvimError> in
                 guard let payload = unpack(data) else {
                     let event = events.joined(separator: ", ")

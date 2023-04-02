@@ -41,7 +41,7 @@ public final class NvimBuffers {
     }
 
     public func start() {
-        nvim.autoCmdPublisher(for: "BufEnter", args: "expand('<abuf>')")
+        nvim.autoCmdPublisher(name: "enter-buf", for: "BufEnter", args: "expand('<abuf>')")
             .assertNoFailure()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] data in

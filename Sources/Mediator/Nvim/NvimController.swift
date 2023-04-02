@@ -171,6 +171,7 @@ final class NvimController {
     /// changes.
     func cursorPublisher() -> AnyPublisher<(BufferHandle, Cursor), NvimError> {
         nvim.autoCmdPublisher(
+            name: "cursor",
             for: "ModeChanged", "CursorMoved", "CursorMovedI",
             args: "bufnr()", "mode()", "getcharpos('.')", "getcharpos('v')",
             unpack: { params -> (BufferHandle, Cursor)? in
@@ -183,7 +184,6 @@ final class NvimController {
                 else {
                     return nil
                 }
-
                 let cursor = Cursor(
                     mode: Mode(rawValue: mode) ?? .normal,
                     position: position.position,
