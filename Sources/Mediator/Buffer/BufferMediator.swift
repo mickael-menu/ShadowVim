@@ -167,8 +167,12 @@ public final class BufferMediator {
     func nvimDidFlush() {
         on(.nvimDidFlush)
     }
+    
+    func nvimModeDidChange(_ mode: Mode) {
+        on(.nvimModeDidChange(mode))
+    }
 
-    func nvimCursorDidChange(_ cursor: Cursor) {
+    func nvimCursorDidChange(_ cursor: NvimCursor) {
         on(.nvimCursorDidChange(cursor))
     }
 

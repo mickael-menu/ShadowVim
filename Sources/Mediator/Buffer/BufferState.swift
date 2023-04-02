@@ -45,10 +45,14 @@ enum BufferEvent: Equatable {
 
     /// The Nvim buffer lines changed.
     case nvimLinesDidChange(BufLinesEvent)
+    
+    /// The Nvim mode changed.
+    case nvimModeDidChange(Mode)
 
     /// The Nvim cursor moved or changed its mode.
-    case nvimCursorDidChange(Cursor)
+    case nvimCursorDidChange(NvimCursor)
 
+    /// Nvim requested to render the pending UI changes.
     case nvimDidFlush
 
     /// The UI buffer regained focus.
@@ -182,6 +186,8 @@ extension BufferEvent: LogPayloadConvertible {
             return "userDidRequestRefresh"
         case .nvimLinesDidChange:
             return "nvimLinesDidChange"
+        case .nvimModeDidChange:
+            return "nvimModeDidChange"
         case .nvimCursorDidChange:
             return "nvimCursorDidChange"
         case .nvimDidFlush:
@@ -209,8 +215,10 @@ extension BufferEvent: LogPayloadConvertible {
             return source.rawValue
         case let .nvimLinesDidChange(event):
             return "\(event.firstLine)-\(event.lastLine) (\(event.lineData.count) lines)"
+        case let .nvimModeDidChange(mode):
+            return mode.rawValue
         case let .nvimCursorDidChange(cursor):
-            return "\(cursor.mode.rawValue) .\(cursor.position.line):\(cursor.position.column) v\(cursor.visual.line):\(cursor.visual.column)"
+            return ".\(cursor.cursor.line):\(cursor.cursor.column) v\(cursor.visual.line):\(cursor.visual.column)"
         case let .uiSelectionDidChange(selection):
             return "\(selection.start.line):\(selection.start.column)...\(selection.end.line):\(selection.end.column)"
         case let .uiDidReceiveKeyEvent(kc, character: _):
@@ -238,6 +246,8 @@ extension BufferEvent: LogPayloadConvertible {
             return [.name: name, "source": source.rawValue]
         case let .nvimLinesDidChange(event):
             return [.name: name, "event": event]
+        case let .nvimModeDidChange(mode):
+            return [.name: name, "mode": mode]
         case let .nvimCursorDidChange(cursor):
             return [.name: name, "cursor": cursor]
         case let .uiDidFocus(lines: lines, selection: selection):

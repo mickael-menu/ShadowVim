@@ -50,7 +50,6 @@ extension CollectionDifference where ChangeElement == String {
                 assertionFailure("Unexpected change in removals")
                 continue
             }
-            print(change)
 
             if offset + 1 == firstOffset {
                 firstOffset = offset
@@ -69,7 +68,6 @@ extension CollectionDifference where ChangeElement == String {
                 continue
             }
 
-            print(change)
             if offset - 1 == lastOffset {
                 lastOffset = offset
                 lines.append(line)

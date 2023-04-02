@@ -124,7 +124,7 @@ public final class AppMediator {
 
             try await nvimController.start()
             try eventSource.start()
-            setupCursorSync()
+            setupNvimSync()
             setupFocusSync()
 
             on(.didStart)
@@ -172,15 +172,15 @@ public final class AppMediator {
         focusedNvimBuffer.eraseToAnyPublisher()
 
     public lazy var nvimSelectedRangesPublisher: AnyPublisher<[NSRange], Never> =
-        nvimController.cursorPublisher()
-            .map { [weak self] _, cursor in
+        nvimController.modeAndCursorPublisher
+            .map { [weak self] (mode, cursor) in
                 guard let lines = self?.focusedNvimBuffer.value?.lines else {
                     return []
                 }
 
                 return [UISelection](
-                    mode: cursor.mode,
-                    cursor: cursor.position,
+                    mode: mode,
+                    cursor: cursor.cursor,
                     visual: cursor.visual
                 ).compactMap { $0.range(in: lines) }
             }
@@ -245,17 +245,20 @@ public final class AppMediator {
         }
     }
 
-    // MARK: - Cursor synchronization
+    // MARK: - Nvim mode and cursor synchronization
 
-    private func setupCursorSync() {
-        nvimController.cursorPublisher()
+    private func setupNvimSync() {
+        nvimController.modeAndCursorPublisher
             .receive(on: DispatchQueue.main)
             .sink(
                 onFailure: { [unowned self] error in
                     delegate?.appMediator(self, didFailWithError: error)
                 },
-                receiveValue: { [unowned self] buffer, cursor in
-                    bufferMediator(for: buffer)?.nvimCursorDidChange(cursor)
+                receiveValue: { [unowned self] (mode, cursor) in
+                    for (_, buffer) in bufferMediators {
+                        buffer.nvimModeDidChange(mode)
+                    }
+                    bufferMediator(for: cursor.buffer)?.nvimCursorDidChange(cursor)
                 }
             )
             .store(in: &subscriptions)

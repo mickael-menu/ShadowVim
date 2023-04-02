@@ -54,6 +54,37 @@ protocol NvimControllerDelegate: AnyObject {
     func nvimController(_ nvimController: NvimController, press notation: Notation) -> Bool
 }
 
+struct NvimCursor: Equatable {
+    /// Buffer the cursor is focused in.
+    public var buffer: BufferHandle
+
+    /// The cursor position.
+    public var cursor: BufferPosition
+
+    /// The start of the visual area.
+    ///
+    /// When not in Visual or Select mode, this is the same as the cursor
+    /// `position`.
+    public var visual: BufferPosition
+
+    public init(
+        buffer: BufferHandle,
+        cursor: BufferPosition = BufferPosition(),
+        visual: BufferPosition = BufferPosition()
+    ) {
+        self.buffer = buffer
+        self.cursor = cursor
+        self.visual = visual
+    }
+}
+
+extension NvimCursor: LogPayloadConvertible {
+    public func logPayload() -> [LogKey: LogValueConvertible] {
+        ["buffer": buffer, "cursor": cursor, "visual": visual]
+    }
+}
+
+
 /// Manages the Nvim instance and offers a high-level API to manipulate it.
 final class NvimController {
     weak var delegate: NvimControllerDelegate?
@@ -167,32 +198,36 @@ final class NvimController {
         return nvim.attachUI()
     }
 
-    /// This publisher is used to observe the Neovim selection and mode
+    /// This publisher is used to observe the Neovim mode and cursor position
     /// changes.
-    func cursorPublisher() -> AnyPublisher<(BufferHandle, Cursor), NvimError> {
+    ///
+    /// The mode and the cursor must be observed together otherwise it causes
+    /// synchronization issue with `flush` called before the cursor is updated.
+    lazy var modeAndCursorPublisher: AnyPublisher<(Mode, NvimCursor), NvimError> =
         nvim.autoCmdPublisher(
-            name: "cursor",
+            name: "mode-cursor",
             for: "ModeChanged", "CursorMoved", "CursorMovedI",
-            args: "bufnr()", "mode()", "getcharpos('.')", "getcharpos('v')",
-            unpack: { params -> (BufferHandle, Cursor)? in
+            args: "bufnr()", "mode(1)", "getcharpos('.')", "getcharpos('v')",
+            unpack: { params -> (Mode, NvimCursor)? in
                 guard
                     params.count == 4,
                     let buffer: BufferHandle = params[0].intValue,
                     let mode = params[1].stringValue,
-                    let position = BuiltinFunctions.GetposResult(params[2]),
+                    let cursor = BuiltinFunctions.GetposResult(params[2]),
                     let visual = BuiltinFunctions.GetposResult(params[3])
                 else {
                     return nil
                 }
-                let cursor = Cursor(
-                    mode: Mode(rawValue: mode) ?? .normal,
-                    position: position.position,
-                    visual: visual.position
+                return (
+                    Mode(rawValue: mode) ?? .normal,
+                    NvimCursor(
+                        buffer: buffer,
+                        cursor: cursor.position,
+                        visual: visual.position
+                    )
                 )
-                return (buffer, cursor)
             }
         )
-    }
 
     // MARK: - API
 

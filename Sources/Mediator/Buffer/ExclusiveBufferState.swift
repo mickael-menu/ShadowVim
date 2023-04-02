@@ -106,18 +106,25 @@ struct ExclusiveBufferState: BufferState {
         switch event {
         case let .nvimLinesDidChange(event):
             nvim.pendingLines = event.applyChanges(in: nvim.pendingLines ?? nvim.lines)
+            
+        case let .nvimModeDidChange(mode):
+            guard nvim.mode != mode else {
+                break
+            }
+            nvim.pendingMode = mode
 
         case let .nvimCursorDidChange(cursor):
-            nvim.pendingMode = cursor.mode
-            nvim.pendingCursorPosition = cursor.position
+            nvim.pendingCursorPosition = cursor.cursor
             nvim.pendingVisualPosition = cursor.visual
 
         case .nvimDidFlush:
+            let hadPendingMode = nvim.pendingMode != nil
             let hadPendingLines = nvim.pendingLines != nil
             let hadPendingPositions =
                 nvim.pendingCursorPosition != nil ||
                 nvim.pendingVisualPosition != nil
 
+            let oldMode = nvim.mode
             nvim.flush()
 
             if source == .nvim {
@@ -125,7 +132,7 @@ struct ExclusiveBufferState: BufferState {
                     perform(.uiUpdateLines(nvim.lines))
                 }
 
-                if hadPendingPositions {
+                if hadPendingMode || hadPendingPositions {
                     let selections = nvim.uiSelections()
                     ui.pendingSelection = selections.first
                     perform(.uiUpdateSelections(selections))
@@ -137,11 +144,14 @@ struct ExclusiveBufferState: BufferState {
                 }
             }
 
-            switch nvim.mode {
-            case .insert, .replace:
-                source = .ui
-            default:
-                source = .nvim
+            if hadPendingMode {
+                switch nvim.mode {
+                // case .insert where !oper, .replace where !oper:
+                case .insert, .replace:
+                    source = .ui
+                default:
+                    source = .nvim
+                }
             }
 
         case let .uiDidFocus(lines: lines, selection: selection):

@@ -67,6 +67,7 @@ public struct BufferPosition: Equatable, Comparable {
 /// https://neovim.io/doc/user/builtin.html#mode()
 public enum Mode: String, Equatable {
     case normal = "n"
+    case operatorPending = "no"
     case visual = "v"
     case visualLine = "V"
     case visualBlock = "\u{16}" // Ctrl-V
@@ -79,29 +80,15 @@ public enum Mode: String, Equatable {
     case hitEnterPrompt = "r"
     case shell = "!"
     case terminal = "t"
-}
-
-public struct Cursor: Equatable {
-    /// The current mode.
-    public var mode: Mode
-
-    /// The cursor position.
-    public var position: BufferPosition
-
-    /// The start of the visual area.
-    ///
-    /// When not in Visual or Select mode, this is the same as the cursor
-    /// `position`.
-    public var visual: BufferPosition
-
-    public init(
-        mode: Mode,
-        position: BufferPosition = BufferPosition(),
-        visual: BufferPosition = BufferPosition()
-    ) {
-        self.mode = mode
-        self.position = position
-        self.visual = visual
+    
+    public init?(name: String) {
+        if name.hasPrefix("no") {
+            self = .operatorPending
+        } else if let name = name.first.map(String.init) {
+            self.init(rawValue: name)
+        } else {
+            return nil
+        }
     }
 }
 
@@ -116,11 +103,5 @@ extension Mode: LogValueConvertible {
 extension BufferPosition: LogPayloadConvertible {
     public func logPayload() -> [LogKey: LogValueConvertible] {
         ["line": line, "column": column]
-    }
-}
-
-extension Cursor: LogPayloadConvertible {
-    public func logPayload() -> [LogKey: LogValueConvertible] {
-        ["position": position, "mode": mode.rawValue]
     }
 }

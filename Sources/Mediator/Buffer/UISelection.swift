@@ -142,7 +142,7 @@ extension Array where Element == UISelection {
     /// selections
     init(mode: Mode, cursor: BufferPosition, visual: BufferPosition) {
         switch mode {
-        case .normal:
+        case .normal, .operatorPending:
             let end = BufferPosition(line: cursor.line, column: cursor.column + 1)
             self = [UISelection(start: UIPosition(cursor), end: UIPosition(end))]
 
