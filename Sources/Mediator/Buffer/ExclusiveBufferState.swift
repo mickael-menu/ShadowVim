@@ -129,6 +129,13 @@ struct ExclusiveBufferState: BufferState {
                     let selections = nvim.uiSelections()
                     ui.pendingSelection = selections.first
                     perform(.uiUpdateSelections(selections))
+
+                    // Ensures the cursor is always visible by scrolling the UI.
+                    if nvim.cursorPosition.line != nvim.visualPosition.line {
+                        let cursorPosition = UIPosition(nvim.cursorPosition)
+                        let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
+                        perform(.uiScroll(visibleSelection))
+                    }
                 }
             }
 
