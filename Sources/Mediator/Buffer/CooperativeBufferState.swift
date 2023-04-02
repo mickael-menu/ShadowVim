@@ -124,52 +124,7 @@ struct CooperativeBufferState: BufferState {
         /// Converts the current cursor position and visual selection as a
         /// list of selection ranges in the UI buffer.
         func uiSelections() -> [UISelection] {
-            switch cursor.mode {
-            case .normal:
-                let end = BufferPosition(line: cursor.position.line, column: cursor.position.column + 1)
-                return [UISelection(start: UIPosition(cursor.position), end: UIPosition(end))]
-
-            case .insert, .replace:
-                let position = UIPosition(cursor.position)
-                return [UISelection(start: position, end: position)]
-
-            case .visualBlock, .selectBlock:
-                // Block selections could be implemented using AX's
-                // `selectedTextRanges` (plural). Unfortunately it doesn't seem
-                // to be writable in Xcode... For now blocks are handled as
-                // regular character selection, to see where the blocks start
-                // and end.
-                fallthrough
-
-            case .visual, .select:
-                // FIXME: Only the default `selection` option of `inclusive` is currently supported for the selection feedback. (https://neovim.io/doc/user/options.html#'selection')
-                let start: UIPosition
-                let end: UIPosition
-
-                let position = UIPosition(cursor.position)
-                let visual = UIPosition(cursor.visual)
-                if position >= visual {
-                    start = visual
-                    end = position.moving(column: +1)
-                } else {
-                    start = position
-                    end = visual.moving(column: +1)
-                }
-                return [UISelection(start: start, end: end)]
-
-            case .visualLine, .selectLine:
-                let position = UIPosition(cursor.position)
-                let visual = UIPosition(cursor.visual)
-                var start = min(position, visual)
-                var end = max(position, visual)
-                start.column = 0
-                end.line += 1
-                end.column = 0
-                return [UISelection(start: start, end: end)]
-
-            case .cmdline, .hitEnterPrompt, .shell, .terminal:
-                return []
-            }
+            .init(mode: cursor.mode, cursor: cursor.position, visual: cursor.visual)
         }
     }
 

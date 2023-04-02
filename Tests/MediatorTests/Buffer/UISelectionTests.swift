@@ -17,6 +17,7 @@
 
 @testable import Mediator
 import XCTest
+import Nvim
 
 final class UISelectionTests: XCTestCase {
     let lines = [
@@ -32,7 +33,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustInsertAlreadyLength0() {
         let sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 5)
         XCTAssertEqual(
-            sel.adjust(to: .insert, lines: lines),
+            sel.adjusted(to: .insert, lines: lines),
             sel
         )
     }
@@ -41,7 +42,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustInsertCollapsesLength1() {
         let sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 6)
         XCTAssertEqual(
-            sel.adjust(to: .insert, lines: lines),
+            sel.adjusted(to: .insert, lines: lines),
             sel.copy(endColumn: 5)
         )
     }
@@ -51,7 +52,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustInsertIgnoresLengthMoreThan1() {
         let sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 7)
         XCTAssertEqual(
-            sel.adjust(to: .insert, lines: lines),
+            sel.adjusted(to: .insert, lines: lines),
             sel
         )
     }
@@ -59,7 +60,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustInsertIgnoresLengthMoreThan1TwoLines() {
         let sel = UISelection(startLine: 0, col: 5, endLine: 1, col: 2)
         XCTAssertEqual(
-            sel.adjust(to: .insert, lines: lines),
+            sel.adjusted(to: .insert, lines: lines),
             sel
         )
     }
@@ -68,7 +69,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustInsertEmptyLine() {
         let sel = UISelection(startLine: 3, col: 0, endLine: 3, col: 0)
         XCTAssertEqual(
-            sel.adjust(to: .insert, lines: lines),
+            sel.adjusted(to: .insert, lines: lines),
             sel
         )
     }
@@ -79,7 +80,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustReplaceAlreadyLength0() {
         let sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 5)
         XCTAssertEqual(
-            sel.adjust(to: .replace, lines: lines),
+            sel.adjusted(to: .replace, lines: lines),
             sel
         )
     }
@@ -88,7 +89,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustReplaceCollapsesLength1() {
         let sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 6)
         XCTAssertEqual(
-            sel.adjust(to: .replace, lines: lines),
+            sel.adjusted(to: .replace, lines: lines),
             sel.copy(endColumn: 5)
         )
     }
@@ -98,7 +99,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustReplaceIgnoresLengthMoreThan1() {
         let sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 7)
         XCTAssertEqual(
-            sel.adjust(to: .replace, lines: lines),
+            sel.adjusted(to: .replace, lines: lines),
             sel
         )
     }
@@ -106,7 +107,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustReplaceIgnoresLengthMoreThan1TwoLines() {
         let sel = UISelection(startLine: 0, col: 5, endLine: 1, col: 2)
         XCTAssertEqual(
-            sel.adjust(to: .replace, lines: lines),
+            sel.adjusted(to: .replace, lines: lines),
             sel
         )
     }
@@ -115,7 +116,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustReplaceEmptyLine() {
         let sel = UISelection(startLine: 3, col: 0, endLine: 3, col: 0)
         XCTAssertEqual(
-            sel.adjust(to: .replace, lines: lines),
+            sel.adjusted(to: .replace, lines: lines),
             sel
         )
     }
@@ -126,19 +127,19 @@ final class UISelectionTests: XCTestCase {
     func testAdjustNormalAlreadyLength1() {
         var sel = UISelection(startLine: 0, col: 0, endLine: 0, col: 1)
         XCTAssertEqual(
-            sel.adjust(to: .normal, lines: lines),
+            sel.adjusted(to: .normal, lines: lines),
             sel
         )
 
         sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 6)
         XCTAssertEqual(
-            sel.adjust(to: .normal, lines: lines),
+            sel.adjusted(to: .normal, lines: lines),
             sel
         )
 
         sel = UISelection(startLine: 0, col: 18, endLine: 0, col: 19)
         XCTAssertEqual(
-            sel.adjust(to: .normal, lines: lines),
+            sel.adjusted(to: .normal, lines: lines),
             sel
         )
     }
@@ -147,7 +148,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustNormalExpandLength0StartOfLine() {
         let sel = UISelection(startLine: 0, col: 0, endLine: 0, col: 0)
         XCTAssertEqual(
-            sel.adjust(to: .normal, lines: lines),
+            sel.adjusted(to: .normal, lines: lines),
             sel.copy(endColumn: 1)
         )
     }
@@ -156,7 +157,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustNormalExpandLength0MiddleOfLine() {
         let sel = UISelection(startLine: 0, col: 4, endLine: 0, col: 4)
         XCTAssertEqual(
-            sel.adjust(to: .normal, lines: lines),
+            sel.adjusted(to: .normal, lines: lines),
             sel.copy(endColumn: 5)
         )
     }
@@ -165,7 +166,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustNormalExpandLength0EndOfLine() {
         let sel = UISelection(startLine: 0, col: 19, endLine: 0, col: 19)
         XCTAssertEqual(
-            sel.adjust(to: .normal, lines: lines),
+            sel.adjusted(to: .normal, lines: lines),
             sel.copy(startColumn: 18)
         )
     }
@@ -174,7 +175,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustNormalExpandLength0PastEndOfLine() {
         let sel = UISelection(startLine: 0, col: 25, endLine: 0, col: 25)
         XCTAssertEqual(
-            sel.adjust(to: .normal, lines: lines),
+            sel.adjusted(to: .normal, lines: lines),
             sel.copy(
                 startColumn: 18,
                 endColumn: 19
@@ -187,7 +188,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustNormalIgnoresLengthMoreThan1() {
         let sel = UISelection(startLine: 0, col: 5, endLine: 0, col: 7)
         XCTAssertEqual(
-            sel.adjust(to: .normal, lines: lines),
+            sel.adjusted(to: .normal, lines: lines),
             sel
         )
     }
@@ -195,7 +196,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustNormalIgnoresLengthMoreThan1TwoLines() {
         let sel = UISelection(startLine: 0, col: 5, endLine: 1, col: 2)
         XCTAssertEqual(
-            sel.adjust(to: .normal, lines: lines),
+            sel.adjusted(to: .normal, lines: lines),
             sel
         )
     }
@@ -204,7 +205,7 @@ final class UISelectionTests: XCTestCase {
     func testAdjustNormalEmptyLine() {
         let sel = UISelection(startLine: 3, col: 0, endLine: 3, col: 0)
         XCTAssertEqual(
-            sel.adjust(to: .normal, lines: lines),
+            sel.adjusted(to: .normal, lines: lines),
             sel.copy(endColumn: 1)
         )
     }
@@ -245,6 +246,187 @@ final class UISelectionTests: XCTestCase {
         )
     }
 }
+
+final class UISelectionArrayTests: XCTestCase {
+    let lines = [
+        "func helloWorld() -> Bool {",
+        "    print(\"Hello, world\")",
+        "    return true",
+        "}",
+    ]
+
+    // In Normal mode, only the cursor position is used and a padding is added
+    // to form a 1-character block.
+    func testSelectionsForNormalMode() {
+        XCTAssertEqual(
+            [UISelection](
+                mode: .normal,
+                cursor: BufferPosition(line: 2, column: 3),
+                visual: BufferPosition(line: 2, column: 3)
+            ),
+            [
+                UISelection(
+                    start: UIPosition(line: 1, column: 2),
+                    end: UIPosition(line: 1, column: 3)
+                ),
+            ]
+        )
+    }
+
+    // In Insert or Replace modes, only the cursor position is used for the
+    // selection.
+    func testSelectionsForInsertOrReplaceModes() {
+        func test(_ mode: Mode) {
+            XCTAssertEqual(
+                [UISelection](
+                    mode: mode,
+                    cursor: BufferPosition(line: 2, column: 3),
+                    visual: BufferPosition(line: 3, column: 5)
+                ),
+                [
+                    UISelection(
+                        start: UIPosition(line: 1, column: 2),
+                        end: UIPosition(line: 1, column: 2)
+                    ),
+                ]
+            )
+        }
+
+        test(.insert)
+        test(.replace)
+    }
+
+    // In Visual or Select modes, the cursor and visual positions are sorted
+    // and a padding is added to always have a selection of at least one
+    // character.
+    func testSelectionsForVisualOrSelectModes() {
+        func test(_ mode: Mode) {
+            // Equal cursor and visual positions.
+            XCTAssertEqual(
+                [UISelection](
+                    mode: mode,
+                    cursor: BufferPosition(line: 2, column: 3),
+                    visual: BufferPosition(line: 2, column: 3)
+                ),
+                [
+                    UISelection(
+                        start: UIPosition(line: 1, column: 2),
+                        end: UIPosition(line: 1, column: 3)
+                    ),
+                ]
+            )
+
+            // Cursor before visual.
+            XCTAssertEqual(
+                [UISelection](
+                    mode: mode,
+                    cursor: BufferPosition(line: 1, column: 5),
+                    visual: BufferPosition(line: 2, column: 3)
+                ),
+                [
+                    UISelection(
+                        start: UIPosition(line: 0, column: 4),
+                        end: UIPosition(line: 1, column: 3)
+                    ),
+                ]
+            )
+
+            // Cursor after visual.
+            XCTAssertEqual(
+                [UISelection](
+                    mode: mode,
+                    cursor: BufferPosition(line: 3, column: 2),
+                    visual: BufferPosition(line: 2, column: 3)
+                ),
+                [
+                    UISelection(
+                        start: UIPosition(line: 1, column: 2),
+                        end: UIPosition(line: 2, column: 2)
+                    ),
+                ]
+            )
+        }
+
+        test(.visual)
+        test(.select)
+        test(.visualBlock)
+        test(.selectBlock)
+    }
+
+    /// In Visual or Select Line Modes, the visual and cursor positions are
+    /// sorted and extended to fit their line contents.
+    func testSelectionsForVisualOrSelectLineModes() {
+        func test(_ mode: Mode) {
+            // Equal cursor and visual positions.
+            XCTAssertEqual(
+                [UISelection](
+                    mode: mode,
+                    cursor: BufferPosition(line: 2, column: 3),
+                    visual: BufferPosition(line: 2, column: 3)
+                ),
+                [
+                    UISelection(
+                        start: UIPosition(line: 1, column: 0),
+                        end: UIPosition(line: 2, column: 0)
+                    ),
+                ]
+            )
+
+            // Cursor before visual.
+            XCTAssertEqual(
+                [UISelection](
+                    mode: mode,
+                    cursor: BufferPosition(line: 1, column: 5),
+                    visual: BufferPosition(line: 2, column: 3)
+                ),
+                [
+                    UISelection(
+                        start: UIPosition(line: 0, column: 0),
+                        end: UIPosition(line: 2, column: 0)
+                    ),
+                ]
+            )
+
+            // Cursor after visual.
+            XCTAssertEqual(
+                [UISelection](
+                    mode: mode,
+                    cursor: BufferPosition(line: 3, column: 2),
+                    visual: BufferPosition(line: 2, column: 3)
+                ),
+                [
+                    UISelection(
+                        start: UIPosition(line: 1, column: 0),
+                        end: UIPosition(line: 3, column: 0)
+                    ),
+                ]
+            )
+        }
+
+        test(.visualLine)
+        test(.selectLine)
+    }
+
+    /// With other modes, no selections is generated.
+    func testOtherModes() {
+        func test(_ mode: Mode) {
+            XCTAssertEqual(
+                [UISelection](
+                    mode: mode,
+                    cursor: BufferPosition(line: 2, column: 3),
+                    visual: BufferPosition(line: 2, column: 3)
+                ),
+                []
+            )
+        }
+
+        test(.cmdline)
+        test(.hitEnterPrompt)
+        test(.shell)
+        test(.terminal)
+    }
+}
+
 
 extension UISelection {
     init(
