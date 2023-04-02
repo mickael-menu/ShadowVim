@@ -179,12 +179,12 @@ struct ExclusiveBufferState: BufferState {
                 isSelecting = true
             } else {
                 let adjustedSelection = selection.adjusted(to: nvim.mode, lines: ui.lines)
-                guard ui.selection != adjustedSelection else {
-                    break
-                }
-                ui.pendingSelection = adjustedSelection
-                perform(.uiUpdateSelections([adjustedSelection]))
             
+                if ui.selection != adjustedSelection {
+                    ui.pendingSelection = adjustedSelection
+                    perform(.uiUpdateSelections([adjustedSelection]))
+                }
+                
                 let start = BufferPosition(adjustedSelection.start)
                 if nvim.cursorPosition != start {
                     perform(.nvimMoveCursor(start))
