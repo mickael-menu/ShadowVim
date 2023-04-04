@@ -216,7 +216,13 @@ map zR <Cmd>SVPress <LT>M-S-D-Right><CR>
 You can get pretty creative with key bindings. Here's one opening [Sourcetree](https://www.sourcetreeapp.com/) with <kbd>&lt;leader>st</kbd> for the current Git repository, using `!` to execute a shell command and `%` to get the path of the edited file.
 
 ```viml
-map <leader>st <Cmd>!stree %<CR>
+map <leader>st <Cmd>silent !stree %<CR>
+```
+
+This keybinding opens a new iTerm tab at the root of the Git repository for the current buffer.
+
+```viml
+map <leader>sh <Cmd>silent !open -a iTerm `(cd %:p:h;git rev-parse --show-toplevel)`<CR>
 ```
 
 ## Attributions
