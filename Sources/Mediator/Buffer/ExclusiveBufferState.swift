@@ -126,25 +126,20 @@ struct ExclusiveBufferState: BufferState {
 
             let oldMode = nvim.mode
             nvim.flush()
+           
+            var needsUpdateUISelections = false
 
             if source == .nvim {
+                needsUpdateUISelections = hadPendingPositions
+                
                 if hadPendingLines {
                     perform(.uiUpdateLines(nvim.lines))
                 }
-
-                if hadPendingMode || hadPendingPositions {
-                    let selections = nvim.uiSelections()
-                    ui.pendingSelection = selections.first
-                    perform(.uiUpdateSelections(selections))
-
-                    // Ensures the cursor is always visible by scrolling the UI.
-                    let cursorPosition = UIPosition(nvim.cursorPosition)
-                    let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
-                    perform(.uiScroll(visibleSelection))
-                }
             }
-
+            
             if hadPendingMode {
+                needsUpdateUISelections = true
+                
                 switch nvim.mode {
                 // case .insert where !oper, .replace where !oper:
                 case .insert, .replace:
@@ -153,6 +148,18 @@ struct ExclusiveBufferState: BufferState {
                     source = .nvim
                 }
             }
+            
+            if needsUpdateUISelections {
+                let selections = nvim.uiSelections()
+                ui.pendingSelection = selections.first
+                perform(.uiUpdateSelections(selections))
+
+                // Ensures the cursor is always visible by scrolling the UI.
+                let cursorPosition = UIPosition(nvim.cursorPosition)
+                let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
+                perform(.uiScroll(visibleSelection))
+            }
+
 
         case let .uiDidFocus(lines: lines, selection: selection):
             let selection = selection.adjusted(to: nvim.mode, lines: lines)
