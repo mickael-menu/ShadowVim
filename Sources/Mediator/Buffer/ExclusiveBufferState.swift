@@ -86,7 +86,10 @@ struct ExclusiveBufferState: BufferState {
     struct UIState: Equatable {
         var lines: [String] = []
         var selection: UISelection = .init()
-        var pendingSelection: UISelection? = nil
+        
+        /// A new UI selection change was requested.
+        /// When true, the next `uiSelectionDidChange` will be ignored.
+        var hasPendingSelection: Bool = false
     }
 
     /// Some apps (like Xcode) systematically add an empty line at the end of a
@@ -151,7 +154,7 @@ struct ExclusiveBufferState: BufferState {
             
             if needsUpdateUISelections {
                 let selections = nvim.uiSelections()
-                ui.pendingSelection = selections.first
+                ui.hasPendingSelection = true
                 perform(.uiUpdateSelections(selections))
 
                 // Ensures the cursor is always visible by scrolling the UI.
@@ -182,14 +185,14 @@ struct ExclusiveBufferState: BufferState {
             ui.lines = lines
 
         case let .uiSelectionDidChange(selection):
-            guard ui.pendingSelection != selection else {
-                ui.pendingSelection = nil
-                ui.selection = selection
+            guard
+                !ui.hasPendingSelection,
+                ui.selection != selection
+            else {
+                ui.hasPendingSelection = false
                 break
             }
-            guard ui.selection != selection else {
-                break
-            }
+            
             ui.selection = selection
 
             if isLeftMouseButtonDown {
@@ -198,7 +201,7 @@ struct ExclusiveBufferState: BufferState {
                 let adjustedSelection = selection.adjusted(to: nvim.mode, lines: ui.lines)
             
                 if ui.selection != adjustedSelection {
-                    ui.pendingSelection = adjustedSelection
+                    ui.hasPendingSelection = true
                     perform(.uiUpdateSelections([adjustedSelection]))
                 }
                 
@@ -294,7 +297,7 @@ struct ExclusiveBufferState: BufferState {
                 lines: ui.lines
             )
             if ui.selection != selection {
-                ui.pendingSelection = selection
+                ui.hasPendingSelection = true
                 perform(.uiUpdateSelections([selection]))
             }
 
@@ -353,7 +356,7 @@ extension ExclusiveBufferState.UIState: LogPayloadConvertible {
         [
             "lines": lines,
             "selection": selection,
-            "pendingSelection": pendingSelection,
+            "hasPendingSelection": hasPendingSelection,
         ]
     }
 }
