@@ -153,9 +153,7 @@ struct ExclusiveBufferState: BufferState {
             }
             
             if needsUpdateUISelections {
-                let selections = nvim.uiSelections()
-                ui.hasPendingSelection = true
-                perform(.uiUpdateSelections(selections))
+                uiUpdateSelections(nvim.uiSelections())
 
                 // Ensures the cursor is always visible by scrolling the UI.
                 let cursorPosition = UIPosition(nvim.cursorPosition)
@@ -199,11 +197,7 @@ struct ExclusiveBufferState: BufferState {
                 isSelecting = true
             } else {
                 let adjustedSelection = selection.adjusted(to: nvim.mode, lines: ui.lines)
-            
-                if ui.selection != adjustedSelection {
-                    ui.hasPendingSelection = true
-                    perform(.uiUpdateSelections([adjustedSelection]))
-                }
+                uiUpdateSelections([adjustedSelection])
                 
                 let start = BufferPosition(adjustedSelection.start)
                 if nvim.cursorPosition != start {
@@ -296,10 +290,7 @@ struct ExclusiveBufferState: BufferState {
                 to: enabled ? .insert : nvim.mode,
                 lines: ui.lines
             )
-            if ui.selection != selection {
-                ui.hasPendingSelection = true
-                perform(.uiUpdateSelections([selection]))
-            }
+            uiUpdateSelections([selection])
 
         case let .didFail(error):
             perform(.alert(error))
@@ -322,6 +313,15 @@ struct ExclusiveBufferState: BufferState {
                 // the selection, so we need to shift it.
                 end: BufferPosition(selection.end.moving(column: -1))
             ))
+        }
+        
+        func uiUpdateSelections(_ selections: [UISelection]) {
+            guard ui.selection != selections.first else {
+                return
+            }
+
+            ui.hasPendingSelection = true
+            perform(.uiUpdateSelections(selections))
         }
 
         return actions
