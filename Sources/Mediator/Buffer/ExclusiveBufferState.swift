@@ -144,9 +144,13 @@ struct ExclusiveBufferState: BufferState {
                 needsUpdateUISelections = true
                 
                 switch nvim.mode {
-                // case .insert where !oper, .replace where !oper:
                 case .insert, .replace:
-                    source = .ui
+                    // When the Insert mode started from an Operator-pending
+                    // mode, then we let Nvim handle the Insert commands.
+                    // This is a workaround for an issue with Dot-repeat, see
+                    // https://github.com/vscode-neovim/vscode-neovim/issues/76#issuecomment-562902179
+                    source = (oldMode == .operatorPending) ? .nvim : .ui
+                    
                 default:
                     source = .nvim
                 }
@@ -183,11 +187,12 @@ struct ExclusiveBufferState: BufferState {
             ui.lines = lines
 
         case let .uiSelectionDidChange(selection):
-            guard
-                !ui.hasPendingSelection,
-                ui.selection != selection
-            else {
+            guard !ui.hasPendingSelection else {
                 ui.hasPendingSelection = false
+                ui.selection = selection
+                break
+            }
+            guard ui.selection != selection else {
                 break
             }
             
@@ -218,7 +223,9 @@ struct ExclusiveBufferState: BufferState {
             case .cmdV:
                 // We override the system paste behavior to improve performance
                 // and nvim's undo history.
-                perform(.nvimPaste)
+                if source == .nvim {
+                    perform(.nvimPaste)
+                }
 
             default:
                 guard source == .nvim else {
