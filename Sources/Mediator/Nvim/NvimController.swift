@@ -112,7 +112,10 @@ final class NvimController {
     }
 
     func start() async throws {
-        try nvim.start(headless: false)
+        try nvim.start(
+            headless: false,
+            listen: Debug.isDebugging ? "/tmp/shadowvim.pipe" : nil
+        )
         buffers.start()
 
         try await setupUserCommands()

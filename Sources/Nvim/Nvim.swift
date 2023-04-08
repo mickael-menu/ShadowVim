@@ -97,7 +97,14 @@ public final class Nvim {
     }
 
     /// Starts the Nvim process.
-    public func start(headless: Bool = false) throws {
+    ///
+    /// - Parameter listen: Listen to remote RPC connection on the given pipe or
+    ///   TCP address. This can be used to debug the embedded Nvim instance
+    ///   using for example: nvim --server /tmp/shadowvim.pipe --remote-ui
+    public func start(
+        headless: Bool = false,
+        listen: String? = nil
+    ) throws {
         try $state.write {
             guard case .stopped = $0 else {
                 throw NvimError.alreadyStarted
@@ -127,6 +134,11 @@ public final class Nvim {
 
             if headless {
                 args.append("--headless")
+            }
+            
+            if let listen = listen {
+                args.append("--listen")
+                args.append(listen)
             }
 
             process.arguments = args
