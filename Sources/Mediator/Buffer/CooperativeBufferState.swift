@@ -186,7 +186,7 @@ struct CooperativeBufferState: BufferState {
             let hadPendingCursor =
                 nvim.pendingCursorPosition != nil ||
                 nvim.pendingVisualPosition != nil
-                
+
             nvim.flush()
 
             if tryEdition(from: .nvim) {
@@ -329,7 +329,7 @@ struct CooperativeBufferState: BufferState {
 
         case let .didFail(error):
             perform(.alert(error))
-            
+
         default:
             break
         }

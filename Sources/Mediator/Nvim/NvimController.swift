@@ -84,7 +84,6 @@ extension NvimCursor: LogPayloadConvertible {
     }
 }
 
-
 /// Manages the Nvim instance and offers a high-level API to manipulate it.
 final class NvimController {
     weak var delegate: NvimControllerDelegate?

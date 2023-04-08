@@ -202,44 +202,6 @@ class ShadowVim: ObservableObject {
         sound.stop()
         sound.play()
     }
-
-    // MARK: - Nvim Buffer Preview
-
-    @Published var focusedNvimBuffer: NvimBuffer? = nil
-    @Published var nvimSelectedRanges: [NSRange] = []
-
-    @Published var showNvimBufferPreview: Bool = false {
-        didSet {
-            Task { await setupNvimBufferPreview() }
-        }
-    }
-
-    private var app: AppMediator? = nil {
-        didSet {
-            Task { await setupNvimBufferPreview() }
-        }
-    }
-
-    private var nvimBufferPreviewSubscriptions = Set<AnyCancellable>()
-
-    @MainActor
-    private func setupNvimBufferPreview() {
-        if showNvimBufferPreview, let app = app {
-            app.focusedNvimBufferPublisher
-                .receive(on: DispatchQueue.main)
-                .assign(to: \.focusedNvimBuffer, on: self)
-                .store(in: &nvimBufferPreviewSubscriptions)
-
-            app.nvimSelectedRangesPublisher
-                .receive(on: DispatchQueue.main)
-                .assign(to: \.nvimSelectedRanges, on: self)
-                .store(in: &nvimBufferPreviewSubscriptions)
-        } else {
-            focusedNvimBuffer = nil
-            nvimSelectedRanges = []
-            nvimBufferPreviewSubscriptions.removeAll()
-        }
-    }
 }
 
 extension ShadowVim: EventTapDelegate {
@@ -292,14 +254,6 @@ extension ShadowVim: MainMediatorDelegate {
 
             self.presentAlert(error: error, style: critical ? .critical : .warning)
         }
-    }
-
-    func mainMediator(_ mediator: MainMediator, didStartApp app: AppMediator) {
-        self.app = app
-    }
-
-    func mainMediator(_ mediator: MainMediator, didStopApp app: AppMediator) {
-        self.app = nil
     }
 }
 

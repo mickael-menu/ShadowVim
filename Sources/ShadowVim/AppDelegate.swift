@@ -24,29 +24,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     var shadowVim: ShadowVim { container.shadowVim }
 
-    lazy var bufferPreviewController = BufferPreviewController(
-        frame: NSRect(x: 0, y: 0, width: 800, height: 500),
-        shadowVim: shadowVim
-    )
-
-    private var subscriptions = Set<AnyCancellable>()
-
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Prevent showing the menu bar and dock icon.
 //        NSApp.setActivationPolicy(.accessory)
 
 //        let cmdline = CmdlineController(frame: NSRect(x: 0, y: 0, width: 480, height: 44))
 //        cmdline.show()
-
-        shadowVim.$showNvimBufferPreview
-            .sink { [bufferPreviewController] show in
-                if show {
-                    bufferPreviewController.show()
-                } else {
-                    bufferPreviewController.close()
-                }
-            }
-            .store(in: &subscriptions)
 
         shadowVim.didLaunch()
     }

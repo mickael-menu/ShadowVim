@@ -86,7 +86,7 @@ struct ExclusiveBufferState: BufferState {
     struct UIState: Equatable {
         var lines: [String] = []
         var selection: UISelection = .init()
-        
+
         /// A new UI selection change was requested.
         /// When true, the next `uiSelectionDidChange` will be ignored.
         var hasPendingSelection: Bool = false
@@ -109,7 +109,7 @@ struct ExclusiveBufferState: BufferState {
         switch event {
         case let .nvimLinesDidChange(event):
             nvim.pendingLines = event.applyChanges(in: nvim.pendingLines ?? nvim.lines)
-            
+
         case let .nvimModeDidChange(mode):
             guard nvim.mode != mode else {
                 break
@@ -129,20 +129,20 @@ struct ExclusiveBufferState: BufferState {
 
             let oldMode = nvim.mode
             nvim.flush()
-           
+
             var needsUpdateUISelections = false
 
             if source == .nvim {
                 needsUpdateUISelections = hadPendingPositions
-                
+
                 if hadPendingLines {
                     perform(.uiUpdateLines(nvim.lines))
                 }
             }
-            
+
             if hadPendingMode {
                 needsUpdateUISelections = true
-                
+
                 switch nvim.mode {
                 case .insert, .replace:
                     // When the Insert mode started from an Operator-pending
@@ -150,12 +150,12 @@ struct ExclusiveBufferState: BufferState {
                     // This is a workaround for an issue with Dot-repeat, see
                     // https://github.com/vscode-neovim/vscode-neovim/issues/76#issuecomment-562902179
                     source = (oldMode == .operatorPending) ? .nvim : .ui
-                    
+
                 default:
                     source = .nvim
                 }
             }
-            
+
             if needsUpdateUISelections {
                 uiUpdateSelections(nvim.uiSelections())
 
@@ -164,7 +164,6 @@ struct ExclusiveBufferState: BufferState {
                 let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
                 perform(.uiScroll(visibleSelection))
             }
-
 
         case let .uiDidFocus(lines: lines, selection: selection):
             let selection = selection.adjusted(to: nvim.mode, lines: lines)
@@ -195,7 +194,7 @@ struct ExclusiveBufferState: BufferState {
             guard ui.selection != selection else {
                 break
             }
-            
+
             ui.selection = selection
 
             if isLeftMouseButtonDown {
@@ -203,7 +202,7 @@ struct ExclusiveBufferState: BufferState {
             } else {
                 let adjustedSelection = selection.adjusted(to: nvim.mode, lines: ui.lines)
                 uiUpdateSelections([adjustedSelection])
-                
+
                 let start = BufferPosition(adjustedSelection.start)
                 if nvim.cursorPosition != start {
                     perform(.nvimMoveCursor(start))
@@ -321,7 +320,7 @@ struct ExclusiveBufferState: BufferState {
                 end: BufferPosition(selection.end.moving(column: -1))
             ))
         }
-        
+
         func uiUpdateSelections(_ selections: [UISelection]) {
             guard ui.selection != selections.first else {
                 return

@@ -37,7 +37,7 @@ public final class BufferMediator {
 
     private var state: any BufferState
     private let nvimController: NvimController
-    public let nvimBuffer: NvimBuffer
+    private let nvimBuffer: NvimBuffer
     private let logger: Logger?
     private let timeoutSubject = PassthroughSubject<Void, Never>()
 
@@ -167,7 +167,7 @@ public final class BufferMediator {
     func nvimDidFlush() {
         on(.nvimDidFlush)
     }
-    
+
     func nvimModeDidChange(_ mode: Mode) {
         on(.nvimModeDidChange(mode))
     }

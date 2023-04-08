@@ -80,7 +80,7 @@ public enum Mode: String, Equatable {
     case hitEnterPrompt = "r"
     case shell = "!"
     case terminal = "t"
-    
+
     public init?(name: String) {
         if name.hasPrefix("no") {
             self = .operatorPending

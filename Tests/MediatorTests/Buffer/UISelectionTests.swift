@@ -16,8 +16,8 @@
 //
 
 @testable import Mediator
-import XCTest
 import Nvim
+import XCTest
 
 final class UISelectionTests: XCTestCase {
     let lines = [
@@ -426,7 +426,6 @@ final class UISelectionArrayTests: XCTestCase {
         test(.terminal)
     }
 }
-
 
 extension UISelection {
     init(

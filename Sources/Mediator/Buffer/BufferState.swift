@@ -45,7 +45,7 @@ enum BufferEvent: Equatable {
 
     /// The Nvim buffer lines changed.
     case nvimLinesDidChange(BufLinesEvent)
-    
+
     /// The Nvim mode changed.
     case nvimModeDidChange(Mode)
 

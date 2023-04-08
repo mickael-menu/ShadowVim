@@ -76,29 +76,6 @@ struct UISelection: Equatable {
         )
     }
 
-    /// Returns the character range in the given list of `lines`.
-    func range(in lines: [String]) -> NSRange? {
-        var count = 0
-        var startOffset = -1
-        var endOffset = -1
-        for (i, line) in lines.enumerated() {
-            if start.line == i {
-                startOffset = count + start.column
-            }
-            if end.line == i {
-                endOffset = count + end.column
-                break
-            }
-
-            count += line.count + 1
-        }
-        guard startOffset >= 0, endOffset >= 0 else {
-            return nil
-        }
-
-        return NSRange(location: startOffset, length: endOffset - startOffset)
-    }
-
     func adjusted(to mode: Mode, lines: [String]) -> UISelection {
         var adjusted = self
         adjusted.adjust(to: mode, lines: lines)
