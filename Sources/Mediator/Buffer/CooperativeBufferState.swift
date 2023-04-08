@@ -428,8 +428,8 @@ struct CooperativeBufferState: BufferState {
         func setToken(_ token: EditionToken) {
             self.token = token
 
-            if token != .free, !actions.contains(.startTimeout) {
-                perform(.startTimeout)
+            if token != .free, !actions.contains(.startTimeout(id: 0, durationInSeconds: 0.2)) {
+                perform(.startTimeout(id: 0, durationInSeconds: 0.2))
             }
         }
 

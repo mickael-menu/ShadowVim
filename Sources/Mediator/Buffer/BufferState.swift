@@ -37,7 +37,7 @@ enum BufferHost: String, Equatable {
 /// Events handled by the Buffer state machine.
 enum BufferEvent: Equatable {
     /// The requested timer timed out.
-    case didTimeout
+    case didTimeout(id: Int)
 
     /// The user requested to resynchronize the buffers using the given
     /// `source` host for the source of truth of the content.
@@ -119,8 +119,9 @@ enum BufferAction: Equatable {
     /// Scrolls the UI to make the given selection visible.
     case uiScroll(UISelection)
 
-    /// Start a new timeout. Any on-going timeout should be cancelled.
-    case startTimeout
+    /// Start a new timeout. Any on-going timeout with the same ID will be
+    /// be cancelled.
+    case startTimeout(id: Int, durationInSeconds: Double)
 
     /// Emit a bell sound to the user.
     case bell
@@ -211,6 +212,8 @@ extension BufferEvent: LogPayloadConvertible {
 
     var shortArg: String? {
         switch self {
+        case let .didTimeout(id):
+            return "\(id)"
         case let .didRequestRefresh(source: source):
             return source.rawValue
         case let .nvimLinesDidChange(event):
@@ -293,8 +296,8 @@ extension BufferAction: LogPayloadConvertible {
             return [.name: "uiUpdateSelection", "selections": selections]
         case let .uiScroll(visibleSelection):
             return [.name: "uiScroll", "visibleSelection": visibleSelection]
-        case .startTimeout:
-            return [.name: "startTimeout"]
+        case let .startTimeout(id: id, durationInSeconds: duration):
+            return [.name: "startTimeout", "id": id, "duration": duration]
         case .bell:
             return [.name: "bell"]
         case let .alert(error):

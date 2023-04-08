@@ -39,8 +39,8 @@ public final class BufferMediator {
     private let nvimController: NvimController
     private let nvimBuffer: NvimBuffer
     private let logger: Logger?
-    private let timeoutSubject = PassthroughSubject<Void, Never>()
-
+    
+    private var timeoutTimers: [Int: Timer] = [:]
     private var subscriptions: Set<AnyCancellable> = []
     private var uiSubscriptions: Set<AnyCancellable> = []
 
@@ -85,12 +85,6 @@ public final class BufferMediator {
                     on(.nvimLinesDidChange($0))
                 }
             )
-            .store(in: &subscriptions)
-
-        timeoutSubject
-            .receive(on: DispatchQueue.main)
-            .debounce(for: .seconds(0.2), scheduler: DispatchQueue.main)
-            .sink { [weak self] in self?.on(.didTimeout) }
             .store(in: &subscriptions)
     }
 
@@ -262,8 +256,8 @@ public final class BufferMediator {
             case let .uiScroll(visibleSelection: visibleSelection):
                 try scrollUI(to: visibleSelection)
 
-            case .startTimeout:
-                timeoutSubject.send(())
+            case let .startTimeout(id: id, durationInSeconds: duration):
+                startTimeout(id: id, for: duration)
 
             case .bell:
                 NSSound.beep()
@@ -426,6 +420,13 @@ public final class BufferMediator {
             return
         }
         try uiElement.set(.visibleCharacterRange, value: range)
+    }
+    
+    private func startTimeout(id: Int, for duration: Double) {
+        timeoutTimers[id]?.invalidate()
+        timeoutTimers[id] = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
+            self?.on(.didTimeout(id: id))
+        }
     }
 
     private func fail(_ error: Error) {
