@@ -180,6 +180,7 @@ public final class BufferMediator {
         uiSubscriptions = []
 
         element.publisher(for: .valueChanged)
+            .debounce(for: 0.1, scheduler: DispatchQueue.main)
             .receive(on: DispatchQueue.main)
             .map { $0.lines() }
             .sink(
