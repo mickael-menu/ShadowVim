@@ -24,6 +24,13 @@ import Toolkit
 ///
 /// Nvim et UI buffers alternate being the source of truth cooperatively thanks
 /// to a shared `EditionToken`.
+///
+/// Changes mostly come from Nvim, but in some cases we want to synchronize
+/// changes from the UI back to Nvim:
+/// - Auto-completion of symbols and snippets.
+/// - Paste using macOS clipboard through Cmd-V or "Paste" menu.
+/// - Undo/redo using the UI instead of u and ^R.
+
 struct CooperativeBufferState: BufferState {
     /// Indicates which buffer is the current source of truth for the content.
     private(set) var token: EditionToken
@@ -57,49 +64,6 @@ struct CooperativeBufferState: BufferState {
         self.isKeysPassthroughEnabled = isKeysPassthroughEnabled
         self.isLeftMouseButtonDown = isLeftMouseButtonDown
         self.isSelecting = isSelecting
-    }
-
-    /// The edition token indicates which buffer is the current source of truth
-    /// for the content.
-    ///
-    /// While there are two actual live buffers for any buffer (Nvim and UI),
-    /// there is no natural "source of truth" for the buffer content. Changes
-    /// mostly come from Nvim, but in some cases we want to synchronize changes
-    /// from the UI back to Nvim:
-    /// * Auto-completion of symbols and snippets.
-    /// * Paste using macOS clipboard through Cmd-V or "Paste" menu.
-    /// * Undo/redo using the UI instead of u and ^R.
-    ///
-    /// To address this, `BufferState` uses a shared "edition token" whose
-    /// owner temporarily becomes the source of truth.
-    ///
-    /// The edition token is automatically reset (released) after a short
-    /// timeout without any editing events.
-    enum EditionToken: Equatable, CustomDebugStringConvertible {
-        /// UI and Nvim are idle.
-        case free
-
-        /// One buffer acquired the token and became the source of truth for
-        /// the content.
-        case acquired(owner: BufferHost)
-
-        /// The main buffer released the token and is now synchronizing the full
-        /// content with the subalternate buffer.
-        ///
-        /// The token will revert to `free` when receiving the next token
-        /// timeout.
-        case synchronizing
-
-        var debugDescription: String {
-            switch self {
-            case .free:
-                return "free"
-            case let .acquired(owner):
-                return "acquired(by: \(owner.rawValue))"
-            case .synchronizing:
-                return "synchronizing"
-            }
-        }
     }
 
     /// Represents the current state of the Nvim buffer.
@@ -438,19 +402,6 @@ struct CooperativeBufferState: BufferState {
 }
 
 // MARK: Logging
-
-extension CooperativeBufferState.EditionToken: LogValueConvertible {
-    var logValue: LogValue {
-        switch self {
-        case .free:
-            return .string("free")
-        case let .acquired(owner: owner):
-            return .string("acquired by \(owner.rawValue)")
-        case .synchronizing:
-            return .string("synchronizing")
-        }
-    }
-}
 
 extension CooperativeBufferState: LogPayloadConvertible {
     func logPayload() -> [LogKey: LogValueConvertible] {
