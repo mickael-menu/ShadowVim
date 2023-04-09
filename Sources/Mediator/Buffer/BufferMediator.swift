@@ -39,7 +39,7 @@ public final class BufferMediator {
     private let nvimController: NvimController
     private let nvimBuffer: NvimBuffer
     private let logger: Logger?
-    
+
     private var timeoutTimers: [Int: Timer] = [:]
     private var subscriptions: Set<AnyCancellable> = []
     private var uiSubscriptions: Set<AnyCancellable> = []
@@ -421,7 +421,7 @@ public final class BufferMediator {
         }
         try uiElement.set(.visibleCharacterRange, value: range)
     }
-    
+
     private func startTimeout(id: Int, for duration: Double) {
         timeoutTimers[id]?.invalidate()
         timeoutTimers[id] = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in

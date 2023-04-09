@@ -135,7 +135,7 @@ public final class Nvim {
             if headless {
                 args.append("--headless")
             }
-            
+
             if let listen = listen {
                 args.append("--listen")
                 args.append(listen)
