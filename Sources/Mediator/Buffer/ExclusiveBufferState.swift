@@ -100,6 +100,19 @@ struct ExclusiveBufferState: BufferState {
         /// When true, the next `uiSelectionDidChange` will be ignored.
         var hasPendingSelection: Bool = false
     }
+    
+    struct EditionComponents: OptionSet, Hashable {
+        static let all = EditionComponents([.lines, .selection])
+        static let lines = EditionComponents(rawValue: 1 << 0)
+        static let selection = EditionComponents(rawValue: 1 << 1)
+
+        let rawValue: Int
+
+        init(rawValue: Int) {
+            self.rawValue = rawValue
+        }
+    }
+
 
     /// Some apps (like Xcode) systematically add an empty line at the end of a
     /// document. To make sure the comparison won't fail in this case, we add an
@@ -160,12 +173,12 @@ struct ExclusiveBufferState: BufferState {
 
             var needsUpdateUISelections = false
 
-            if requestEdition(from: .nvim) {
-                needsUpdateUISelections = hadPendingPositions
+            if hadPendingPositions, requestEdition(of: .selection, from: .nvim) {
+                needsUpdateUISelections = true
+            }
 
-                if hadPendingLines {
-                    perform(.uiUpdateLines(nvim.lines))
-                }
+            if hadPendingLines, requestEdition(of: .lines, from: .nvim) {
+                perform(.uiUpdateLines(nvim.lines))
             }
 
             if hadPendingMode {
@@ -197,7 +210,7 @@ struct ExclusiveBufferState: BufferState {
             ui.lines = lines
             ui.selection = selection.adjusted(to: nvim.mode, lines: lines)
 
-            if requestEdition(from: .ui) {
+            if requestEdition(of: .all, from: .ui) {
                 nvimSynchronize()
             }
 
@@ -208,7 +221,7 @@ struct ExclusiveBufferState: BufferState {
 
             ui.lines = lines
 
-            if requestEdition(from: .ui) {
+            if requestEdition(of: .all, from: .ui) {
                 nvimSynchronize()
             }
 
@@ -232,7 +245,7 @@ struct ExclusiveBufferState: BufferState {
                 uiUpdateSelections([adjustedSelection])
 
                 let start = BufferPosition(adjustedSelection.start)
-                if requestEdition(from: .ui), nvim.cursorPosition != start {
+                if nvim.cursorPosition != start, requestEdition(of: .selection, from: .ui) {
                     perform(.nvimMoveCursor(start))
                 }
             }
@@ -288,7 +301,7 @@ struct ExclusiveBufferState: BufferState {
             // Simulate the default behavior of `LeftMouse` in Nvim, which is:
             // > If Visual mode is active it is stopped.
             // > :help LeftMouse
-            if requestEdition(from: .ui) {
+            if requestEdition(of: .selection, from: .ui) {
                 perform(.nvimStopVisual)
             }
 
@@ -327,14 +340,27 @@ struct ExclusiveBufferState: BufferState {
 
         /// Try to acquire the edition token for the given `host` to modify the
         /// shared virtual buffer.
-        func requestEdition(from host: BufferHost) -> Bool {
-            switch token {
-            case .free, .acquired(owner: host):
-                setToken(.acquired(owner: host))
-                return true
-            default:
-                return false
+        func requestEdition(of components: EditionComponents, from host: BufferHost) -> Bool {
+            if components.contains(.lines) {
+                switch token {
+                case .free, .acquired(owner: host):
+                    setToken(.acquired(owner: host))
+                    return true
+                default:
+                    return false
+                }
             }
+            
+            if components.contains(.selection) {
+                switch token {
+                case .free, .synchronizing, .acquired(owner: host):
+                    return true
+                default:
+                    return input == host
+                }
+            }
+            
+            return false
         }
 
         /// Force-synchronizes the whole buffer using the given `source` of truth.
@@ -392,10 +418,10 @@ struct ExclusiveBufferState: BufferState {
             }
             isSelecting = false
 
-            guard requestEdition(from: .ui) else {
+            guard requestEdition(of: .selection, from: .ui) else {
                 return
             }
-
+            
             if ui.selection.isCollapsed {
                 uiAdjustSelection(to: nvim.mode)
                 nvimSynchronizeCursor()
