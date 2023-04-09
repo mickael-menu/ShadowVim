@@ -43,6 +43,13 @@ struct CooperativeBufferState: BufferState {
 
     /// Indicates whether the user is currently selecting text with the mouse.
     private(set) var isSelecting: Bool
+    
+    /// Indicates whether switching to insert mode through an operator-pending
+    /// command keep the input host as Nvim.
+    ///
+    /// This is a workaround for an issue with Dot-repeat, see
+    /// https://github.com/vscode-neovim/vscode-neovim/issues/76#issuecomment-562902179
+    private let sendInputToNvimWhenInsertFromOperatorPending = false
 
     init(
         nvim: NvimState = NvimState(),
@@ -170,13 +177,14 @@ struct CooperativeBufferState: BufferState {
             nvim.pendingVisualPosition = cursor.visual
 
         case .nvimDidFlush:
+            let oldMode = nvim.mode
+
             let hadPendingMode = nvim.pendingMode != nil
             let hadPendingLines = nvim.pendingLines != nil
             let hadPendingPositions =
                 nvim.pendingCursorPosition != nil ||
                 nvim.pendingVisualPosition != nil
 
-            let oldMode = nvim.mode
             nvim.flush()
 
             var needsUpdateUISelections = false
@@ -198,14 +206,14 @@ struct CooperativeBufferState: BufferState {
 
                 switch nvim.mode {
                 case .insert, .replace:
-                    // When the Insert mode started from an Operator-pending
-                    // mode, then we let Nvim handle the Insert commands.
-                    // This is a workaround for an issue with Dot-repeat, see
-                    // https://github.com/vscode-neovim/vscode-neovim/issues/76#issuecomment-562902179
-                    input = (oldMode == .operatorPending) ? .nvim : .ui
+                    setInput(
+                        (sendInputToNvimWhenInsertFromOperatorPending && oldMode == .operatorPending)
+                            ? .nvim
+                            : .ui
+                    )
 
                 default:
-                    input = .nvim
+                    setInput(.nvim)
                 }
             }
 
@@ -228,12 +236,13 @@ struct CooperativeBufferState: BufferState {
             }
 
         case let .uiBufferDidChange(lines: lines):
+            linesDidChange(for: .ui)
+
             guard ui.lines != lines else {
                 break
             }
 
             ui.lines = lines
-            linesDidChange(for: .ui)
 
             if requestEdition(of: .all, from: .ui) {
                 nvimSynchronize()
@@ -467,6 +476,15 @@ struct CooperativeBufferState: BufferState {
             ui.hasPendingSelection = true
             perform(.uiUpdateSelections(selections))
         }
+        
+        func setInput(_ host: BufferHost) {
+            input = host
+
+            // When changing the input, we force-set the edition token to the
+            // new input host. Without this, we can loose changes from the new
+            // input when typing quickly.
+            setToken(.acquired(owner: host))
+        }
 
         func setToken(_ token: EditionToken) {
             self.token = token
@@ -496,7 +514,7 @@ private extension BufferEvent {
 
 private extension BufferAction {
     static let startTokenTimeout: BufferAction = .startTimeout(id: TimeoutId.token, durationInSeconds: 0.2)
-    static let startIdleTimeout: BufferAction = .startTimeout(id: TimeoutId.idle, durationInSeconds: 2)
+    static let startIdleTimeout: BufferAction = .startTimeout(id: TimeoutId.idle, durationInSeconds: 1)
 }
 
 // MARK: Logging
