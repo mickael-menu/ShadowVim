@@ -37,7 +37,7 @@ enum BufferHost: String, Equatable {
 /// Events handled by the Buffer state machine.
 enum BufferEvent: Equatable {
     /// The requested timer timed out.
-    case didTimeout(id: Int)
+    case didTimeout(id: AnyHashable)
 
     /// The user requested to resynchronize the buffers using the given
     /// `source` host for the source of truth of the content.
@@ -121,7 +121,7 @@ enum BufferAction: Equatable {
 
     /// Start a new timeout. Any on-going timeout with the same ID will be
     /// be cancelled.
-    case startTimeout(id: Int, durationInSeconds: Double)
+    case startTimeout(id: AnyHashable, durationInSeconds: Double)
 
     /// Emit a bell sound to the user.
     case bell
@@ -334,7 +334,7 @@ extension BufferAction: LogPayloadConvertible {
         case let .uiScroll(visibleSelection):
             return [.name: "uiScroll", "visibleSelection": visibleSelection]
         case let .startTimeout(id: id, durationInSeconds: duration):
-            return [.name: "startTimeout", "id": id, "duration": duration]
+            return [.name: "startTimeout", "id": id.description, "duration": duration]
         case .bell:
             return [.name: "bell"]
         case let .alert(error):

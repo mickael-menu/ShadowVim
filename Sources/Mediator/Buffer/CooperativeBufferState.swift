@@ -26,13 +26,14 @@ struct CooperativeBufferState: BufferState {
     private(set) var nvim: NvimState
     private(set) var ui: UIState
 
-    /// Indicates which buffer host receives input events.
+    /// Which buffer host receives input events.
     private(set) var input: BufferHost
+
+    /// Which buffer host sent line changes last.
+    private(set) var lastChanged: BufferHost
 
     /// Indicates which buffer is the current source of truth for the content.
     private(set) var token: EditionToken
-    private let tokenTimeoutId: Int = 0
-    private let tokenTimeoutDuration: Double = 0.2 // seconds
 
     /// Indicates whether the keys passthrough is switched on.
     private(set) var isKeysPassthroughEnabled: Bool
@@ -47,6 +48,7 @@ struct CooperativeBufferState: BufferState {
         nvim: NvimState = NvimState(),
         ui: UIState = UIState(),
         input: BufferHost = .nvim,
+        lastChanged: BufferHost = .ui,
         token: EditionToken = .free,
         isKeysPassthroughEnabled: Bool = false,
         isLeftMouseButtonDown: Bool = false,
@@ -55,6 +57,7 @@ struct CooperativeBufferState: BufferState {
         self.nvim = nvim
         self.ui = ui
         self.input = input
+        self.lastChanged = lastChanged
         self.token = token
         self.isKeysPassthroughEnabled = isKeysPassthroughEnabled
         self.isLeftMouseButtonDown = isLeftMouseButtonDown
@@ -100,7 +103,7 @@ struct CooperativeBufferState: BufferState {
         /// When true, the next `uiSelectionDidChange` will be ignored.
         var hasPendingSelection: Bool = false
     }
-    
+
     struct EditionComponents: OptionSet, Hashable {
         static let all = EditionComponents([.lines, .selection])
         static let lines = EditionComponents(rawValue: 1 << 0)
@@ -112,7 +115,6 @@ struct CooperativeBufferState: BufferState {
             self.rawValue = rawValue
         }
     }
-
 
     /// Some apps (like Xcode) systematically add an empty line at the end of a
     /// document. To make sure the comparison won't fail in this case, we add an
@@ -138,6 +140,12 @@ struct CooperativeBufferState: BufferState {
             case let .acquired(owner: owner):
                 synchronize(source: owner)
             }
+
+        case .didIdleTimeout:
+            /// Called after the buffers didn't change for a while. We will
+            /// make sure they are synchronized, using the last changed buffer
+            /// as the source of truth.
+            synchronize(source: lastChanged)
 
         case let .didRequestRefresh(source: source):
             switch token {
@@ -177,8 +185,12 @@ struct CooperativeBufferState: BufferState {
                 needsUpdateUISelections = true
             }
 
-            if hadPendingLines, requestEdition(of: .lines, from: .nvim) {
-                perform(.uiUpdateLines(nvim.lines))
+            if hadPendingLines {
+                linesDidChange(for: .nvim)
+
+                if requestEdition(of: .lines, from: .nvim) {
+                    perform(.uiUpdateLines(nvim.lines))
+                }
             }
 
             if hadPendingMode {
@@ -221,6 +233,7 @@ struct CooperativeBufferState: BufferState {
             }
 
             ui.lines = lines
+            linesDidChange(for: .ui)
 
             if requestEdition(of: .all, from: .ui) {
                 nvimSynchronize()
@@ -351,7 +364,7 @@ struct CooperativeBufferState: BufferState {
                     return false
                 }
             }
-            
+
             if components.contains(.selection) {
                 switch token {
                 case .free, .synchronizing, .acquired(owner: host):
@@ -360,8 +373,15 @@ struct CooperativeBufferState: BufferState {
                     return input == host
                 }
             }
-            
+
             return false
+        }
+
+        func linesDidChange(for host: BufferHost) {
+            // The idle timeout is used to make sure buffers are synchronized
+            // when idle for a while.
+            lastChanged = host
+            perform(.startIdleTimeout)
         }
 
         /// Force-synchronizes the whole buffer using the given `source` of truth.
@@ -420,7 +440,7 @@ struct CooperativeBufferState: BufferState {
             guard requestEdition(of: .selection, from: .ui) else {
                 return
             }
-            
+
             if ui.selection.isCollapsed {
                 uiAdjustSelection(to: nvim.mode)
                 nvimSynchronizeCursor()
@@ -464,12 +484,19 @@ struct CooperativeBufferState: BufferState {
     }
 }
 
-extension BufferEvent {
-    static let didTokenTimeout: BufferEvent = .didTimeout(id: 0)
+private enum TimeoutId: Int {
+    case token = 1
+    case idle = 2
 }
 
-extension BufferAction {
-    static let startTokenTimeout: BufferAction = .startTimeout(id: 0, durationInSeconds: 0.5)
+private extension BufferEvent {
+    static let didTokenTimeout: BufferEvent = .didTimeout(id: TimeoutId.token)
+    static let didIdleTimeout: BufferEvent = .didTimeout(id: TimeoutId.idle)
+}
+
+private extension BufferAction {
+    static let startTokenTimeout: BufferAction = .startTimeout(id: TimeoutId.token, durationInSeconds: 0.2)
+    static let startIdleTimeout: BufferAction = .startTimeout(id: TimeoutId.idle, durationInSeconds: 2)
 }
 
 // MARK: Logging
