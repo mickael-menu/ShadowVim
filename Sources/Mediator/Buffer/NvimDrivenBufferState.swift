@@ -19,20 +19,20 @@ import Foundation
 import Nvim
 import Toolkit
 
-/// A `BufferState` where key input is handled:
-/// - by Nvim on Normal mode
-/// - by the UI on Insert mode, for better performance
-struct CooperativeBufferState: BufferState {
-    private(set) var nvim: NvimState
-    private(set) var ui: UIState
-
-    /// Indicates which buffer host receives input events.
-    private(set) var input: BufferHost
-
+/// A `BufferState` where key input on both Normal and Insert modes are handled
+/// by Nvim.
+///
+/// Nvim et UI buffers alternate being the source of truth cooperatively thanks
+/// to a shared `EditionToken`.
+struct NvimDrivenBufferState: BufferState {
     /// Indicates which buffer is the current source of truth for the content.
     private(set) var token: EditionToken
-    private let tokenTimeoutId: Int = 0
-    private let tokenTimeoutDuration: Double = 0.2 // seconds
+
+    /// State of the Nvim buffer.
+    private(set) var nvim: NvimState
+
+    /// State of the UI buffer.
+    private(set) var ui: UIState
 
     /// Indicates whether the keys passthrough is switched on.
     private(set) var isKeysPassthroughEnabled: Bool
@@ -44,18 +44,16 @@ struct CooperativeBufferState: BufferState {
     private(set) var isSelecting: Bool
 
     init(
+        token: EditionToken = .free,
         nvim: NvimState = NvimState(),
         ui: UIState = UIState(),
-        input: BufferHost = .nvim,
-        token: EditionToken = .free,
         isKeysPassthroughEnabled: Bool = false,
         isLeftMouseButtonDown: Bool = false,
         isSelecting: Bool = false
     ) {
+        self.token = token
         self.nvim = nvim
         self.ui = ui
-        self.input = input
-        self.token = token
         self.isKeysPassthroughEnabled = isKeysPassthroughEnabled
         self.isLeftMouseButtonDown = isLeftMouseButtonDown
         self.isSelecting = isSelecting
@@ -64,27 +62,31 @@ struct CooperativeBufferState: BufferState {
     /// Represents the current state of the Nvim buffer.
     struct NvimState: Equatable {
         var mode: Mode = .normal
-        var lines: [String] = []
         var cursorPosition: BufferPosition = .init()
         var visualPosition: BufferPosition = .init()
 
+        /// Buffer content lines.
+        var lines: [String] = []
+
         var pendingMode: Mode? = nil
-        var pendingLines: [String]? = nil
         var pendingCursorPosition: BufferPosition? = nil
         var pendingVisualPosition: BufferPosition? = nil
+        var pendingLines: [String]? = nil
 
         mutating func flush() {
             mode = pendingMode ?? mode
-            lines = pendingLines ?? lines
             cursorPosition = pendingCursorPosition ?? cursorPosition
             visualPosition = pendingVisualPosition ?? visualPosition
+            lines = pendingLines ?? lines
 
             pendingMode = nil
-            pendingLines = nil
             pendingCursorPosition = nil
             pendingVisualPosition = nil
+            pendingLines = nil
         }
 
+        /// Converts the current cursor position and visual selection as a
+        /// list of selection ranges in the UI buffer.
         func uiSelections() -> [UISelection] {
             .init(mode: mode, cursor: cursorPosition, visual: visualPosition)
         }
@@ -93,55 +95,30 @@ struct CooperativeBufferState: BufferState {
     /// Represents the current state of the UI buffer, accessed through the
     /// accessibility APIs (AX).
     struct UIState: Equatable {
-        var lines: [String] = []
+        /// Current text selection in the buffer view.
         var selection: UISelection = .init()
 
-        /// A new UI selection change was requested.
-        /// When true, the next `uiSelectionDidChange` will be ignored.
-        var hasPendingSelection: Bool = false
-    }
-    
-    struct EditionComponents: OptionSet, Hashable {
-        static let all = EditionComponents([.lines, .selection])
-        static let lines = EditionComponents(rawValue: 1 << 0)
-        static let selection = EditionComponents(rawValue: 1 << 1)
-
-        let rawValue: Int
-
-        init(rawValue: Int) {
-            self.rawValue = rawValue
-        }
-    }
-
-
-    /// Some apps (like Xcode) systematically add an empty line at the end of a
-    /// document. To make sure the comparison won't fail in this case, we add an
-    /// empty line in the Nvim buffer as well.
-    private var areLinesSynchronized: Bool {
-        var nvimLines = nvim.lines
-        if ui.lines.last == "", nvimLines.last != "" {
-            nvimLines.append("")
-        }
-        return ui.lines == nvimLines
+        /// Buffer content lines.
+        var lines: [String] = []
     }
 
     mutating func on(_ event: BufferEvent, logger: Logger?) -> [BufferAction] {
         var actions: [BufferAction] = []
 
         switch event {
-        case .didTokenTimeout:
+        case .didTimeout:
             switch token {
             case .free:
                 break
             case .synchronizing:
-                setToken(.free)
+                token = .free
             case let .acquired(owner: owner):
                 synchronize(source: owner)
             }
 
         case let .didRequestRefresh(source: source):
             switch token {
-            case .acquired, .synchronizing:
+            case .synchronizing, .acquired:
                 logger?.w("Token busy, cannot refresh")
                 perform(.bell)
             case .free:
@@ -162,57 +139,37 @@ struct CooperativeBufferState: BufferState {
             nvim.pendingVisualPosition = cursor.visual
 
         case .nvimDidFlush:
-            let hadPendingMode = nvim.pendingMode != nil
             let hadPendingLines = nvim.pendingLines != nil
-            let hadPendingPositions =
+            let hadPendingCursor =
                 nvim.pendingCursorPosition != nil ||
                 nvim.pendingVisualPosition != nil
 
-            let oldMode = nvim.mode
             nvim.flush()
 
-            var needsUpdateUISelections = false
-
-            if hadPendingPositions, requestEdition(of: .selection, from: .nvim) {
-                needsUpdateUISelections = true
-            }
-
-            if hadPendingLines, requestEdition(of: .lines, from: .nvim) {
-                perform(.uiUpdateLines(nvim.lines))
-            }
-
-            if hadPendingMode {
-                needsUpdateUISelections = true
-
-                switch nvim.mode {
-                case .insert, .replace:
-                    // When the Insert mode started from an Operator-pending
-                    // mode, then we let Nvim handle the Insert commands.
-                    // This is a workaround for an issue with Dot-repeat, see
-                    // https://github.com/vscode-neovim/vscode-neovim/issues/76#issuecomment-562902179
-                    input = (oldMode == .operatorPending) ? .nvim : .ui
-
-                default:
-                    input = .nvim
+            if tryEdition(from: .nvim) {
+                if hadPendingLines {
+                    perform(.uiUpdateLines(nvim.lines))
                 }
-            }
 
-            if needsUpdateUISelections {
-                uiUpdateSelections(nvim.uiSelections())
+                if hadPendingCursor {
+                    perform(.uiUpdateSelections(nvim.uiSelections()))
 
-                // Ensures the cursor is always visible by scrolling the UI.
-                let cursorPosition = UIPosition(nvim.cursorPosition)
-                let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
-                perform(.uiScroll(visibleSelection))
+                    // Ensures the cursor is always visible by scrolling the UI.
+                    if nvim.cursorPosition.line != nvim.visualPosition.line {
+                        let cursorPosition = UIPosition(nvim.cursorPosition)
+                        let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
+                        perform(.uiScroll(visibleSelection))
+                    }
+                }
             }
 
         case let .uiDidFocus(lines: lines, selection: selection):
             ui.lines = lines
             ui.selection = selection
-            uiAdjustSelection(to: nvim.mode)
 
-            if requestEdition(of: .all, from: .ui) {
-                nvimSynchronize()
+            if tryEdition(from: .ui) {
+                adjustUISelection(to: nvim.mode)
+                synchronizeNvim()
             }
 
         case let .uiBufferDidChange(lines: lines):
@@ -222,33 +179,25 @@ struct CooperativeBufferState: BufferState {
 
             ui.lines = lines
 
-            if requestEdition(of: .all, from: .ui) {
-                nvimSynchronize()
+            if tryEdition(from: .ui) {
+                synchronizeNvim()
             }
 
         case let .uiSelectionDidChange(selection):
-            guard !ui.hasPendingSelection else {
-                ui.hasPendingSelection = false
-                ui.selection = selection
-                break
-            }
+            // Ignore the selection change if it's identical, to avoid adjusting
+            // the selection several times in a row.
             guard ui.selection != selection else {
                 break
             }
-
             ui.selection = selection
-
             if isLeftMouseButtonDown {
                 isSelecting = true
-
             } else {
-                let adjustedSelection = selection.adjusted(to: nvim.mode, lines: ui.lines)
-                uiUpdateSelections([adjustedSelection])
-
-                let start = BufferPosition(adjustedSelection.start)
-                if nvim.cursorPosition != start, requestEdition(of: .selection, from: .ui) {
-                    perform(.nvimMoveCursor(start))
+                guard tryEdition(from: .ui) else {
+                    break
                 }
+                adjustUISelection(to: nvim.mode)
+                synchronizeNvimCursor()
             }
 
         case let .uiDidReceiveKeyEvent(kc, character: character):
@@ -264,15 +213,9 @@ struct CooperativeBufferState: BufferState {
             case .cmdV:
                 // We override the system paste behavior to improve performance
                 // and nvim's undo history.
-                if input == .nvim {
-                    perform(.nvimPaste)
-                }
+                perform(.nvimPaste)
 
             default:
-                guard input == .nvim || kc.modifiers == .control else {
-                    break
-                }
-
                 let mods = kc.modifiers
                 // Passthrough for ⌘-based keyboard shortcuts.
                 guard !mods.contains(.command) else {
@@ -302,13 +245,27 @@ struct CooperativeBufferState: BufferState {
             // Simulate the default behavior of `LeftMouse` in Nvim, which is:
             // > If Visual mode is active it is stopped.
             // > :help LeftMouse
-            if requestEdition(of: .selection, from: .ui) {
+            if tryEdition(from: .ui) {
                 perform(.nvimStopVisual)
             }
 
         case .uiDidReceiveMouseEvent(.up(.left), bufferPoint: _):
             isLeftMouseButtonDown = false
-            uiEndSelection()
+
+            if isSelecting {
+                isSelecting = false
+
+                guard tryEdition(from: .ui) else {
+                    break
+                }
+
+                if ui.selection.isCollapsed {
+                    adjustUISelection(to: nvim.mode)
+                    synchronizeNvimCursor()
+                } else {
+                    startNvimVisual(using: ui.selection)
+                }
+            }
 
         case .uiDidReceiveMouseEvent:
             // Other mouse events are ignored.
@@ -325,7 +282,7 @@ struct CooperativeBufferState: BufferState {
                 to: enabled ? .insert : nvim.mode,
                 lines: ui.lines
             )
-            uiUpdateSelections([selection])
+            perform(.uiUpdateSelections([selection]))
 
         case let .didFail(error):
             perform(.alert(error))
@@ -341,61 +298,82 @@ struct CooperativeBufferState: BufferState {
 
         /// Try to acquire the edition token for the given `host` to modify the
         /// shared virtual buffer.
-        func requestEdition(of components: EditionComponents, from host: BufferHost) -> Bool {
-            if components.contains(.lines) {
-                switch token {
-                case .free, .acquired(owner: host):
-                    setToken(.acquired(owner: host))
-                    return true
-                default:
-                    return false
-                }
+        func tryEdition(from host: BufferHost) -> Bool {
+            switch token {
+            case .free, .acquired(owner: host):
+                setToken(.acquired(owner: host))
+                return true
+            default:
+                return false
             }
-            
-            if components.contains(.selection) {
-                switch token {
-                case .free, .synchronizing, .acquired(owner: host):
-                    return true
-                default:
-                    return input == host
-                }
-            }
-            
-            return false
         }
 
-        /// Force-synchronizes the whole buffer using the given `source` of truth.
+        /// Synchronizes the whole buffer using the given `source` of truth.
         func synchronize(source: BufferHost) {
-            setToken(.free)
-
-            guard !areLinesSynchronized else {
+            // Some apps (like Xcode) systematically add an empty line at
+            // the end of a document. To make sure the comparison won't
+            // fail in this case, we add an empty line in the Nvim buffer
+            // as well.
+            var nvimLines = nvim.lines
+            if ui.lines.last == "", nvimLines.last != "" {
+                nvimLines.append("")
+            }
+            guard ui.lines != nvimLines else {
+                setToken(.free)
                 return
             }
 
             switch source {
             case .nvim:
-                uiSynchronize()
+                synchronizeUI()
             case .ui:
-                nvimSynchronize()
+                synchronizeNvim()
             }
+
+            setToken(.synchronizing)
         }
 
-        func nvimSynchronize() {
+        func synchronizeUI() {
+            perform(.uiUpdateLines(nvim.lines))
+            perform(.uiUpdateSelections(nvim.uiSelections()))
+        }
+
+        func synchronizeNvim() {
             perform(.nvimUpdateLines(ui.lines))
             perform(.nvimMoveCursor(BufferPosition(ui.selection.start)))
         }
 
         /// Moves the Nvim cursor to match the current UI selection.
-        func nvimSynchronizeCursor() {
+        func synchronizeNvimCursor() {
+            precondition(token == .acquired(owner: .ui))
+
             let start = BufferPosition(ui.selection.start)
             if nvim.cursorPosition != start {
                 perform(.nvimMoveCursor(start))
             }
         }
 
-        /// Synchronizes the whole buffer using the given `source` of truth.
+        /// Adjusts the current UI selection to match the given Nvim `mode`.
+        func adjustUISelection(to mode: Mode) {
+            precondition(token == .acquired(owner: .ui))
+
+            let adjustedSelection = {
+                guard !isKeysPassthroughEnabled else {
+                    return ui.selection
+                }
+                return ui.selection.adjusted(to: mode, lines: ui.lines)
+            }()
+
+            if ui.selection != adjustedSelection {
+                ui.selection = adjustedSelection
+                perform(.uiUpdateSelections([ui.selection]))
+            }
+        }
+
         /// Requests Nvim to start the Visual mode using the given `selection`.
-        func nvimStartVisual(using selection: UISelection) {
+        func startNvimVisual(using selection: UISelection) {
+            precondition(token == .acquired(owner: .ui))
+
             perform(.nvimStartVisual(
                 start: BufferPosition(selection.start),
                 // In Visual mode the end character is included in
@@ -404,59 +382,11 @@ struct CooperativeBufferState: BufferState {
             ))
         }
 
-        func uiSynchronize() {
-            perform(.uiUpdateLines(nvim.lines))
-            uiUpdateSelections(nvim.uiSelections())
-        }
-
-        /// Called when the user releases the left mouse button. The UI
-        /// selection will be sent to Nvim.
-        func uiEndSelection() {
-            guard isSelecting else {
-                return
-            }
-            isSelecting = false
-
-            guard requestEdition(of: .selection, from: .ui) else {
-                return
-            }
-            
-            if ui.selection.isCollapsed {
-                uiAdjustSelection(to: nvim.mode)
-                nvimSynchronizeCursor()
-            } else {
-                nvimStartVisual(using: ui.selection)
-            }
-        }
-
-        /// Adjusts the current UI selection to match the given Nvim `mode`.
-        func uiAdjustSelection(to mode: Mode) {
-            guard !isKeysPassthroughEnabled else {
-                return
-            }
-
-            let adjustedSelection = ui.selection.adjusted(to: mode, lines: ui.lines)
-            uiUpdateSelections([adjustedSelection])
-        }
-
-        func uiUpdateSelections(_ selections: [UISelection]) {
-            guard ui.selection != selections.first else {
-                return
-            }
-
-            ui.hasPendingSelection = true
-            perform(.uiUpdateSelections(selections))
-        }
-
         func setToken(_ token: EditionToken) {
             self.token = token
 
-            // Request a token timeout if the token is acquired.
-            if
-                token != .free,
-                !actions.contains(.startTokenTimeout)
-            {
-                perform(.startTokenTimeout)
+            if token != .free, !actions.contains(.startTimeout(id: 0, durationInSeconds: 0.2)) {
+                perform(.startTimeout(id: 0, durationInSeconds: 0.2))
             }
         }
 
@@ -464,43 +394,22 @@ struct CooperativeBufferState: BufferState {
     }
 }
 
-extension BufferEvent {
-    static let didTokenTimeout: BufferEvent = .didTimeout(id: 0)
-}
-
-extension BufferAction {
-    static let startTokenTimeout: BufferAction = .startTimeout(id: 0, durationInSeconds: 0.5)
-}
-
 // MARK: Logging
 
-extension CooperativeBufferState: LogPayloadConvertible {
+extension NvimDrivenBufferState: LogPayloadConvertible {
     func logPayload() -> [LogKey: LogValueConvertible] {
-        ["@source": input, "@token": token, "nvim": nvim, "ui": ui]
+        ["token": token, "nvim": nvim, "ui": ui]
     }
 }
 
-extension CooperativeBufferState.NvimState: LogPayloadConvertible {
+extension NvimDrivenBufferState.NvimState: LogPayloadConvertible {
     func logPayload() -> [LogKey: LogValueConvertible] {
-        [
-            "lines": lines,
-            "linesPending": pendingLines,
-            "mode": mode,
-            "modePending": pendingMode,
-            "cursor": cursorPosition,
-            "cursorPending": pendingCursorPosition,
-            "visual": visualPosition,
-            "visualPending": pendingVisualPosition,
-        ]
+        ["lines": lines, "mode": mode, "cursor": cursorPosition, "visual": visualPosition]
     }
 }
 
-extension CooperativeBufferState.UIState: LogPayloadConvertible {
+extension NvimDrivenBufferState.UIState: LogPayloadConvertible {
     func logPayload() -> [LogKey: LogValueConvertible] {
-        [
-            "lines": lines,
-            "selection": selection,
-            "hasPendingSelection": hasPendingSelection,
-        ]
+        ["lines": lines, "selection": selection]
     }
 }

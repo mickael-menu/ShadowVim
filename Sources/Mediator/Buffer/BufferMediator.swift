@@ -70,7 +70,7 @@ public final class BufferMediator {
         self.uiElement = uiElement
         self.logger = logger
 
-        state = ExclusiveBufferState(
+        state = CooperativeBufferState(
             nvim: .init(lines: nvimBuffer.lines),
             ui: .init(lines: uiElement.lines())
         ).loggable(logger)
