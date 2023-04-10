@@ -66,9 +66,24 @@ struct UISelection: Equatable {
             return nil
         }
 
-        let start = startLineRange.location + start.column
-        let end = endLineRange.location + end.column
-        assert(start <= end)
+        // As the content of the lines might not be exactly as expected when
+        // creating this selection (e.g. auto-indentation triggered), the
+        // range will be clamped to the actual line lengths.
+        var maxStartColumn = startLineRange.length
+        var maxEndColumn = endLineRange.length
+        if isCollapsed {
+            // In the case of a collapsed selection (input cursor), we remove
+            // the last character (newline), otherwise the selection might end
+            // up on the next line.
+            maxStartColumn -= 1
+            maxEndColumn -= 1
+        }
+
+        let start = startLineRange.location + min(start.column, maxStartColumn)
+        let end = endLineRange.location + min(end.column, maxEndColumn)
+        guard start <= end else {
+            return nil
+        }
 
         return CFRange(
             location: start,
