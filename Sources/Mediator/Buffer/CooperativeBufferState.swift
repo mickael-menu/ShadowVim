@@ -43,7 +43,7 @@ struct CooperativeBufferState: BufferState {
 
     /// Indicates whether the user is currently selecting text with the mouse.
     private(set) var isSelecting: Bool
-    
+
     /// Indicates whether switching to insert mode through an operator-pending
     /// command keep the input host as Nvim.
     ///
@@ -476,7 +476,7 @@ struct CooperativeBufferState: BufferState {
             ui.hasPendingSelection = true
             perform(.uiUpdateSelections(selections))
         }
-        
+
         func setInput(_ host: BufferHost) {
             input = host
 
