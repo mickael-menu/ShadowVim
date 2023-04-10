@@ -188,6 +188,18 @@ class ShadowVim: ObservableObject {
         start()
     }
 
+    /// Launches a new Nvim instance in the Terminal to debug the embedded
+    /// Nvim.
+    func openNvimTUI() {
+        guard let script = Bundle.main.path(forResource: "bind-nvim", ofType: "sh") else {
+            return
+        }
+
+        Process.launch("open", "-a", "Terminal", script)
+            .discardResult()
+            .run()
+    }
+
     func copyDebugInfo() {
         Task.detached {
             let info = await Debug.info()

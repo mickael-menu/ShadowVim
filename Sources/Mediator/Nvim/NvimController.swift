@@ -112,9 +112,12 @@ final class NvimController {
     }
 
     func start() async throws {
+        let pipe = "/tmp/shadowvim.pipe"
+        try? FileManager.default.removeItem(atPath: pipe)
+
         try nvim.start(
             headless: false,
-            listen: Debug.isDebugging ? "/tmp/shadowvim.pipe" : nil
+            listen: Debug.isDebugging ? pipe : nil
         )
         buffers.start()
 

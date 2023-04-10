@@ -52,6 +52,8 @@ struct ShadowVimApp: SwiftUI.App {
                 Button("Verbose logging") { shadowVim.setVerboseLogger() }
             }
 
+            Button("Open Neovim in Terminal") { shadowVim.openNvimTUI() }
+
             Divider()
 
             Button("Copy Debug Info") { shadowVim.copyDebugInfo() }
