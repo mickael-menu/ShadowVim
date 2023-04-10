@@ -54,11 +54,7 @@ public final class MainMediator {
         precondition(Thread.isMainThread)
 
         if let app = NSWorkspace.shared.frontmostApplication, app.isFinishedLaunching {
-            do {
-                _ = try mediator(of: app)
-            } catch {
-                delegate?.mainMediator(self, didFailWithError: error)
-            }
+            _ = mediator(of: app)
         }
 
         NSWorkspace.shared
@@ -98,19 +94,13 @@ public final class MainMediator {
     }
 
     public func handle(_ event: InputEvent) -> Bool {
-        do {
-            guard
-                let app = NSWorkspace.shared.frontmostApplication,
-                let mediator = try mediator(of: app)
-            else {
-                return false
-            }
-            return mediator.handle(event)
-
-        } catch {
-            delegate?.mainMediator(self, didFailWithError: error)
+        guard
+            let app = NSWorkspace.shared.frontmostApplication,
+            let mediator = mediator(of: app)
+        else {
             return false
         }
+        return mediator.handle(event)
     }
 
     public func didToggleKeysPassthrough(enabled: Bool) {
@@ -120,14 +110,10 @@ public final class MainMediator {
     }
 
     private func didActivateApp(_ app: NSRunningApplication) {
-        do {
-            _ = try mediator(of: app)
-        } catch {
-            delegate?.mainMediator(self, didFailWithError: error)
-        }
+        _ = mediator(of: app)
     }
 
-    private func mediator(of app: NSRunningApplication) throws -> AppMediator? {
+    private func mediator(of app: NSRunningApplication) -> AppMediator? {
         precondition(Thread.isMainThread)
 
         guard
@@ -143,17 +129,21 @@ public final class MainMediator {
             return mediator
         }
 
-        let mediator = try appMediatorFactory(app)
+        let mediator = appMediatorFactory(app)
         mediator.delegate = appDelegates[id] ?? self
-        mediator.start()
+        Task {
+            await mediator.start()
+        }
         apps[app.processIdentifier] = mediator
         return mediator
     }
 
     private func terminate(app: NSRunningApplication) {
         precondition(Thread.isMainThread)
-        let mediator = apps.removeValue(forKey: app.processIdentifier)
-        mediator?.stop()
+        guard let mediator = apps.removeValue(forKey: app.processIdentifier) else {
+            return
+        }
+        mediator.stop()
     }
 }
 

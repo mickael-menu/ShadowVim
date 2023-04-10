@@ -330,6 +330,14 @@ public extension AXUIElement {
         try get(.identifier)
     }
 
+    func value<T>() throws -> T? {
+        try get(.value)
+    }
+
+    func stringValue() -> String? {
+        try? get(.value)
+    }
+
     func parent() -> AXUIElement? {
         try? get(.parent)
     }
@@ -362,6 +370,38 @@ public extension AXUIElement {
 
     func focusedApplication() throws -> AXUIElement? {
         try get(.focusedApplication)
+    }
+
+    func focusedUIElement() -> AXUIElement? {
+        try? get(.focusedUIElement)
+    }
+
+    /// Replaces the text `range` with the given `replacement`.
+    ///
+    /// The location of the current selection is adjusted to stay on the same
+    /// line, even if the replacement is smaller than the original content.
+    ///
+    /// Note that this won't be correct for selections larger than a single
+    /// character. In practice we don't need it.
+    func replaceText(in range: CFRange, with replacement: String) throws {
+        guard
+            var selection: CFRange = try get(.selectedTextRange),
+            let selectionStartLine: Int = try get(.lineForIndex, with: selection.location)
+        else {
+            return
+        }
+
+        try set(.selectedTextRange, value: range)
+        try set(.selectedText, value: replacement)
+
+        // Adjust and restore the original selection.
+        if
+            let lineRange: CFRange = try get(.rangeForLine, with: selectionStartLine),
+            selection.location >= lineRange.location + lineRange.length
+        {
+            selection.location = lineRange.location + lineRange.length - 1
+        }
+        try set(.selectedTextRange, value: selection)
     }
 }
 

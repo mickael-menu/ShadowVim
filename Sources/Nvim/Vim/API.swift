@@ -239,11 +239,6 @@ public class API {
         }
     }
 
-    public func input(_ keyCombo: KeyCombo) -> Async<Int, NvimError> {
-        request("nvim_input", with: keyCombo.nvimNotation)
-            .checkedUnpacking { $0.intValue }
-    }
-
     public func input(_ keys: String) -> Async<Int, NvimError> {
         var keys = keys
         // Note: keycodes like <CR> are translated, so "<" is special.
@@ -366,6 +361,7 @@ public class API {
         }
     }
 
+    /// Activates UI events on the channel.
     /// https://neovim.io/doc/user/api.html#nvim_ui_attach()
     public func uiAttach(width: Int, height: Int, options: UIOptions) -> Async<Void, NvimError> {
         request("nvim_ui_attach", with: [

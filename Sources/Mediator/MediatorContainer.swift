@@ -57,37 +57,38 @@ public final class MediatorContainer {
         )
     }
 
-    func appMediator(app: NSRunningApplication) throws -> AppMediator {
-        let nvim = nvimContainer.nvim()
-        try nvim.start()
-        return try AppMediator(
+    func appMediator(app: NSRunningApplication) -> AppMediator {
+        let nvimController = nvimController()
+
+        return AppMediator(
             app: app,
-            nvim: nvim,
-            buffers: NvimBuffers(
-                nvim: nvim,
-                logger: logger?.domain("nvim-buffers")
-            ),
+            nvimController: nvimController,
             eventSource: EventSource(keyResolver: keyResolver),
             logger: logger?.domain("app"),
-            bufferMediatorFactory: bufferMediator,
-            enableKeysPassthrough: enableKeysPassthrough,
-            resetShadowVim: resetShadowVim
+            bufferMediatorFactory: { buffer, element in
+                BufferMediator(
+                    nvimController: nvimController,
+                    nvimBuffer: buffer,
+                    uiElement: element,
+                    logger: self.logger?.domain("buffer.\(buffer.handle)")
+                        .with("path", to: buffer.name ?? "")
+                )
+            }
         )
     }
 
-    func bufferMediator(
-        nvim: Nvim,
-        nvimBuffer: NvimBuffer,
-        uiElement: AXUIElement,
-        nvimCursorPublisher: AnyPublisher<Cursor, NvimError>
-    ) -> BufferMediator {
-        BufferMediator(
+    func nvimController() -> NvimController {
+        let logger = logger?.domain("nvim")
+        let nvim = nvimContainer.nvim()
+        return NvimController(
             nvim: nvim,
-            nvimBuffer: nvimBuffer,
-            uiElement: uiElement,
-            nvimCursorPublisher: nvimCursorPublisher,
-            logger: logger?.domain("buffer.\(nvimBuffer.handle)")
-                .with("path", to: nvimBuffer.name ?? "")
+            buffers: NvimBuffers(
+                nvim: nvim,
+                logger: logger?.domain("buffers")
+            ),
+            logger: logger,
+            enableKeysPassthrough: enableKeysPassthrough,
+            resetShadowVim: resetShadowVim
         )
     }
 }

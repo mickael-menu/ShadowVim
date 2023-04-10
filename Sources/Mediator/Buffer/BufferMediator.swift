@@ -28,21 +28,19 @@ protocol BufferMediatorDelegate: AnyObject {
 }
 
 public final class BufferMediator {
-    public typealias Factory = ((
-        nvim: Nvim,
+    typealias Factory = ((
         nvimBuffer: NvimBuffer,
-        uiElement: AXUIElement,
-        nvimCursorPublisher: AnyPublisher<Cursor, NvimError>
+        uiElement: AXUIElement
     )) -> BufferMediator
 
     weak var delegate: BufferMediatorDelegate?
 
-    private var state: BufferState
-    private let nvim: Nvim
-    let nvimBuffer: NvimBuffer
+    private var state: any BufferState
+    private let nvimController: NvimController
+    private let nvimBuffer: NvimBuffer
     private let logger: Logger?
-    private let tokenTimeoutSubject = PassthroughSubject<Void, Never>()
 
+    private var timeoutTimers: [AnyHashable: Timer] = [:]
     private var subscriptions: Set<AnyCancellable> = []
     private var uiSubscriptions: Set<AnyCancellable> = []
 
@@ -57,49 +55,36 @@ public final class BufferMediator {
         }
     }
 
-    public init(
-        nvim: Nvim,
+    public var nvimHandle: BufferHandle {
+        nvimBuffer.handle
+    }
+
+    init(
+        nvimController: NvimController,
         nvimBuffer: NvimBuffer,
         uiElement: AXUIElement,
-        nvimCursorPublisher: AnyPublisher<Cursor, NvimError>,
         logger: Logger?
     ) {
-        self.nvim = nvim
+        self.nvimController = nvimController
         self.nvimBuffer = nvimBuffer
         self.uiElement = uiElement
         self.logger = logger
 
-        state = BufferState(
+        state = CooperativeBufferState(
             nvim: .init(lines: nvimBuffer.lines),
-            ui: .init(lines: (try? uiElement.lines()) ?? [])
-        )
+            ui: .init(lines: uiElement.lines())
+        ).loggable(logger)
 
         subscribeToElementChanges(uiElement)
 
-        nvimBuffer.didChangePublisher
+        nvimBuffer.linesEventPublisher
             .receive(on: DispatchQueue.main)
             .sink(
                 onFailure: { [unowned self] in fail($0) },
                 receiveValue: { [unowned self] in
-                    on(.nvimBufferDidChange(lines: $0.lines, event: $0.event))
+                    on(.nvimLinesDidChange($0))
                 }
             )
-            .store(in: &subscriptions)
-
-        nvimCursorPublisher
-            .receive(on: DispatchQueue.main)
-            .sink(
-                onFailure: { [unowned self] in fail($0) },
-                receiveValue: { [unowned self] cursor in
-                    on(.nvimCursorDidChange(cursor))
-                }
-            )
-            .store(in: &subscriptions)
-
-        tokenTimeoutSubject
-            .receive(on: DispatchQueue.main)
-            .debounce(for: .seconds(0.2), scheduler: DispatchQueue.main)
-            .sink { [weak self] in self?.on(.tokenDidTimeout) }
             .store(in: &subscriptions)
     }
 
@@ -117,7 +102,7 @@ public final class BufferMediator {
         return CGPoint(x: bounds.midX, y: bounds.midY)
     }
 
-    func synchronize(source: BufferState.Host) {
+    func synchronize(source: BufferHost) {
         DispatchQueue.main.async {
             self.on(.didRequestRefresh(source: .nvim))
         }
@@ -135,11 +120,8 @@ public final class BufferMediator {
         do {
             uiElement = element
 
-            try on(.uiBufferDidChange(lines: element.lines()))
+            try on(.uiDidFocus(lines: element.lines(), selection: element.selection() ?? .init()))
 
-            if let selection = try element.selection() {
-                on(.uiSelectionDidChange(selection))
-            }
         } catch AX.AXError.invalidUIElement {
             uiElement = nil
         } catch {
@@ -147,7 +129,16 @@ public final class BufferMediator {
         }
     }
 
-    func didReceiveMouseEvent(_ event: MouseEvent) {
+    func didReceiveEvent(_ event: InputEvent) -> Bool {
+        switch event {
+        case let .key(event):
+            return on(.uiDidReceiveKeyEvent(event.keyCombo, character: event.character))
+        case let .mouse(event):
+            return handle(event)
+        }
+    }
+
+    private func handle(_ event: MouseEvent) -> Bool {
         // We use the element's parent to get the frame because Xcode's source
         // editors return garbage positions.
         let bufferFrame = uiElement?.parent()?.frame() ?? .zero
@@ -162,14 +153,30 @@ public final class BufferMediator {
         }
 
         on(.uiDidReceiveMouseEvent(event.kind, bufferPoint: bufferPoint))
+
+        // Don't override default system behavior
+        return false
+    }
+
+    func nvimDidFlush() {
+        on(.nvimDidFlush)
+    }
+
+    func nvimModeDidChange(_ mode: Mode) {
+        on(.nvimModeDidChange(mode))
+    }
+
+    func nvimCursorDidChange(_ cursor: NvimCursor) {
+        on(.nvimCursorDidChange(cursor))
     }
 
     private func subscribeToElementChanges(_ element: AXUIElement) {
         uiSubscriptions = []
 
         element.publisher(for: .valueChanged)
+//            .debounce(for: 0.2, scheduler: DispatchQueue.main)
             .receive(on: DispatchQueue.main)
-            .tryMap { try $0.lines() }
+            .map { $0.lines() }
             .sink(
                 onFailure: { [unowned self] in fail($0) },
                 receiveValue: { [unowned self] in
@@ -191,37 +198,70 @@ public final class BufferMediator {
             .store(in: &uiSubscriptions)
     }
 
-    private func on(_ event: BufferState.Event) {
+    /// Returns whether the event triggered actions.
+    @discardableResult
+    private func on(_ event: BufferEvent) -> Bool {
         precondition(Thread.isMainThread)
         let actions = state.on(event, logger: logger)
         for action in actions {
             perform(action)
         }
+
+        return !actions.isEmpty
     }
 
-    private func perform(_ action: BufferState.Action) {
+    private func perform(_ action: BufferAction) {
         do {
             switch action {
-            case let .updateNvim(_, diff: diff, cursorPosition: cursorPosition):
-                updateNvim(diff: diff, cursorPosition: cursorPosition)
-            case let .moveNvimCursor(position):
-                moveNvimCursor(position: position)
-            case let .startNvimVisual(start: start, end: end):
-                startNvimVisual(from: start, to: end)
-            case .stopNvimVisual:
-                stopNvimVisual()
-            case let .updateUI(_, diff: diff, selections: selections):
-                try updateUI(diff: diff, selections: selections)
-            case let .updateUIPartialLines(event: event):
-                try updateUIPartialLines(with: event)
-            case let .updateUISelections(selections):
+            case let .nvimUpdateLines(lines):
+                nvimController.setLines(lines, in: nvimBuffer)
+                    .get(onFailure: fail)
+
+            case let .nvimMoveCursor(position):
+                nvimController.setCursor(in: nvimBuffer, at: position)
+                    .get(onFailure: fail)
+
+            case let .nvimStartVisual(start: start, end: end):
+                nvimController.startVisual(in: nvimBuffer, from: start, to: end)
+                    .get(onFailure: fail)
+
+            case .nvimStopVisual:
+                nvimController.stopVisual()
+                    .get(onFailure: fail)
+
+            case .nvimUndo:
+                nvimController.undo(in: nvimBuffer)
+                    .get(onFailure: fail)
+
+            case .nvimRedo:
+                nvimController.redo(in: nvimBuffer)
+                    .get(onFailure: fail)
+
+            case .nvimPaste:
+                if let text = NSPasteboard.get() {
+                    nvimController.paste(text, in: nvimBuffer)
+                        .get(onFailure: fail)
+                }
+
+            case let .nvimInput(keys):
+                nvimController.input(keys, in: nvimBuffer)
+                    .get(onFailure: fail)
+
+            case let .uiUpdateLines(lines):
+                try updateUILines(lines)
+
+            case let .uiUpdateSelections(selections):
                 try updateUISelections(selections)
-            case let .scrollUI(visibleSelection: visibleSelection):
+
+            case let .uiScroll(visibleSelection: visibleSelection):
                 try scrollUI(to: visibleSelection)
-            case .startTokenTimeout:
-                tokenTimeoutSubject.send(())
+
+            case let .startTimeout(id: id, durationInSeconds: duration):
+                startTimeout(id: id, for: duration)
+
             case .bell:
                 NSSound.beep()
+
             case let .alert(error):
                 delegate?.bufferMediator(self, didFailWithError: error.error)
             }
@@ -232,114 +272,69 @@ public final class BufferMediator {
         }
     }
 
-    private func updateNvim(diff: CollectionDifference<String>, cursorPosition: BufferPosition) {
-        nvim.vim?.atomic(in: nvimBuffer) { [self] vim in
-            withAsyncGroup { group in
-                for change in diff {
-                    var start: LineIndex
-                    var end: LineIndex
-                    var replacement: [String]
-                    switch change {
-                    case let .insert(offset: offset, element: element, _):
-                        start = offset
-                        end = offset
-                        replacement = [element]
-                    case let .remove(offset: offset, _, _):
-                        start = offset
-                        end = offset + 1
-                        replacement = []
-                    }
-                    vim.api.bufSetLines(buffer: nvimBuffer.handle, start: start, end: end, replacement: replacement)
-                        .eraseToAnyError()
-                        .add(to: group)
-                }
-
-                vim.api.winSetCursor(position: cursorPosition, failOnInvalidPosition: false)
-                    .eraseToAnyError()
-                    .add(to: group)
-            }
-        }
-        .get(onFailure: fail)
-    }
-
-    private func moveNvimCursor(position: BufferPosition) {
-        nvim.vim?.atomic(in: nvimBuffer) { vim in
-            vim.api.winSetCursor(position: position, failOnInvalidPosition: false)
-        }
-        .discardResult()
-        .get(onFailure: fail)
-    }
-
-    /// Starts the Neovim Visual mode and selects from the given `start` and
-    /// `end` positions.
-    private func startNvimVisual(from start: BufferPosition, to end: BufferPosition) {
-        nvim.vim?.atomic(in: nvimBuffer) { vim in
-            vim.cmd(
-                """
-                " Exit the current mode, hopefully.
-                execute "normal! \\<Ignore>\\<Esc>"
-                normal! \(start.line)G\(start.column)|v\(end.line)G\(end.column)|",
-                """
-            )
-        }
-        .discardResult()
-        .get(onFailure: fail)
-    }
-
-    /// Exits the Neovim Visual mode (character, line or block-wise).
-    private func stopNvimVisual() {
-        nvim.vim?.cmd(
-            """
-            if mode() =~ "^[vV\\<C-v>]$"
-                execute "normal! \\<Ignore>\\<Esc>"
-            endif
-            """
-        )
-        .discardResult()
-        .get(onFailure: fail)
-    }
-
-    private func updateUI(diff: CollectionDifference<String>, selections: [UISelection]) throws {
-        guard let uiElement = uiElement else {
+    private func updateUILines(_ lines: [String]) throws {
+        guard
+            let uiElement = uiElement,
+            let oldLines = uiElement.stringValue()?.lines
+        else {
             return
         }
 
-        if !diff.isEmpty {
-            for change in diff {
-                let eof = try (uiElement.get(.numberOfCharacters) as Int?) ?? 0
+        let diff = lines.difference(from: oldLines.map { String($0) })
 
-                switch change {
-                case .insert(offset: let offset, element: var element, _):
-                    guard let range: CFRange = try uiElement.get(.rangeForLine, with: offset) else {
-                        logger?.w("Failed to insert line at \(offset)")
-                        return
-                    }
-                    // If the line is not inserted at the end of the file, then
-                    // we append a newline to separate it from the next line.
-                    if range.location + range.length < eof {
-                        element += "\n"
-                    }
-                    try uiElement.set(.selectedTextRange, value: CFRange(location: range.location, length: 0))
-                    try uiElement.set(.selectedText, value: element)
+        if let (offset, line) = diff.updatedSingleItem {
+            try updateUIOneLine(
+                at: offset,
+                in: uiElement,
+                content: uiElement.stringValue() ?? "",
+                replacement: line
+            )
+        } else if !diff.isEmpty {
+            try updateUIMultipleLines(diff: diff, in: uiElement)
+        }
+    }
 
-                case let .remove(offset: offset, _, _):
-                    guard var range: CFRange = try uiElement.get(.rangeForLine, with: offset) else {
-                        logger?.w("Failed to remove line at \(offset)")
-                        return
-                    }
-                    // If we're removing the last line, then the previous
-                    // newline is also removed to avoid keeping an empty
-                    // ghost line.
-                    if range.location + range.length == eof, range.location > 0 {
-                        range = CFRange(location: range.location - 1, length: range.length + 1)
-                    }
-                    try uiElement.set(.selectedTextRange, value: range)
-                    try uiElement.set(.selectedText, value: "")
+    private func updateUIMultipleLines(diff: CollectionDifference<String>, in uiElement: AXUIElement) throws {
+        for change in diff.coalesceChanges() {
+            let eof = try (uiElement.get(.numberOfCharacters) as Int?) ?? 0
+            switch change {
+            case let .insert(index, lines):
+                var content = lines.joinedLines()
+                guard let range: CFRange = try uiElement.get(.rangeForLine, with: index) else {
+                    logger?.w("Failed to insert lines at \(index)")
+                    return
                 }
+                // If the line is not inserted at the end of the file, then
+                // we append a newline to separate it from the next line.
+                if range.location < eof {
+                    content += "\n"
+                }
+
+                let editRange = CFRange(location: range.location, length: 0)
+                try uiElement.replaceText(in: editRange, with: content)
+
+            case let .remove(indices):
+                guard var range: CFRange = try uiElement.get(.rangeForLine, with: indices.lowerBound) else {
+                    logger?.w("Failed to remove lines at \(indices.lowerBound)...\(indices.upperBound)")
+                    return
+                }
+                if indices.lowerBound != indices.upperBound {
+                    guard let lastLineRange: CFRange = try uiElement.get(.rangeForLine, with: indices.upperBound) else {
+                        logger?.w("Failed to remove lines at \(indices.lowerBound)...\(indices.upperBound)")
+                        return
+                    }
+                    range = CFRange(location: range.location, length: (lastLineRange.location + lastLineRange.length) - range.location)
+                }
+
+                // If we're removing the last line, then the previous
+                // newline is also removed to avoid keeping an empty
+                // ghost line.
+                if range.location + range.length == eof, range.location > 0 {
+                    range = CFRange(location: range.location - 1, length: range.length + 1)
+                }
+                try uiElement.replaceText(in: range, with: "")
             }
         }
-
-        try updateUISelections(selections)
     }
 
     private func updateUIPartialLines(with event: BufLinesEvent) throws {
@@ -363,8 +358,7 @@ public final class BufferMediator {
             return
         }
 
-        try element.set(.selectedTextRange, value: range.cfRange(in: content))
-        try element.set(.selectedText, value: replacement)
+        try element.replaceText(in: range.cfRange(in: content), with: replacement)
     }
 
     // Optimizes changing only the tail of a line, to avoid refreshing the whole
@@ -393,8 +387,7 @@ public final class BufferMediator {
             replacement = ""
         }
 
-        try element.set(.selectedTextRange, value: range)
-        try element.set(.selectedText, value: replacement)
+        try element.replaceText(in: range, with: replacement)
     }
 
     private func updateUISelections(_ selections: [UISelection]) throws {
@@ -429,6 +422,13 @@ public final class BufferMediator {
         try uiElement.set(.visibleCharacterRange, value: range)
     }
 
+    private func startTimeout(id: AnyHashable, for duration: Double) {
+        timeoutTimers[id]?.invalidate()
+        timeoutTimers[id] = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
+            self?.on(.didTimeout(id: id))
+        }
+    }
+
     private func fail(_ error: Error) {
         precondition(Thread.isMainThread)
         if case AX.AXError.invalidUIElement = error {
@@ -442,8 +442,12 @@ public final class BufferMediator {
 private extension AXUIElement {
     /// Returns the string value of the receiving accessibility element split as
     /// lines.
-    func lines() throws -> [String] {
-        try (get(.value) as String?).map { $0.lines.map { String($0) } } ?? []
+    func lines() -> [String] {
+        guard let text = stringValue() else {
+            return []
+        }
+
+        return text.lines.map { String($0) }
     }
 
     /// Returns the UI selection of the receiving accessibility element.

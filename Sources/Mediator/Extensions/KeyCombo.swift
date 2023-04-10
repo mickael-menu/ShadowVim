@@ -15,16 +15,12 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-import Difference
 import Foundation
-import XCTest
+import Toolkit
 
-public func XCTAssertEqual<T: Equatable>(_ received: @autoclosure () throws -> T, _ expected: @autoclosure () throws -> T, file: StaticString = #filePath, line: UInt = #line) {
-    do {
-        let expected = try expected()
-        let received = try received()
-        XCTAssertTrue(expected == received, "Found difference for \n" + diff(expected, received).joined(separator: ", "), file: file, line: line)
-    } catch {
-        XCTFail("Caught error while testing: \(error)", file: file, line: line)
-    }
+extension KeyCombo {
+    static let escape = KeyCombo(.escape)
+    static let cmdZ = KeyCombo(.z, modifiers: .command)
+    static let cmdShiftZ = KeyCombo(.z, modifiers: [.command, .shift])
+    static let cmdV = KeyCombo(.v, modifiers: [.command])
 }

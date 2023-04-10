@@ -24,16 +24,19 @@ public enum EventSourceError: Error {
 
 /// An event source allows to post events (e.g. key combos) to the system.
 public final class EventSource {
-    private let source: CGEventSource
+    private var source: CGEventSource?
     private let keyResolver: CGKeyResolver
 
-    public init(keyResolver: CGKeyResolver) throws {
+    public init(keyResolver: CGKeyResolver) {
+        self.keyResolver = keyResolver
+    }
+
+    public func start() throws {
         guard let source = CGEventSource(stateID: .combinedSessionState) else {
             throw EventSourceError.failedToCreateSource
         }
 
         self.source = source
-        self.keyResolver = keyResolver
     }
 
     /// Posts a keyboard event for the given key combo.

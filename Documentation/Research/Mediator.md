@@ -22,3 +22,8 @@ This is the approach used by [`vscode-neovim`](https://github.com/vscode-neovim/
 * Xcode's completion pop-up will work without issues.
 * We need to synchronize the buffer again with Neovim, potentially breaking the undo tree.
 * Neovim features for the Insert mode will need to be reimplemented for Xcode.
+* Dot-repeat is broken and requires complex workarounds, see:
+    * https://github.com/vscode-neovim/vscode-neovim/pull/173
+    * https://github.com/vscode-neovim/vscode-neovim/issues/209
+    * A workaround could be to let Neovim handle Insert mode when triggered from operator pending mode ([suggestion from justinmk](https://github.com/vscode-neovim/vscode-neovim/issues/76#issuecomment-562902179)).
+    * [Using a macro is also a partial workaround](https://github.com/vscode-neovim/vscode-neovim/issues/76#issuecomment-568910666).

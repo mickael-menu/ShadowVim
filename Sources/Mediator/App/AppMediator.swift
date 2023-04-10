@@ -57,7 +57,7 @@ public extension AppMediatorDelegate {
     }
 
     func appMediator(_ mediator: AppMediator, nameForElement element: AXUIElement) -> String? {
-        element.document()
+        element.bufferName()
     }
 
     func appMediator(_ mediator: AppMediator, shouldIgnoreEvent event: InputEvent) -> Bool {
@@ -69,166 +69,75 @@ public extension AppMediatorDelegate {
     }
 }
 
-public enum AppMediatorError: LocalizedError {
-    case deprecatedCommand(name: String, replacement: String)
-
-    public var errorDescription: String? {
-        switch self {
-        case let .deprecatedCommand(name: name, _):
-            return "'\(name)' is deprecated"
-        }
-    }
-
-    public var failureReason: String? {
-        switch self {
-        case let .deprecatedCommand(_, replacement: replacement):
-            return replacement
-        }
+private extension AXUIElement {
+    func bufferName() -> String? {
+        document()?
+            .removingPrefix("file://")
+            .removingPercentEncoding
     }
 }
 
 public final class AppMediator {
-    public typealias Factory = (_ app: NSRunningApplication) throws -> AppMediator
+    public typealias Factory = (_ app: NSRunningApplication) -> AppMediator
 
     public weak var delegate: AppMediatorDelegate?
 
     public let app: NSRunningApplication
     public let appElement: AXUIElement
-    private let nvim: Nvim
-    private let buffers: NvimBuffers
+    private let nvimController: NvimController
     private let eventSource: EventSource
     private let logger: Logger?
     private let bufferMediatorFactory: BufferMediator.Factory
-    private let enableKeysPassthrough: () -> Void
-    private let resetShadowVim: () -> Void
 
     private var state: AppState = .stopped
     private var bufferMediators: [BufferName: BufferMediator] = [:]
     private var subscriptions: Set<AnyCancellable> = []
 
-    public init(
+    init(
         app: NSRunningApplication,
-        nvim: Nvim,
-        buffers: NvimBuffers,
+        nvimController: NvimController,
         eventSource: EventSource,
         logger: Logger?,
-        bufferMediatorFactory: @escaping BufferMediator.Factory,
-        enableKeysPassthrough: @escaping () -> Void,
-        resetShadowVim: @escaping () -> Void
+        bufferMediatorFactory: @escaping BufferMediator.Factory
     ) {
         precondition(app.isFinishedLaunching)
 
         self.app = app
         appElement = AXUIElement.app(app)
-        self.nvim = nvim
-        self.buffers = buffers
+        self.nvimController = nvimController
         self.eventSource = eventSource
         self.logger = logger
         self.bufferMediatorFactory = bufferMediatorFactory
-        self.enableKeysPassthrough = enableKeysPassthrough
-        self.resetShadowVim = resetShadowVim
 
-        nvim.delegate = self
-
-        setupUserCommands()
-
-        // nvim.vim?.api.uiAttach(
-        //     width: 1000,
-        //     height: 100,
-        //     options: API.UIOptions(
-        //         extCmdline: true,
-        //         extHlState: true,
-        //         extLineGrid: true,
-        //         extMessages: true,
-        //         extMultigrid: true,
-        //         extPopupMenu: true,
-        //         extTabline: true,
-        //         extTermColors: true
-        //     )
-        // )
-        // .forwardErrorToDelegate(of: self)
-        // .run()
-
-        // nvim.publisher(for: "redraw")
-        //     .assertNoFailure()
-        //     .sink { params in
-        //         for v in params {
-        //             guard
-        //             let a = v.arrayValue,
-        //             let k = a.first?.stringValue,
-        //             k.hasPrefix("msg_")
-        //             else {
-        //                 continue
-        //             }
-        //             print(a)
-        //         }
-        //     }
-        //     .store(in: &subscriptions)
-    }
-
-    private func setupUserCommands() {
-        nvim.add(command: "SVSynchronizeUI") { [weak self] _ in
-            self?.synchronizeFocusedBuffer(source: .nvim)
-            return .nil
-        }
-        .forwardErrorToDelegate(of: self)
-        .run()
-
-        nvim.add(command: "SVSynchronizeNvim") { [weak self] _ in
-            self?.synchronizeFocusedBuffer(source: .ui)
-            return .nil
-        }
-        .forwardErrorToDelegate(of: self)
-        .run()
-
-        nvim.add(command: "SVPressKeys", args: .one) { [weak self] _ in
-            if let self = self {
-                let error = AppMediatorError.deprecatedCommand(name: "SVPressKeys", replacement: "Use 'SVPress' in your Neovim configuration instead.")
-                self.delegate?.appMediator(self, didFailWithError: error)
-            }
-            return .bool(false)
-        }
-        .forwardErrorToDelegate(of: self)
-        .run()
-
-        nvim.add(command: "SVPress", args: .one) { [weak self] params in
-            guard
-                let self,
-                params.count == 1,
-                case let .string(notation) = params[0]
-            else {
-                return .bool(false)
-            }
-            return .bool(self.press(notation: notation))
-        }
-        .forwardErrorToDelegate(of: self)
-        .run()
-
-        nvim.add(command: "SVEnableKeysPassthrough") { [weak self] _ in
-            self?.enableKeysPassthrough()
-            return .nil
-        }
-        .forwardErrorToDelegate(of: self)
-        .run()
-
-        nvim.add(command: "SVReset") { [weak self] _ in
-            self?.resetShadowVim()
-            return .nil
-        }
-        .forwardErrorToDelegate(of: self)
-        .run()
+        nvimController.delegate = self
     }
 
     deinit {
         stop()
     }
 
-    public func start() {
-        on(.start)
+    @MainActor
+    public func start() async {
+        do {
+            on(.willStart)
+            delegate?.appMediatorWillStart(self)
+
+            try await nvimController.start()
+            try eventSource.start()
+            setupNvimSync()
+            setupFocusSync()
+
+            on(.didStart)
+
+        } catch {
+            delegate?.appMediator(self, didFailWithError: error)
+        }
     }
 
     public func stop() {
-        on(.stop)
+        nvimController.stop()
+        subscriptions.removeAll()
+        delegate?.appMediatorDidStop(self)
     }
 
     public func didToggleKeysPassthrough(enabled: Bool) {
@@ -239,28 +148,10 @@ public final class AppMediator {
 
     private func on(_ event: AppState.Event) {
         precondition(Thread.isMainThread)
-        for action in state.on(event, logger: logger) {
-            perform(action)
-        }
+        state.on(event, logger: logger)
     }
 
-    private func perform(_ action: AppState.Action) {
-        switch action {
-        case .start:
-            setupFocusSync()
-            delegate?.appMediatorWillStart(self)
-        case .stop:
-            performStop()
-        }
-    }
-
-    private func performStop() {
-        nvim.stop()
-        subscriptions.removeAll()
-        delegate?.appMediatorDidStop(self)
-    }
-
-    private func synchronizeFocusedBuffer(source: BufferState.Host) {
+    private func synchronizeFocusedBuffer(source: BufferHost) {
         if case let .focused(buffer) = state {
             buffer.synchronize(source: source)
         }
@@ -286,90 +177,7 @@ public final class AppMediator {
             return true
         }
 
-        return handle(event, in: buffer)
-    }
-
-    private let cmdZ = KeyCombo(.z, modifiers: .command)
-    private let cmdShiftZ = KeyCombo(.z, modifiers: [.command, .shift])
-    private let cmdV = KeyCombo(.v, modifiers: [.command])
-
-    private func handle(_ event: InputEvent, in buffer: BufferMediator) -> Bool {
-        switch event {
-        case let .key(event):
-            return handle(event, in: buffer)
-        case let .mouse(event):
-            return handle(event, in: buffer)
-        }
-    }
-
-    private func handle(_ event: MouseEvent, in buffer: BufferMediator) -> Bool {
-        buffer.didReceiveMouseEvent(event)
-        return false
-    }
-
-    private func handle(_ event: KeyEvent, in buffer: BufferMediator) -> Bool {
-        let buffer = buffer.nvimBuffer
-
-        switch event.keyCombo {
-        case cmdZ:
-            nvim.vim?.atomic(in: buffer) { vim in
-                vim.cmd.undo()
-            }
-            .discardResult()
-            .forwardErrorToDelegate(of: self)
-            .run()
-
-        case cmdShiftZ:
-            nvim.vim?.atomic(in: buffer) { vim in
-                vim.cmd.redo()
-            }
-            .discardResult()
-            .forwardErrorToDelegate(of: self)
-            .run()
-
-        case cmdV:
-            // We override the system paste behavior to improve performance and
-            // nvim's undo history.
-            guard let text = NSPasteboard.get() else {
-                break
-            }
-            nvim.vim?.atomic(in: buffer) { vim in
-                vim.api.paste(text)
-            }
-            .discardResult()
-            .forwardErrorToDelegate(of: self)
-            .run()
-
-        default:
-            let mods = event.keyCombo.modifiers
-
-            // Passthrough for ⌘-based keyboard shortcuts.
-            guard
-                !mods.contains(.command)
-            else {
-                return false
-            }
-
-            nvim.vim?.atomic(in: buffer) { vim in
-                // If the user pressed control, we send the key combo as is to
-                // be able to remap this keyboard shortcut in Nvim.
-                // Otherwise, we send the unicode character for this event.
-                // See Documentation/Research/Keyboard.md.
-                if
-                    !mods.contains(.control),
-                    !event.keyCombo.key.isNonPrintableCharacter,
-                    let character = event.character
-                {
-                    return vim.api.input(character)
-                } else {
-                    return vim.api.input(event.keyCombo)
-                }
-            }
-            .discardResult()
-            .forwardErrorToDelegate(of: self)
-            .run()
-        }
-        return true
+        return buffer.didReceiveEvent(event)
     }
 
     private var isAppFocused: Bool {
@@ -408,12 +216,29 @@ public final class AppMediator {
         }
     }
 
+    // MARK: - Nvim mode and cursor synchronization
+
+    private func setupNvimSync() {
+        nvimController.modeAndCursorPublisher
+            .receive(on: DispatchQueue.main)
+            .sink(
+                onFailure: { [unowned self] error in
+                    delegate?.appMediator(self, didFailWithError: error)
+                },
+                receiveValue: { [unowned self] mode, cursor in
+                    for (_, buffer) in bufferMediators {
+                        buffer.nvimModeDidChange(mode)
+                    }
+                    bufferMediator(for: cursor.buffer)?.nvimCursorDidChange(cursor)
+                }
+            )
+            .store(in: &subscriptions)
+    }
+
     // MARK: - Focus synchronization
 
     private func setupFocusSync() {
-        if let focusedElement = appElement[.focusedUIElement] as AXUIElement? {
-            focusedUIElementDidChange(focusedElement)
-        }
+        focusedUIElementDidChange()
 
         appElement.publisher(for: .focusedUIElementChanged)
             .receive(on: DispatchQueue.main)
@@ -421,15 +246,18 @@ public final class AppMediator {
                 onFailure: { [unowned self] error in
                     delegate?.appMediator(self, didFailWithError: error)
                 },
-                receiveValue: { [unowned self] element in
-                    focusedUIElementDidChange(element)
+                receiveValue: { [unowned self] _ in
+                    // We ignore the event element because the focused element
+                    // might have changed by the time we execute the following.
+                    focusedUIElementDidChange()
                 }
             )
             .store(in: &subscriptions)
     }
 
-    private func focusedUIElementDidChange(_ element: AXUIElement) {
+    private func focusedUIElementDidChange() {
         guard
+            let element = appElement.focusedUIElement(),
             element.isValid,
             (try? element.get(.role)) == AXRole.textArea,
             let name = nameForElement(element),
@@ -447,58 +275,37 @@ public final class AppMediator {
     }
 
     private func editBuffer(for element: AXUIElement, name: BufferName) -> Async<BufferMediator, NvimError> {
-        guard let vim = nvim.vim else {
-            return .failure(.notStarted)
+        nvimController.editBuffer(
+            name: name,
+            contents: { element[.value] ?? "" }
+        )
+        .map(on: .main) { [self] buffer in
+            makeMediator(for: element, name: name, buffer: buffer)
         }
-
-        return buffers.edit(name: name, contents: element[.value] ?? "", with: vim)
-            .map(on: .main) { [self] buffer in
-                let mediator = bufferMediators.getOrPut(name) {
-                    bufferMediatorFactory((
-                        nvim: nvim,
-                        nvimBuffer: buffer,
-                        uiElement: element,
-                        nvimCursorPublisher: nvimCursorPublisher
-                            .compactMap { buf, cur in
-                                guard buf == buffer.handle else {
-                                    return nil
-                                }
-                                return cur
-                            }
-                            .eraseToAnyPublisher()
-                    ))
-                }
-                mediator.delegate = self
-                mediator.didFocus(element: element)
-                return mediator
-            }
     }
 
-    /// This publisher is used to observe the Neovim selection and mode
-    /// changes.
-    lazy var nvimCursorPublisher: AnyPublisher<(BufferHandle, Cursor), NvimError> =
-        nvim.autoCmdPublisher(
-            for: "ModeChanged", "CursorMoved", "CursorMovedI",
-            args: "bufnr()", "mode()", "getcharpos('.')", "getcharpos('v')",
-            unpack: { params -> (BufferHandle, Cursor)? in
-                guard
-                    params.count == 4,
-                    let buffer: BufferHandle = params[0].intValue,
-                    let mode = params[1].stringValue,
-                    let position = BuiltinFunctions.GetposResult(params[2]),
-                    let visual = BuiltinFunctions.GetposResult(params[3])
-                else {
-                    return nil
-                }
+    private func makeMediator(for element: AXUIElement, name: BufferName, buffer: NvimBuffer) -> BufferMediator {
+        let mediator = bufferMediators.getOrPut(name) {
+            bufferMediatorFactory((
+                nvimBuffer: buffer,
+                uiElement: element
+            ))
+        }
+        mediator.delegate = self
+        mediator.didFocus(element: element)
+        return mediator
+    }
 
-                let cursor = Cursor(
-                    mode: Mode(rawValue: mode) ?? .normal,
-                    position: position.position,
-                    visual: visual.position
-                )
-                return (buffer, cursor)
+    /// Returns the current `BufferMediator` associated with the given Nvim
+    /// `buffer` handle.
+    private func bufferMediator(for buffer: BufferHandle) -> BufferMediator? {
+        for (_, mediator) in bufferMediators {
+            if mediator.nvimHandle == buffer {
+                return mediator
             }
-        )
+        }
+        return nil
+    }
 
     // MARK: - Delegate
 
@@ -511,7 +318,7 @@ public final class AppMediator {
 
     private func nameForElement(_ element: AXUIElement) -> String? {
         guard let delegate = delegate else {
-            return element.document()
+            return element.bufferName()
         }
         return delegate.appMediator(self, nameForElement: element)
     }
@@ -537,14 +344,28 @@ extension AppMediator: BufferMediatorDelegate {
     }
 }
 
-extension AppMediator: NvimDelegate {
-    public func nvim(_ nvim: Nvim, didRequest method: String, with data: [Value]) -> Result<Value, Error>? {
-        logger?.w("Received unknown RPC request", ["method": method, "data": data])
-        return nil
+extension AppMediator: NvimControllerDelegate {
+    func nvimController(_ nvimController: NvimController, didReceiveUIEvent event: UIEvent) {
+        switch event {
+        case .flush:
+            for (_, buffer) in bufferMediators {
+                buffer.nvimDidFlush()
+            }
+        default:
+            print(event)
+        }
     }
 
-    public func nvim(_ nvim: Nvim, didFailWithError error: NvimError) {
+    func nvimController(_ nvimController: NvimController, didFailWithError error: Error) {
         delegate?.appMediator(self, didFailWithError: error)
+    }
+
+    func nvimController(_ nvimController: NvimController, synchronizeFocusedBufferUsing source: BufferHost) {
+        synchronizeFocusedBuffer(source: source)
+    }
+
+    func nvimController(_ nvimController: NvimController, press notation: Notation) -> Bool {
+        press(notation: notation)
     }
 }
 

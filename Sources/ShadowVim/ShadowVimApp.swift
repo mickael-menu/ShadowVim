@@ -50,8 +50,9 @@ struct ShadowVimApp: SwiftUI.App {
 
             if Debug.isDebugging {
                 Button("Verbose logging") { shadowVim.setVerboseLogger() }
-                    .keyboardShortcut("/", modifiers: [.control, .option, .command])
             }
+
+            Button("Open Neovim in Terminal") { shadowVim.openNvimTUI() }
 
             Divider()
 

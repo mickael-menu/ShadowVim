@@ -14,11 +14,20 @@ All notable changes to this project will be documented in this file.
     nmap K <Cmd>SVPress <LT>M-LeftMouse><CR>
 
     " Perform a right click at the caret location.
-    nmap gr <Cmd>SVPress <LT>RightMouse><CR>
+    nmap gR <Cmd>SVPress <LT>RightMouse><CR>
     ```
+* Open a Neovim terminal TUI for the embedded instance (requires Neovim 0.9).
+    * This is useful to solve blocking prompts in Neovim, for instance.
+    * Activate from the status menu, or manually with:
+        ```sh
+        nvim --server /tmp/shadowvim.pipe --remote-ui
+        ```
 
 ### Changed
 
+* The Insert mode is now handled by Xcode to improve performance, auto-completion and indentation.
+    * ShadowVim does not need to override your Xcode editing settings anymore.
+    * Unfortunately, that means that Neovim Insert features are unavailable (e.g. `iab` abbreviations or `imap` mappings).
 * `SVPressKeys` was renamed to `SVPress`.
 * `SVPress` now emits the keyboard shortcut system-wide instead of only in the Xcode process.
     * This can be used to have a custom passthrough for hot keys (e.g. <kbd>⌥\`</kbd> to open iTerm) by adding this to your `init.vim`:
@@ -28,6 +37,10 @@ All notable changes to this project will be documented in this file.
     endif
     ```
 * The system paste shortcut (<kbd>⌘V</kbd>) is now overridden and handled by Neovim to improve performances and the undo history.
+
+### Fixed
+
+* Significantly improve performance when applying changes from Neovim.
 
 
 ## [0.1.1]

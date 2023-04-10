@@ -33,15 +33,14 @@ ShadowVim uses macOS's Accessibility API to keep Xcode and Neovim synchronized. 
 
 ### Minimum Requirements
 
-| ShadowVim | macOS | Xcode | Neovim |
+| ShadowVim  | macOS | Xcode | Neovim |
 |------------|-------|-------|--------|
-| latest     | 13.0  | 14    | 0.8    |
+| 0.2+       | 13.0  | 14    | 0.9    |
+| 0.1        | 13.0  | 14    | 0.8    |
 
 ## Setup
 
 ### Neovim configuration
-
-:point_up: The default Neovim indent files for Swift are not great. For a better alternative, install [`keith/swift.vim`](https://github.com/keith/swift.vim) with your Neovim package manager.
 
 Since many Vim plugins can cause issues with ShadowVim, it is recommended to start from an empty `init.vim`.
 
@@ -64,6 +63,8 @@ end
 To conditionally activate plugins, `vim-plug` has a
 [few solutions](https://github.com/junegunn/vim-plug/wiki/tips#conditional-activation).
 
+:point_up: The default Neovim indent files for Swift are not great. For a better alternative, install [`keith/swift.vim`](https://github.com/keith/swift.vim) with your Neovim package manager.
+
 #### Adding key bindings
 
 Only <kbd>⌃</kbd>/<kbd>C-</kbd>-based keyboard shortcuts can be customized in Neovim. <kbd>⌘</kbd>-based hotkeys are handled directly by Xcode.
@@ -72,10 +73,13 @@ The `SVPress` user command triggers a keyboard shortcut or mouse click in Xcode.
 
 ```viml
 " Jump to Definition (⌃⌘J).
-nmap gd <Cmd>SVPress <LT>C-D-j><CR>
+map gd <Cmd>SVPress <LT>C-D-j><CR>
+
+" Find Selected Symbol in Workspace (⌃⇧⌘J).
+map gr <Cmd>SVPress <LT>C-S-D-f><CR>
 
 " Show the Quick Help pop-up for the symbol at the caret location (<kbd>⌥ + Left Click</kbd>).
-nmap K <Cmd>SVPress <LT>M-LeftMouse><CR>
+map K <Cmd>SVPress <LT>M-LeftMouse><CR>
 ```
 
 :warning: The first `<` needs to be escaped as `<LT>` when calling `SVPress` from a key binding.
@@ -129,33 +133,18 @@ map <A-`> <Cmd>SVPress <LT>A-`><CR>
 Cross-buffers navigation is not yet supported with ShadowVim. Therefore, it is recommended to override the <kbd>C-o</kbd> and <kbd>C-i</kbd> mappings to use Xcode's navigation instead.
 
 ```viml
-nmap <C-o> <Cmd>SVPress <LT>C-D-Left><CR>
-nmap <C-i> <Cmd>SVPress <LT>C-D-Right><CR>
+map <C-o> <Cmd>SVPress <LT>C-D-Left><CR>
+map <C-i> <Cmd>SVPress <LT>C-D-Right><CR>
 ```
 
 Unfortunately, this won't work in read-only source editors. As a workaround, you can rebind **Go back** to <kbd>⌃O</kbd> and **Go forward** to <kbd>⌃I</kbd> in Xcode's **Key Bindings** preferences, then in Neovim:
 
 ```viml
-nmap <C-o> <Cmd>SVPress <LT>C-o><CR>
-nmap <C-i> <Cmd>SVPress <LT>C-i><CR>
+map <C-o> <Cmd>SVPress <LT>C-o><CR>
+map <C-i> <Cmd>SVPress <LT>C-i><CR>
 ```
 
 As `SVPress` is not recursive, this will perform the native Xcode navigation.
-
-### Triggering Xcode's completion
-
-Xcode's completion generally works with ShadowVim. But there are some cases where the pop-up completion does not appear automatically.
-
-As the default Xcode shortcut to trigger the completion (<kbd>⎋</kbd>) is already used in Neovim to go back to the normal mode, you might want to set a different one in Xcode's **Key Bindings** preferences. <kbd>⌘P</kbd> is a good candidate, who needs to print their code anyway?
-
-### Completion placeholders
-
-You cannot jump between placeholders in a completion snippet using <kbd>tab</kbd>, as it is handled by Neovim. As a workaround, you can use these custom Neovim key bindings to select or modify the next placeholder:
-
-```viml
-nmap gp /<LT>#.\{-}#><CR>gn
-nmap cap /<LT>#.\{-}#><CR>cgn
-```
 
 ### Mouse clicks
 
@@ -163,10 +152,10 @@ Here are some useful bindings simulating mouse clicks.
 
 ```viml
 " Show the Quick Help pop-up for the symbol at the caret location (<kbd>⌥ + Left Click</kbd>).
-nmap K <Cmd>SVPress <LT>M-LeftMouse><CR>
+map K <Cmd>SVPress <LT>M-LeftMouse><CR>
 
 " Perform a right click at the caret location.
-nmap gr <Cmd>SVPress <LT>RightMouse><CR>
+map gR <Cmd>SVPress <LT>RightMouse><CR>
 ```
 
 ### Window management
@@ -197,15 +186,25 @@ map <C-w>l <Cmd>SVPress <LT>D-j><CR><Cmd>SVPress l<CR><Cmd>SVPress <LT>CR><CR>
 map <C-w>w <Cmd>SVPress <LT>C-`><CR>
 ```
 
+### Center cursor line with `zz`
+
+To emulate the Vim `zz` command, you will need to set a custom keyboard shortcut for the **Center Selection in Visual Area** command in the Xcode **Key Bindings** preferences. For example, <kbd>⌃⌥⇧⌘L</kbd>.
+
+Then, add the following binding in your Neovim config:
+
+```viml
+map zz <Cmd>SVPress <LT>C-M-S-D-l><CR>
+```
+
 ### Folds
 
 Xcode's folding capabilities are limited, but you get the basics with these bindings:
 
 ```viml
-nmap zc <Cmd>SVPress <LT>M-D-Left><CR>
-nmap zo <Cmd>SVPress <LT>M-D-Right><CR>
-nmap zM <Cmd>SVPress <LT>M-S-D-Left><CR>
-nmap zR <Cmd>SVPress <LT>M-S-D-Right><CR>
+map zc <Cmd>SVPress <LT>M-D-Left><CR>
+map zo <Cmd>SVPress <LT>M-D-Right><CR>
+map zM <Cmd>SVPress <LT>M-S-D-Left><CR>
+map zR <Cmd>SVPress <LT>M-S-D-Right><CR>
 ```
 
 ### Opening third-party applications
@@ -213,8 +212,18 @@ nmap zR <Cmd>SVPress <LT>M-S-D-Right><CR>
 You can get pretty creative with key bindings. Here's one opening [Sourcetree](https://www.sourcetreeapp.com/) with <kbd>&lt;leader>st</kbd> for the current Git repository, using `!` to execute a shell command and `%` to get the path of the edited file.
 
 ```viml
-nmap <leader>st <Cmd>!stree %<CR>
+map <leader>st <Cmd>silent !stree "%"<CR>
 ```
+
+This keybinding opens a new iTerm tab at the root of the Git repository for the current buffer.
+
+```viml
+map <leader>sh <Cmd>silent !open -a iTerm `(cd "%:p:h"; git rev-parse --show-toplevel)`<CR>
+```
+
+### Triggering Xcode's completion
+
+As the default Xcode shortcut to trigger the completion (<kbd>⎋</kbd>) is already used in Neovim to go back to the normal mode, you might want to set a different one in Xcode's **Key Bindings** preferences. <kbd>⌘P</kbd> is a good candidate, who needs to print their code anyway?
 
 ## Attributions
 
