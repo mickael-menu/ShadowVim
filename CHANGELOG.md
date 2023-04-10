@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
     nmap K <Cmd>SVPress <LT>M-LeftMouse><CR>
 
     " Perform a right click at the caret location.
-    nmap gr <Cmd>SVPress <LT>RightMouse><CR>
+    nmap gR <Cmd>SVPress <LT>RightMouse><CR>
     ```
 * Open a Neovim terminal TUI for the embedded instance (requires Neovim 0.9).
     * This is useful to solve blocking prompts in Neovim, for instance.

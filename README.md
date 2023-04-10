@@ -42,8 +42,6 @@ ShadowVim uses macOS's Accessibility API to keep Xcode and Neovim synchronized. 
 
 ### Neovim configuration
 
-:point_up: The default Neovim indent files for Swift are not great. For a better alternative, install [`keith/swift.vim`](https://github.com/keith/swift.vim) with your Neovim package manager.
-
 Since many Vim plugins can cause issues with ShadowVim, it is recommended to start from an empty `init.vim`.
 
 To determine if Neovim is running in ShadowVim, add to your `init.vim`:
@@ -64,6 +62,8 @@ end
 
 To conditionally activate plugins, `vim-plug` has a
 [few solutions](https://github.com/junegunn/vim-plug/wiki/tips#conditional-activation).
+
+:point_up: The default Neovim indent files for Swift are not great. For a better alternative, install [`keith/swift.vim`](https://github.com/keith/swift.vim) with your Neovim package manager.
 
 #### Adding key bindings
 
@@ -146,21 +146,6 @@ map <C-i> <Cmd>SVPress <LT>C-i><CR>
 
 As `SVPress` is not recursive, this will perform the native Xcode navigation.
 
-### Triggering Xcode's completion
-
-Xcode's completion generally works with ShadowVim. But there are some cases where the pop-up completion does not appear automatically.
-
-As the default Xcode shortcut to trigger the completion (<kbd>⎋</kbd>) is already used in Neovim to go back to the normal mode, you might want to set a different one in Xcode's **Key Bindings** preferences. <kbd>⌘P</kbd> is a good candidate, who needs to print their code anyway?
-
-### Completion placeholders
-
-You cannot jump between placeholders in a completion snippet using <kbd>tab</kbd>, as it is handled by Neovim. As a workaround, you can use these custom Neovim key bindings to select or modify the next placeholder:
-
-```viml
-map gp /<LT>#.\{-}#><CR>gn
-map cap /<LT>#.\{-}#><CR>cgn
-```
-
 ### Mouse clicks
 
 Here are some useful bindings simulating mouse clicks.
@@ -201,6 +186,16 @@ map <C-w>l <Cmd>SVPress <LT>D-j><CR><Cmd>SVPress l<CR><Cmd>SVPress <LT>CR><CR>
 map <C-w>w <Cmd>SVPress <LT>C-`><CR>
 ```
 
+### Center cursor line with `zz`
+
+To emulate the Vim `zz` command, you will need to set a custom keyboard shortcut for the **Center Selection in Visual Area** command in the Xcode **Key Bindings** preferences. For example, <kbd>⌃⌥⇧⌘L</kbd>.
+
+Then, add the following binding in your Neovim config:
+
+```viml
+map zz <Cmd>SVPress <LT>C-M-S-D-l><CR>
+```
+
 ### Folds
 
 Xcode's folding capabilities are limited, but you get the basics with these bindings:
@@ -225,6 +220,10 @@ This keybinding opens a new iTerm tab at the root of the Git repository for the 
 ```viml
 map <leader>sh <Cmd>silent !open -a iTerm `(cd "%:p:h"; git rev-parse --show-toplevel)`<CR>
 ```
+
+### Triggering Xcode's completion
+
+As the default Xcode shortcut to trigger the completion (<kbd>⎋</kbd>) is already used in Neovim to go back to the normal mode, you might want to set a different one in Xcode's **Key Bindings** preferences. <kbd>⌘P</kbd> is a good candidate, who needs to print their code anyway?
 
 ## Attributions
 
