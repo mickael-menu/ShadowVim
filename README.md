@@ -35,8 +35,8 @@ ShadowVim uses macOS's Accessibility API to keep Xcode and Neovim synchronized. 
 
 | ShadowVim  | macOS | Xcode | Neovim |
 |------------|-------|-------|--------|
-| latest     | 13.0  | 14    | 0.9.0  |
-| 0.1.1      | 13.0  | 14    | 0.8.0  |
+| 0.2+       | 13.0  | 14    | 0.9    |
+| 0.1        | 13.0  | 14    | 0.8    |
 
 ## Setup
 
