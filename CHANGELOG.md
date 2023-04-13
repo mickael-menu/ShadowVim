@@ -24,6 +24,8 @@ All notable changes to this project will be documented in this file.
     ```
 * Use `SVSetInputUI` to let Xcode handle all key events.
 * Use `SVSetInputNvim` to forward key events to Neovim, even in Insert mode.
+* Use `SVOpenTUI` to launch a Terminal window with a Neovim text user interface of the embedded Neovim instance.
+    * This is useful to solve issues with Neovim such as a blocking prompt.
 
 ### Deprecated
 

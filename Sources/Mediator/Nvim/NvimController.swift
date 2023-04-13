@@ -101,17 +101,20 @@ final class NvimController {
     private let buffers: NvimBuffers
     private let logger: Logger?
     private var subscriptions: Set<AnyCancellable> = []
+    private let openTUI: () -> Void
     private let resetShadowVim: () -> Void
 
     init(
         nvim: Nvim,
         buffers: NvimBuffers,
         logger: Logger?,
+        openTUI: @escaping () -> Void,
         resetShadowVim: @escaping () -> Void
     ) {
         self.nvim = nvim
         self.buffers = buffers
         self.logger = logger
+        self.openTUI = openTUI
         self.resetShadowVim = resetShadowVim
 
         nvim.delegate = self
@@ -139,6 +142,12 @@ final class NvimController {
 
     private func setupUserCommands() -> Async<Void, NvimError> {
         withAsyncGroup { group in
+            nvim.add(command: "SVOpenTUI") { [weak self] _ in
+                self?.openTUI()
+                return .nil
+            }
+            .add(to: group)
+
             nvim.add(command: "SVSetInputUI") { [weak self] _ in
                 if let self {
                     self.delegate?.nvimController(self, setInput: .ui)

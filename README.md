@@ -106,6 +106,8 @@ ShadowVim adds a new menu bar icon (🅽) with a couple of useful features which
 The following commands are available in your bindings when Neovim is run by ShadowVim.
 
 * `SVPress` triggers a keyboard shortcut or mouse click in Xcode. The syntax is the same as Neovim's key bindings, e.g. `SVPress <D-s>` to save the current file. Mouse clicks are performed at the current caret location.
+* `SVOpenTUI` launches a Terminal window with a Neovim text user interface of the embedded Neovim instance.
+    * This is useful to solve issues with Neovim such as a blocking prompt.
 * `SVReset` kills Neovim and resets the synchronization. This might be useful if you get stuck.
 * `SVSetInputUI` lets Xcode handle all key events. Press <kbd>Esc</kbd> to cancel.
 * `SVSetInputNvim` forwards key events to Neovim, even in Insert mode. Press <kbd>Esc</kbd> to cancel.
