@@ -8,5 +8,7 @@
 	<string>https://mickael-menu.github.io/releases/ShadowVim/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>CjshV4V7MdRwZto4oHYRHiLo3xBccztsSsD3ewjBjDA=</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Required to start Neovim from the Terminal</string>
 </dict>
 </plist>

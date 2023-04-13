@@ -126,7 +126,7 @@ final class NvimController {
 
         try nvim.start(
             headless: false,
-            listen: Debug.isDebugging ? pipe : nil
+            listen: pipe
         )
         buffers.start()
 
