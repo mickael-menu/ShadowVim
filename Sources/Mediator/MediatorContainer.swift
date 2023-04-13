@@ -25,16 +25,19 @@ import Toolkit
 public final class MediatorContainer {
     private let keyResolver: CGKeyResolver
     private let logger: Logger?
+    private let openTUI: () -> Void
     private let resetShadowVim: () -> Void
     private let nvimContainer: NvimContainer
 
     public init(
         keyResolver: CGKeyResolver,
         logger: Logger?,
+        openTUI: @escaping () -> Void,
         resetShadowVim: @escaping () -> Void
     ) {
         self.keyResolver = keyResolver
         self.logger = logger?.domain("mediator")
+        self.openTUI = openTUI
         self.resetShadowVim = resetShadowVim
 
         nvimContainer = NvimContainer(logger: logger)
@@ -84,6 +87,7 @@ public final class MediatorContainer {
                 logger: logger?.domain("buffers")
             ),
             logger: logger,
+            openTUI: openTUI,
             resetShadowVim: resetShadowVim
         )
     }

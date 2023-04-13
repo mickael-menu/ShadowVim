@@ -57,6 +57,7 @@ final class Container {
         mediator = MediatorContainer(
             keyResolver: keyResolver,
             logger: logger,
+            openTUI: { [unowned self] in openTUI() },
             resetShadowVim: { [unowned self] in resetShadowVim() }
         )
 
@@ -67,6 +68,12 @@ final class Container {
             setVerboseLogger: { logger.set(NSLoggerLogger()) },
             mediatorFactory: mediator.mainMediator
         )
+    }
+
+    private func openTUI() {
+        DispatchQueue.main.async { [self] in
+            shadowVim.openNvimTUI()
+        }
     }
 
     private func resetShadowVim() {
