@@ -180,13 +180,16 @@ class ShadowVim: ObservableObject {
     /// Launches a new Nvim instance in the Terminal to debug the embedded
     /// Nvim.
     func openNvimTUI() {
-        guard let script = Bundle.main.path(forResource: "bind-nvim", ofType: "sh") else {
-            return
+        DispatchQueue.global().async {
+            // Using an Apple Script because of an issue with notarized app and
+            // `open`. See https://developer.apple.com/forums/thread/723842
+            NSAppleScript(source: """
+                tell application "Terminal"
+                    activate
+                    do script "nvim --server /tmp/shadowvim.pipe --remote-ui"
+                end tell
+            """)?.executeAndReturnError(nil)
         }
-
-        Process.launch("open", "-a", "Terminal", script)
-            .discardResult()
-            .run()
     }
 
     func copyDebugInfo() {
