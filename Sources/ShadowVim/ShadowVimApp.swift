@@ -46,8 +46,6 @@ struct ShadowVimApp: SwiftUI.App {
             }
 
         MenuBarExtra("ShadowVim", systemImage: "n.square.fill") {
-            KeysPassthroughButton(shadowVim: shadowVim)
-
             if Debug.isDebugging {
                 Button("Verbose logging") { shadowVim.setVerboseLogger() }
             }
@@ -69,14 +67,5 @@ struct ShadowVimApp: SwiftUI.App {
             Button("Quit ShadowVim") { shadowVim.quit() }
                 .keyboardShortcut("q")
         }
-    }
-}
-
-struct KeysPassthroughButton: View {
-    @ObservedObject var shadowVim: ShadowVim
-
-    var body: some View {
-        Toggle("Keys Passthrough", isOn: $shadowVim.keysPassthrough)
-            .keyboardShortcut(".", modifiers: [.control, .option, .command])
     }
 }

@@ -32,7 +32,8 @@ struct CooperativeBufferState: BufferState {
     /// Indicates whether the input host should not change automatically with
     /// the Nvim mode.
     ///
-    /// This is set when the user calls explicitly the `SVSetInput` command.
+    /// This is set when the user calls explicitly the `SVSetInputUI` and
+    /// `SVSetInputNvim` commands.
     private var isInputLocked: Bool
 
     /// Which buffer host sent line changes last.

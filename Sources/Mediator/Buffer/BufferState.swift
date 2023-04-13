@@ -79,9 +79,6 @@ enum BufferEvent: Equatable {
     /// When `nil`, the event happened outside the bounds of the UI buffer.
     case uiDidReceiveMouseEvent(MouseEvent.Kind, bufferPoint: CGPoint?)
 
-    /// The keys passthrough was toggled.
-    case didToggleKeysPassthrough(enabled: Bool)
-
     /// An error occurred.
     case didFail(EquatableError)
 }
@@ -245,8 +242,6 @@ extension BufferEvent: LogPayloadConvertible {
             return "uiDidReceiveKeyEvent"
         case .uiDidReceiveMouseEvent:
             return "uiDidReceiveMouseEvent"
-        case .didToggleKeysPassthrough:
-            return "didToggleKeysPassthrough"
         case .didFail:
             return "didFail"
         }
@@ -276,8 +271,6 @@ extension BufferEvent: LogPayloadConvertible {
             } else {
                 return "\(kind) outside buffer"
             }
-        case let .didToggleKeysPassthrough(enabled: enabled):
-            return "\(enabled)"
         case let .didFail(error):
             return error.error.localizedDescription
         default:
@@ -309,8 +302,6 @@ extension BufferEvent: LogPayloadConvertible {
             return [.name: name, "keyCombo": kc.description, "character": character]
         case let .uiDidReceiveMouseEvent(kind, bufferPoint: bufferPoint):
             return [.name: name, "kind": String(reflecting: kind), "bufferPoint": bufferPoint]
-        case let .didToggleKeysPassthrough(enabled: enabled):
-            return [.name: name, "enabled": enabled]
         case let .didFail(error):
             return [.name: name, "error": error]
         }

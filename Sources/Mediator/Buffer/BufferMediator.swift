@@ -114,12 +114,6 @@ public final class BufferMediator {
         }
     }
 
-    func didToggleKeysPassthrough(enabled: Bool) {
-        DispatchQueue.main.async {
-            self.on(.didToggleKeysPassthrough(enabled: enabled))
-        }
-    }
-
     func didFocus(element: AXUIElement) {
         precondition(Thread.isMainThread)
 

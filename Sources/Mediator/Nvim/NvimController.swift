@@ -101,20 +101,17 @@ final class NvimController {
     private let buffers: NvimBuffers
     private let logger: Logger?
     private var subscriptions: Set<AnyCancellable> = []
-    private let enableKeysPassthrough: () -> Void
     private let resetShadowVim: () -> Void
 
     init(
         nvim: Nvim,
         buffers: NvimBuffers,
         logger: Logger?,
-        enableKeysPassthrough: @escaping () -> Void,
         resetShadowVim: @escaping () -> Void
     ) {
         self.nvim = nvim
         self.buffers = buffers
         self.logger = logger
-        self.enableKeysPassthrough = enableKeysPassthrough
         self.resetShadowVim = resetShadowVim
 
         nvim.delegate = self
@@ -142,19 +139,18 @@ final class NvimController {
 
     private func setupUserCommands() -> Async<Void, NvimError> {
         withAsyncGroup { group in
-            nvim.add(command: "SVSetInput", args: .one) { [weak self] params in
-                guard let self, let delegate = self.delegate else {
-                    return .nil
+            nvim.add(command: "SVSetInputUI") { [weak self] _ in
+                if let self {
+                    self.delegate?.nvimController(self, setInput: .ui)
                 }
-                guard
-                    params.count == 1,
-                    case let .string(arg) = params[0],
-                    let host = BufferHost(rawValue: arg.lowercased())
-                else {
-                    throw NvimControllerError.invalidCommandArgument(command: "SVSetInput", message: "Expected a single argument: ui or nvim")
-                }
+                return .nil
+            }
+            .add(to: group)
 
-                delegate.nvimController(self, setInput: host)
+            nvim.add(command: "SVSetInputNvim") { [weak self] _ in
+                if let self {
+                    self.delegate?.nvimController(self, setInput: .nvim)
+                }
                 return .nil
             }
             .add(to: group)
@@ -175,15 +171,6 @@ final class NvimController {
             }
             .add(to: group)
 
-            nvim.add(command: "SVPressKeys", args: .one) { [weak self] _ in
-                if let self = self {
-                    let error = NvimControllerError.deprecatedCommand(name: "SVPressKeys", replacement: "Use 'SVPress' in your Neovim configuration instead.")
-                    self.delegate?.nvimController(self, didFailWithError: error)
-                }
-                return .bool(false)
-            }
-            .add(to: group)
-
             nvim.add(command: "SVPress", args: .one) { [weak self] params in
                 guard
                     let self,
@@ -197,15 +184,27 @@ final class NvimController {
             }
             .add(to: group)
 
-            nvim.add(command: "SVEnableKeysPassthrough") { [weak self] _ in
-                self?.enableKeysPassthrough()
+            nvim.add(command: "SVReset") { [weak self] _ in
+                self?.resetShadowVim()
                 return .nil
             }
             .add(to: group)
 
-            nvim.add(command: "SVReset") { [weak self] _ in
-                self?.resetShadowVim()
+            nvim.add(command: "SVEnableKeysPassthrough") { [weak self] _ in
+                if let self = self {
+                    let error = NvimControllerError.deprecatedCommand(name: "SVEnableKeysPassthrough", replacement: "Use 'SVSetInputUI' in your Neovim configuration instead.")
+                    self.delegate?.nvimController(self, didFailWithError: error)
+                }
                 return .nil
+            }
+            .add(to: group)
+
+            nvim.add(command: "SVPressKeys", args: .one) { [weak self] _ in
+                if let self = self {
+                    let error = NvimControllerError.deprecatedCommand(name: "SVPressKeys", replacement: "Use 'SVPress' in your Neovim configuration instead.")
+                    self.delegate?.nvimController(self, didFailWithError: error)
+                }
+                return .bool(false)
             }
             .add(to: group)
         }

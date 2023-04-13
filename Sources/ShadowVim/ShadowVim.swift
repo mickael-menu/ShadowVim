@@ -25,8 +25,6 @@ import ServiceManagement
 import Toolkit
 
 class ShadowVim: ObservableObject {
-    @Published var keysPassthrough: Bool = false
-
     private var mediator: MainMediator?
     private let eventTap = EventTap()
 
@@ -72,15 +70,6 @@ class ShadowVim: ObservableObject {
 
     func willTerminate() {
         stop()
-    }
-
-    func setKeysPassthrough(_ enabled: Bool) {
-        keysPassthrough = enabled
-        mediator?.didToggleKeysPassthrough(enabled: enabled)
-    }
-
-    func toggleKeysPassthrough() {
-        setKeysPassthrough(!keysPassthrough)
     }
 
     private func start() {
@@ -229,9 +218,6 @@ extension ShadowVim: EventTapDelegate {
                 case .escape:
                     reset()
                     return nil
-                case .period:
-                    toggleKeysPassthrough()
-                    return nil
                 case .slash:
                     setVerboseLogger()
                     return nil
@@ -239,14 +225,9 @@ extension ShadowVim: EventTapDelegate {
                     break
                 }
             }
-
-            if keysPassthrough, keyCombo == KeyCombo(.escape) {
-                setKeysPassthrough(false)
-            }
         }
 
         guard
-            !keysPassthrough,
             let mediator = mediator,
             mediator.handle(inputEvent)
         else {
