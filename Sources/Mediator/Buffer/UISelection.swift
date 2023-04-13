@@ -38,6 +38,10 @@ struct UISelection: Equatable {
         start.line == end.line && start.column == end.column
     }
 
+    func collapsed() -> UISelection {
+        UISelection(start: start, end: start)
+    }
+
     func copy(
         startLine: LineIndex? = nil,
         startColumn: ColumnIndex? = nil,

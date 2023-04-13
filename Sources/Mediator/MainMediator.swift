@@ -103,12 +103,6 @@ public final class MainMediator {
         return mediator.handle(event)
     }
 
-    public func didToggleKeysPassthrough(enabled: Bool) {
-        for (_, app) in apps {
-            app.didToggleKeysPassthrough(enabled: enabled)
-        }
-    }
-
     private func didActivateApp(_ app: NSRunningApplication) {
         _ = mediator(of: app)
     }

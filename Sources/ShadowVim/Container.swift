@@ -57,7 +57,6 @@ final class Container {
         mediator = MediatorContainer(
             keyResolver: keyResolver,
             logger: logger,
-            enableKeysPassthrough: { [unowned self] in enableKeysPassthrough() },
             resetShadowVim: { [unowned self] in resetShadowVim() }
         )
 
@@ -68,12 +67,6 @@ final class Container {
             setVerboseLogger: { logger.set(NSLoggerLogger()) },
             mediatorFactory: mediator.mainMediator
         )
-    }
-
-    private func enableKeysPassthrough() {
-        DispatchQueue.main.async { [self] in
-            shadowVim.setKeysPassthrough(true)
-        }
     }
 
     private func resetShadowVim() {

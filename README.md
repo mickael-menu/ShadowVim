@@ -99,7 +99,6 @@ Take a look at the [Tips and tricks](#tips-and-tricks) section for a collection 
 
 ShadowVim adds a new menu bar icon (🅽) with a couple of useful features which can also be triggered with global hotkeys:
 
-* **Keys Passthrough** (<kbd>⌃⌥⌘.</kbd>) lets Xcode handle key events until you press <kbd>⎋</kbd>. You **must** use this when renaming a symbol with Xcode's refactor tools, otherwise the buffer will get messed up.
 * **Reset ShadowVim** (<kbd>⌃⌥⌘⎋</kbd>) kills Neovim and resets the synchronization. This might be useful if you get stuck.
 
 ### Neovim user commands
@@ -107,8 +106,9 @@ ShadowVim adds a new menu bar icon (🅽) with a couple of useful features which
 The following commands are available in your bindings when Neovim is run by ShadowVim.
 
 * `SVPress` triggers a keyboard shortcut or mouse click in Xcode. The syntax is the same as Neovim's key bindings, e.g. `SVPress <D-s>` to save the current file. Mouse clicks are performed at the current caret location.
-* `SVEnableKeysPassthrough` switches on the Keys Passthrough mode, which lets Xcode handle key events until you press <kbd>⎋</kbd>.
 * `SVReset` kills Neovim and resets the synchronization. This might be useful if you get stuck.
+* `SVSetInputUI` lets Xcode handle all key events. Press <kbd>Esc</kbd> to cancel.
+* `SVSetInputNvim` forwards key events to Neovim, even in Insert mode. Press <kbd>Esc</kbd> to cancel.
 * `SVSynchronizeUI` requests Xcode to reset the current file to the state of the Neovim buffer. You should not need to call this manually.
 * `SVSynchronizeNvim` requests Neovim to reset the current buffer to the state of the Xcode file. You should not need to call this manually.
 

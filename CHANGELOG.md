@@ -8,6 +8,12 @@ All notable changes to this project will be documented in this file.
 
 * Support for Visual and Select modes feedback.
     * Block-wise selection (<kbd>C-v</kbd>) is displayed as character-wise because of a limitation with the Xcode accessibility APIs.
+* Open a Neovim terminal TUI for the embedded instance (requires Neovim 0.9).
+    * This is useful to solve blocking prompts in Neovim, for instance.
+    * Activate from the status menu, or manually with:
+        ```sh
+        nvim --server /tmp/shadowvim.pipe --remote-ui
+        ```
 * Use `SVPress` to trigger click events from Neovim bindings.
     ```viml
     " Show the Quick Help pop-up for the symbol at the caret location (<kbd>⌥ + Left Click</kbd>).
@@ -16,12 +22,12 @@ All notable changes to this project will be documented in this file.
     " Perform a right click at the caret location.
     nmap gR <Cmd>SVPress <LT>RightMouse><CR>
     ```
-* Open a Neovim terminal TUI for the embedded instance (requires Neovim 0.9).
-    * This is useful to solve blocking prompts in Neovim, for instance.
-    * Activate from the status menu, or manually with:
-        ```sh
-        nvim --server /tmp/shadowvim.pipe --remote-ui
-        ```
+* Use `SVSetInputUI` to let Xcode handle all key events.
+* Use `SVSetInputNvim` to forward key events to Neovim, even in Insert mode.
+
+### Deprecated
+
+* `SVEnableKeysPassthrough` is deprecated in favor of the new `SVSetInputUI` command.
 
 ### Changed
 

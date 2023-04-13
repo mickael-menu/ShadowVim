@@ -140,12 +140,6 @@ public final class AppMediator {
         delegate?.appMediatorDidStop(self)
     }
 
-    public func didToggleKeysPassthrough(enabled: Bool) {
-        for (_, buffer) in bufferMediators {
-            buffer.didToggleKeysPassthrough(enabled: enabled)
-        }
-    }
-
     private func on(_ event: AppState.Event) {
         precondition(Thread.isMainThread)
         state.on(event, logger: logger)
@@ -362,6 +356,12 @@ extension AppMediator: NvimControllerDelegate {
 
     func nvimController(_ nvimController: NvimController, synchronizeFocusedBufferUsing source: BufferHost) {
         synchronizeFocusedBuffer(source: source)
+    }
+
+    func nvimController(_ nvimController: NvimController, setInput host: BufferHost) {
+        for (_, buffer) in bufferMediators {
+            buffer.setInput(host: host)
+        }
     }
 
     func nvimController(_ nvimController: NvimController, press notation: Notation) -> Bool {

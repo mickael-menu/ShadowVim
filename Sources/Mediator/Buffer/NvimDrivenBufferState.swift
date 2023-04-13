@@ -34,9 +34,6 @@ struct NvimDrivenBufferState: BufferState {
     /// State of the UI buffer.
     private(set) var ui: UIState
 
-    /// Indicates whether the keys passthrough is switched on.
-    private(set) var isKeysPassthroughEnabled: Bool
-
     /// Indicates whether the left mouse button is pressed.
     private(set) var isLeftMouseButtonDown: Bool
 
@@ -47,14 +44,12 @@ struct NvimDrivenBufferState: BufferState {
         token: EditionToken = .free,
         nvim: NvimState = NvimState(),
         ui: UIState = UIState(),
-        isKeysPassthroughEnabled: Bool = false,
         isLeftMouseButtonDown: Bool = false,
         isSelecting: Bool = false
     ) {
         self.token = token
         self.nvim = nvim
         self.ui = ui
-        self.isKeysPassthroughEnabled = isKeysPassthroughEnabled
         self.isLeftMouseButtonDown = isLeftMouseButtonDown
         self.isSelecting = isSelecting
     }
@@ -271,21 +266,11 @@ struct NvimDrivenBufferState: BufferState {
             // Other mouse events are ignored.
             break
 
-        case let .didToggleKeysPassthrough(enabled: enabled):
-            isKeysPassthroughEnabled = enabled
-
-            if enabled {
-                perform(.nvimStopVisual)
-            }
-
-            let selection = ui.selection.adjusted(
-                to: enabled ? .insert : nvim.mode,
-                lines: ui.lines
-            )
-            perform(.uiUpdateSelections([selection]))
-
         case let .didFail(error):
             perform(.alert(error))
+
+        default:
+            break
         }
 
         // Syntactic sugar.
@@ -354,12 +339,8 @@ struct NvimDrivenBufferState: BufferState {
         func adjustUISelection(to mode: Mode) {
             precondition(token == .acquired(owner: .ui))
 
-            let adjustedSelection = {
-                guard !isKeysPassthroughEnabled else {
-                    return ui.selection
-                }
-                return ui.selection.adjusted(to: mode, lines: ui.lines)
-            }()
+            let adjustedSelection =
+                ui.selection.adjusted(to: mode, lines: ui.lines)
 
             if ui.selection != adjustedSelection {
                 ui.selection = adjustedSelection
