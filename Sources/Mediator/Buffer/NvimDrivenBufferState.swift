@@ -286,6 +286,9 @@ struct NvimDrivenBufferState: BufferState {
 
         case let .didFail(error):
             perform(.alert(error))
+
+        default:
+            break
         }
 
         // Syntactic sugar.

@@ -364,6 +364,12 @@ extension AppMediator: NvimControllerDelegate {
         synchronizeFocusedBuffer(source: source)
     }
 
+    func nvimController(_ nvimController: NvimController, setInput host: BufferHost) {
+        for (_, buffer) in bufferMediators {
+            buffer.setInput(host: host)
+        }
+    }
+
     func nvimController(_ nvimController: NvimController, press notation: Notation) -> Bool {
         press(notation: notation)
     }

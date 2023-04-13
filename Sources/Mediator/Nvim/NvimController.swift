@@ -23,11 +23,14 @@ import Toolkit
 
 enum NvimControllerError: LocalizedError {
     case deprecatedCommand(name: String, replacement: String)
+    case invalidCommandArgument(command: String, message: String)
 
     var errorDescription: String? {
         switch self {
         case let .deprecatedCommand(name: name, _):
             return "'\(name)' is deprecated"
+        case let .invalidCommandArgument(command: command, message: message):
+            return "\(command): \(message)"
         }
     }
 
@@ -35,6 +38,8 @@ enum NvimControllerError: LocalizedError {
         switch self {
         case let .deprecatedCommand(_, replacement: replacement):
             return replacement
+        default:
+            return nil
         }
     }
 }
@@ -49,6 +54,10 @@ protocol NvimControllerDelegate: AnyObject {
     /// The user requested to synchronize the buffers using `source` as the
     /// source of truth.
     func nvimController(_ nvimController: NvimController, synchronizeFocusedBufferUsing source: BufferHost)
+
+    /// The user requested to change the current buffer host that handles key
+    /// input.
+    func nvimController(_ nvimController: NvimController, setInput host: BufferHost)
 
     /// Simulates a key combo or mouse press in the app using an Nvim notation.
     func nvimController(_ nvimController: NvimController, press notation: Notation) -> Bool
@@ -133,6 +142,23 @@ final class NvimController {
 
     private func setupUserCommands() -> Async<Void, NvimError> {
         withAsyncGroup { group in
+            nvim.add(command: "SVSetInput", args: .one) { [weak self] params in
+                guard let self, let delegate = self.delegate else {
+                    return .nil
+                }
+                guard
+                    params.count == 1,
+                    case let .string(arg) = params[0],
+                    let host = BufferHost(rawValue: arg.lowercased())
+                else {
+                    throw NvimControllerError.invalidCommandArgument(command: "SVSetInput", message: "Expected a single argument: ui or nvim")
+                }
+
+                delegate.nvimController(self, setInput: host)
+                return .nil
+            }
+            .add(to: group)
+
             nvim.add(command: "SVSynchronizeUI") { [weak self] _ in
                 if let self {
                     self.delegate?.nvimController(self, synchronizeFocusedBufferUsing: .nvim)

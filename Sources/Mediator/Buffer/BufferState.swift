@@ -43,6 +43,9 @@ enum BufferEvent: Equatable {
     /// `source` host for the source of truth of the content.
     case didRequestRefresh(source: BufferHost)
 
+    /// The user requested to change the `host` handling key input.
+    case didRequestSetInput(host: BufferHost)
+
     /// The Nvim buffer lines changed.
     case nvimLinesDidChange(BufLinesEvent)
 
@@ -222,6 +225,8 @@ extension BufferEvent: LogPayloadConvertible {
             return "didTimeout"
         case .didRequestRefresh:
             return "userDidRequestRefresh"
+        case .didRequestSetInput:
+            return "didRequestSetInput"
         case .nvimLinesDidChange:
             return "nvimLinesDidChange"
         case .nvimModeDidChange:
@@ -253,6 +258,8 @@ extension BufferEvent: LogPayloadConvertible {
             return "\(id)"
         case let .didRequestRefresh(source: source):
             return source.rawValue
+        case let .didRequestSetInput(host: host):
+            return host.rawValue
         case let .nvimLinesDidChange(event):
             return "\(event.firstLine)-\(event.lastLine) (\(event.lineData.count) lines)"
         case let .nvimModeDidChange(mode):
@@ -284,6 +291,8 @@ extension BufferEvent: LogPayloadConvertible {
             return [.name: name]
         case let .didRequestRefresh(source: source):
             return [.name: name, "source": source.rawValue]
+        case let .didRequestSetInput(host: host):
+            return [.name: name, "host": host.rawValue]
         case let .nvimLinesDidChange(event):
             return [.name: name, "event": event]
         case let .nvimModeDidChange(mode):

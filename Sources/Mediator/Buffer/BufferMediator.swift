@@ -108,6 +108,12 @@ public final class BufferMediator {
         }
     }
 
+    func setInput(host: BufferHost) {
+        DispatchQueue.main.async {
+            self.on(.didRequestSetInput(host: host))
+        }
+    }
+
     func didToggleKeysPassthrough(enabled: Bool) {
         DispatchQueue.main.async {
             self.on(.didToggleKeysPassthrough(enabled: enabled))

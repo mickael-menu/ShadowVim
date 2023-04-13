@@ -29,14 +29,17 @@ struct CooperativeBufferState: BufferState {
     /// Which buffer host receives input events.
     private(set) var input: BufferHost
 
+    /// Indicates whether the input host should not change automatically with
+    /// the Nvim mode.
+    ///
+    /// This is set when the user calls explicitly the `SVSetInput` command.
+    private var isInputLocked: Bool
+
     /// Which buffer host sent line changes last.
     private(set) var lastChanged: BufferHost
 
     /// Indicates which buffer is the current source of truth for the content.
     private(set) var token: EditionToken
-
-    /// Indicates whether the keys passthrough is switched on.
-    private(set) var isKeysPassthroughEnabled: Bool
 
     /// Indicates whether the left mouse button is pressed.
     private(set) var isLeftMouseButtonDown: Bool
@@ -55,18 +58,18 @@ struct CooperativeBufferState: BufferState {
         nvim: NvimState = NvimState(),
         ui: UIState = UIState(),
         input: BufferHost = .nvim,
+        isInputLocked: Bool = false,
         lastChanged: BufferHost = .ui,
         token: EditionToken = .free,
-        isKeysPassthroughEnabled: Bool = false,
         isLeftMouseButtonDown: Bool = false,
         isSelecting: Bool = false
     ) {
         self.nvim = nvim
         self.ui = ui
         self.input = input
+        self.isInputLocked = isInputLocked
         self.lastChanged = lastChanged
         self.token = token
-        self.isKeysPassthroughEnabled = isKeysPassthroughEnabled
         self.isLeftMouseButtonDown = isLeftMouseButtonDown
         self.isSelecting = isSelecting
     }
@@ -163,6 +166,12 @@ struct CooperativeBufferState: BufferState {
                 synchronize(source: source)
             }
 
+        case let .didRequestSetInput(host: host):
+            isInputLocked = false
+            setInput(host)
+            isInputLocked = true
+            perform(.nvimStopVisual)
+
         case let .nvimLinesDidChange(event):
             nvim.pendingLines = event.applyChanges(in: nvim.pendingLines ?? nvim.lines)
 
@@ -221,9 +230,11 @@ struct CooperativeBufferState: BufferState {
                 uiUpdateSelections(nvim.uiSelections())
 
                 // Ensures the cursor is always visible by scrolling the UI.
-                let cursorPosition = UIPosition(nvim.cursorPosition)
-                let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
-                perform(.uiScroll(visibleSelection))
+                if nvim.cursorPosition != nvim.visualPosition {
+                    let cursorPosition = UIPosition(nvim.cursorPosition)
+                    let visibleSelection = UISelection(start: cursorPosition, end: cursorPosition)
+                    perform(.uiScroll(visibleSelection))
+                }
             }
 
         case let .uiDidFocus(lines: lines, selection: selection):
@@ -264,10 +275,9 @@ struct CooperativeBufferState: BufferState {
                 isSelecting = true
 
             } else {
-                let adjustedSelection = selection.adjusted(to: nvim.mode, lines: ui.lines)
-                uiUpdateSelections([adjustedSelection])
+                let newSelection = uiAdjustSelection(to: nvim.mode)
 
-                let start = BufferPosition(adjustedSelection.start)
+                let start = BufferPosition(newSelection.start)
                 if nvim.cursorPosition != start, requestEdition(of: .selection, from: .ui) {
                     perform(.nvimMoveCursor(start))
                 }
@@ -276,6 +286,8 @@ struct CooperativeBufferState: BufferState {
         case let .uiDidReceiveKeyEvent(kc, character: character):
             switch kc {
             case .escape:
+                isInputLocked = false
+                setInput(.nvim)
                 perform(.nvimInput("<Esc>"))
 
             case .cmdZ:
@@ -335,19 +347,6 @@ struct CooperativeBufferState: BufferState {
         case .uiDidReceiveMouseEvent:
             // Other mouse events are ignored.
             break
-
-        case let .didToggleKeysPassthrough(enabled: enabled):
-            isKeysPassthroughEnabled = enabled
-
-            if enabled {
-                perform(.nvimStopVisual)
-            }
-
-            let selection = ui.selection.adjusted(
-                to: enabled ? .insert : nvim.mode,
-                lines: ui.lines
-            )
-            uiUpdateSelections([selection])
 
         case let .didFail(error):
             perform(.alert(error))
@@ -459,13 +458,15 @@ struct CooperativeBufferState: BufferState {
         }
 
         /// Adjusts the current UI selection to match the given Nvim `mode`.
-        func uiAdjustSelection(to mode: Mode) {
-            guard !isKeysPassthroughEnabled else {
-                return
+        @discardableResult
+        func uiAdjustSelection(to mode: Mode) -> UISelection {
+            guard input == .nvim else {
+                return ui.selection
             }
 
             let adjustedSelection = ui.selection.adjusted(to: mode, lines: ui.lines)
             uiUpdateSelections([adjustedSelection])
+            return adjustedSelection
         }
 
         func uiUpdateSelections(_ selections: [UISelection]) {
@@ -478,12 +479,23 @@ struct CooperativeBufferState: BufferState {
         }
 
         func setInput(_ host: BufferHost) {
+            guard !isInputLocked, input != host else {
+                return
+            }
+
             input = host
 
             // When changing the input, we force-set the edition token to the
             // new input host. Without this, we can loose changes from the new
             // input when typing quickly.
             setToken(.acquired(owner: host))
+
+            switch host {
+            case .nvim:
+                uiAdjustSelection(to: nvim.mode)
+            case .ui:
+                uiUpdateSelections([ui.selection.collapsed()])
+            }
         }
 
         func setToken(_ token: EditionToken) {
@@ -521,7 +533,7 @@ private extension BufferAction {
 
 extension CooperativeBufferState: LogPayloadConvertible {
     func logPayload() -> [LogKey: LogValueConvertible] {
-        ["@source": input, "@token": token, "nvim": nvim, "ui": ui]
+        ["@input": input, "@token": token, "nvim": nvim, "ui": ui]
     }
 }
 
