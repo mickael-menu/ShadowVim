@@ -100,7 +100,7 @@ struct CooperativeBufferState: BufferState {
         }
 
         func uiSelections() -> [UISelection] {
-            .init(mode: mode, cursor: cursorPosition, visual: visualPosition)
+            [UISelection](mode: mode, cursor: cursorPosition, visual: visualPosition)
         }
     }
 
