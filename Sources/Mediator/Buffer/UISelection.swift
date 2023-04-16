@@ -65,7 +65,8 @@ struct UISelection: Equatable {
     func range(in element: AXUIElement) throws -> CFRange? {
         guard
             let startLineRange: CFRange = try element.get(.rangeForLine, with: start.line),
-            let endLineRange: CFRange = try element.get(.rangeForLine, with: end.line)
+            let endLineRange: CFRange = try element.get(.rangeForLine, with: end.line),
+            let numberOfCharacters: Int = try element.get(.numberOfCharacters)
         else {
             return nil
         }
@@ -81,6 +82,23 @@ struct UISelection: Equatable {
             // up on the next line.
             maxStartColumn -= 1
             maxEndColumn -= 1
+        }
+
+        // As we use a one-character selection to represent the normal block
+        // caret in the UI, this doesn't work when going to the EOF
+        // (e.g. with G) if the last line is empty. As a workaround, this will
+        // select the newline character in the previous line to show that we're
+        // still in Normal mode and not Insert.
+        // See https://github.com/mickael-menu/ShadowVim/discussions/40#discussioncomment-5379352
+        if
+            numberOfCharacters > 0,
+            startLineRange.location + start.column == numberOfCharacters,
+            endLineRange.location + end.column == numberOfCharacters + 1
+        {
+            return CFRange(
+                location: numberOfCharacters - 1,
+                length: 1
+            )
         }
 
         let start = startLineRange.location + min(start.column, maxStartColumn)
