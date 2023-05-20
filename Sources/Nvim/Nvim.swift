@@ -145,6 +145,9 @@ public final class Nvim {
             process.standardInput = input
             process.standardOutput = output
             process.loadEnvironment()
+            // To test a specific Nvim configuration, uncomment and add it to
+            // ~/.config.nvim-test
+//            process.environment!["NVIM_APPNAME"] = "nvim-test"
 
             process.terminationHandler = { [self] _ in
                 DispatchQueue.main.async { self.didTerminate() }

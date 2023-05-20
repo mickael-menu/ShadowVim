@@ -156,7 +156,9 @@ extension Array where Element == UISelection {
     /// selections
     init(mode: Mode, cursor: BufferPosition, visual: BufferPosition) {
         switch mode {
-        case .normal, .operatorPending:
+        case .normal, .operatorPending, .cmdline:
+            // Needs to support .cmdline too, to support custom moves from plugins.
+            // See https://github.com/mickael-menu/ShadowVim/issues/50
             let end = BufferPosition(line: cursor.line, column: cursor.column + 1)
             self = [UISelection(start: UIPosition(cursor), end: UIPosition(end))]
 
@@ -198,7 +200,7 @@ extension Array where Element == UISelection {
             end.column = 0
             self = [UISelection(start: start, end: end)]
 
-        case .cmdline, .hitEnterPrompt, .shell, .terminal:
+        case .hitEnterPrompt, .shell, .terminal:
             self = []
         }
     }

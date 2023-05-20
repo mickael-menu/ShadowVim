@@ -2,7 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
+### Fixed
+
+* [#50](https://github.com/mickael-menu/ShadowVim/issues/50) Fix issue where the cursor position is not updated when using third-party plugins like `chaoren/vim-wordmotion`.
+
 
 ## [0.2.0]
 
