@@ -257,20 +257,26 @@ final class UISelectionArrayTests: XCTestCase {
 
     // In Normal mode, only the cursor position is used and a padding is added
     // to form a 1-character block.
-    func testSelectionsForNormalMode() {
-        XCTAssertEqual(
-            [UISelection](
-                mode: .normal,
-                cursor: BufferPosition(line: 2, column: 3),
-                visual: BufferPosition(line: 2, column: 3)
-            ),
-            [
-                UISelection(
-                    start: UIPosition(line: 1, column: 2),
-                    end: UIPosition(line: 1, column: 3)
+    func testSelectionsForNormalModes() {
+        func test(_ mode: Mode) {
+            XCTAssertEqual(
+                [UISelection](
+                    mode: mode,
+                    cursor: BufferPosition(line: 2, column: 3),
+                    visual: BufferPosition(line: 2, column: 3)
                 ),
-            ]
-        )
+                [
+                    UISelection(
+                        start: UIPosition(line: 1, column: 2),
+                        end: UIPosition(line: 1, column: 3)
+                    ),
+                ]
+            )
+        }
+
+        test(.normal)
+        test(.operatorPending)
+        test(.cmdline)
     }
 
     // In Insert or Replace modes, only the cursor position is used for the
@@ -420,7 +426,6 @@ final class UISelectionArrayTests: XCTestCase {
             )
         }
 
-        test(.cmdline)
         test(.hitEnterPrompt)
         test(.shell)
         test(.terminal)
