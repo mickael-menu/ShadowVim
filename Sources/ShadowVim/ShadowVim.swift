@@ -210,6 +210,12 @@ class ShadowVim: ObservableObject {
 
 extension ShadowVim: EventTapDelegate {
     func eventTap(_ tap: EventTap, didReceive event: CGEvent) -> CGEvent? {
+        let keycode = Int(CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode)))
+        let macFnKeyKeycode = 179
+        guard keycode != macFnKeyKeycode else {
+            return event
+        }
+
         guard let inputEvent = InputEvent(event: event, keyResolver: keyResolver) else {
             return nil
         }
