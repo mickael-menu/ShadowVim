@@ -55,6 +55,9 @@ extension InputModifiers {
         if cgFlags.contains(.maskCommand) {
             insert(.command)
         }
+        if cgFlags.contains(.maskSecondaryFn) {
+            insert(.function)
+        }
     }
 
     var cgFlags: CGEventFlags {
@@ -70,6 +73,9 @@ extension InputModifiers {
         }
         if contains(.command) {
             flags.insert(.maskCommand)
+        }
+        if contains(.function) {
+            flags.insert(.maskSecondaryFn)
         }
         return flags
     }

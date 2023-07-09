@@ -45,7 +45,7 @@ extension Value {
                 return try .success(.array(a.map { try Value.from($0).get() }))
             case let .map(m):
                 return try .success(.dict(m.reduce(into: [:]) { d, i in
-                    d[try Value.from(i.key).get()] = try Value.from(i.value).get()
+                    try d[Value.from(i.key).get()] = try Value.from(i.value).get()
                 }))
 
             // MessagePack-RPC extensions as defined in `nvim_get_api_info()`
