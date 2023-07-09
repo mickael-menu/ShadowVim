@@ -53,6 +53,9 @@ public enum Key: String, Hashable {
     case end
     case help
 
+    /// Fn key when pressed on its own.
+    case fn
+
     case a
     case b
     case c

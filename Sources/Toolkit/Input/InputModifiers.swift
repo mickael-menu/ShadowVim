@@ -20,10 +20,11 @@ import Foundation
 
 public struct InputModifiers: OptionSet, Hashable, CustomStringConvertible {
     public static let none = InputModifiers([])
-    public static let shift = InputModifiers(rawValue: 1 << 3)
-    public static let control = InputModifiers(rawValue: 1 << 0)
-    public static let option = InputModifiers(rawValue: 1 << 1)
-    public static let command = InputModifiers(rawValue: 1 << 2)
+    public static let shift = InputModifiers(rawValue: 1 << 0)
+    public static let control = InputModifiers(rawValue: 1 << 1)
+    public static let option = InputModifiers(rawValue: 1 << 2)
+    public static let command = InputModifiers(rawValue: 1 << 3)
+    public static let function = InputModifiers(rawValue: 1 << 4)
 
     public let rawValue: Int
 
@@ -44,6 +45,9 @@ public struct InputModifiers: OptionSet, Hashable, CustomStringConvertible {
         }
         if contains(.shift) {
             desc += "⇧"
+        }
+        if contains(.function) {
+            desc += "Fn"
         }
         return desc
     }

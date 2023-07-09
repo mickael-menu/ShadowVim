@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 * [#50](https://github.com/mickael-menu/ShadowVim/issues/50) Fix issue where the cursor position is not updated when using third-party plugins like `chaoren/vim-wordmotion`.
+* [#56](https://github.com/mickael-menu/ShadowVim/issues/56) Add a passthrough for Fn-based keyboard shortcuts.
 
 
 ## [0.2.0]

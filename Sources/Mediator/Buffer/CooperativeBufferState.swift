@@ -309,8 +309,14 @@ struct CooperativeBufferState: BufferState {
                 }
 
                 let mods = kc.modifiers
-                // Passthrough for ⌘-based keyboard shortcuts.
-                guard !mods.contains(.command) else {
+                // Passthrough for Fn or ⌘-based keyboard shortcuts.
+                guard
+                    !mods.contains(.command),
+                    !mods.contains(.function),
+                    // Fn key pressed on its own.
+                    // See https://github.com/mickael-menu/ShadowVim/issues/56
+                    kc != KeyCombo(.fn)
+                else {
                     break
                 }
 

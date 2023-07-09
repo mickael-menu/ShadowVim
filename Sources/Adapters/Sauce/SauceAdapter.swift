@@ -24,14 +24,25 @@ public final class SauceCGKeyResolver: CGKeyResolver {
 
     public func key(for code: CGKeyCode) -> Toolkit.Key? {
         guard let key = Sauce.shared.key(for: Int(code)) else {
-            return nil
+            switch code {
+            case 179:
+                // The 179/fn key is not handled by Sauce
+                return .fn
+            default:
+                return nil
+            }
         }
         return lookupTo[key]
     }
 
     public func code(for key: Toolkit.Key) -> CGKeyCode? {
         guard let key = lookupFrom[key] else {
-            return nil
+            switch key {
+            case .fn:
+                return 179
+            default:
+                return nil
+            }
         }
         return Sauce.shared.keyCode(for: key)
     }
